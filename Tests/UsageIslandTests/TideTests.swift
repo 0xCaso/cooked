@@ -87,6 +87,45 @@ struct TideTests {
         #expect(wide(spike.heights) <= wide(target) + 1)
     }
 
+    /// Task 4: the open chart keeps moving on a flat history, by less than 0.6 rows, and never into the threshold row.
+    @Test func idleRipplesStaySmall() {
+        let flat = MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000)
+        let tide = TideHistogram()
+        let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
+        var biggest = 0.0, moved = 0
+        for frame in 0...(60 * 30) {
+            let f = tide.frame(flat, at: Double(frame) / 60, urgent: false, still: false)
+            let offset = zip(tide.shownHeights, tide.heights).map { abs($0 - $1) }.max()!
+            biggest = max(biggest, offset)
+            if offset > 0.05 { moved += 1 }
+            for c in 0..<84 { for r in 0...row { #expect(f.level[r * 84 + c] < 0.05) } }
+        }
+        print("idle ripple: biggest \(biggest) rows, moving in \(moved) of 1801 frames")
+        #expect(biggest < 0.6)
+        #expect(moved > 1500) // alive, not a drop now and then
+    }
+
+    /// A column just under the threshold row is never lifted into it by a ripple.
+    @Test func ripplesNeverLiftIntoTheThresholdRow() {
+        let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
+        let line = Double(24 - row)
+        let history = MinuteHistory(values: Array(repeating: 37000, count: 60), top: 64000, threshold: 40000)
+        let tide = TideHistogram()
+        for frame in 0...(60 * 20) {
+            _ = tide.frame(history, at: Double(frame) / 60, urgent: true, still: false)
+            for (shown, h) in zip(tide.shownHeights, tide.heights) { #expect(shown <= max(h, line - 1) + 1e-9) }
+        }
+    }
+
+    @Test func stillHistogramHasNoRipples() {
+        let flat = MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000)
+        let tide = TideHistogram()
+        for frame in 0...600 { _ = tide.frame(flat, at: Double(frame) / 60, urgent: false, still: false) }
+        _ = tide.frame(flat, at: 10.1, urgent: false, still: true)
+        #expect(tide.shownHeights == tide.heights)
+        #expect(tide.heights == TideScale.targets(flat.values, cols: 84, rows: 24, top: 64000))
+    }
+
     @Test func histogramIsRedOnlyAboveTheThresholdWhenUrgent() {
         let history = MinuteHistory(values: Array(repeating: 64000, count: 60), top: 64000, threshold: 40000)
         let urgent = TideHistogram().frame(history, at: 0, urgent: true, still: true)

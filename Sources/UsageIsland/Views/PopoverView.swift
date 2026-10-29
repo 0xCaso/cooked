@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The popover under the island: tokens per minute over the last hour, the 5h window of every account, the week.
+/// The popover under the island: tokens per minute over the last hour, the 5h window and week of every account.
 /// Glass outside, opaque cards and wells inside, so the data never sits on glass.
 struct PopoverView: View {
     let model: IslandModel
@@ -16,17 +16,21 @@ struct PopoverView: View {
     var body: some View {
         let s = model.snapshot
         VStack(alignment: .leading, spacing: 0) {
-            section("Tokens per minute", "last 60 min")
+            Text("Tokens per minute")
+                .textStyle(.label)
+                .foregroundStyle(sectionInk)
                 .padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             rateCard(s)
             accountsHeader
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
-            Text("\(Text("Week: \(s.week.short) "))\(Text("\(s.week.percent)%").styled(.labelNumber)) · resets \(s.week.reset)")
-                .styled(.label)
-                .foregroundStyle(sectionInk)
-                .frame(height: TextStyle.label.lineHeight)
-                .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
+            if !s.unused.isEmpty {
+                Text(Self.unusedLine(s.unused))
+                    .textStyle(.label)
+                    .foregroundStyle(sectionInk)
+                    .lineLimit(1)
+                    .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
+            }
         }
         .padding(8)
         .frame(width: IslandLayout.popoverWidth)
@@ -34,14 +38,9 @@ struct PopoverView: View {
                                 glassID: "popover", namespace: namespace))
     }
 
-    private func section(_ title: String, _ trailing: String) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(trailing)
-        }
-        .textStyle(.label)
-        .foregroundStyle(sectionInk)
+    /// "side, codex · not used today": the folded accounts, still in view.
+    static func unusedLine(_ accounts: [Account]) -> String {
+        "\(accounts.map(\.short).joined(separator: ", ")) · not used today"
     }
 
     /// The section label, with the two time columns of the rows below as headings.
@@ -51,6 +50,7 @@ struct PopoverView: View {
             Spacer(minLength: 0)
             Text("full at").frame(width: Self.timeColumn, alignment: .trailing)
             Text("resets").frame(width: Self.timeColumn, alignment: .trailing)
+            Text("week").frame(width: Self.percentColumn, alignment: .trailing)
         }
         .lineLimit(1)
         .textStyle(.label)
@@ -59,8 +59,11 @@ struct PopoverView: View {
 
     /// Width of the "full at" and "resets" columns: "00:00" in Plex Mono 13 is 39 pt.
     static let timeColumn: CGFloat = 40
-    /// Row: name 64 + bar 146 + percent 36 + two times 80 + 4 gaps of 8 = 358 of the card's 364 pt.
-    static let rowSpacing: CGFloat = 8
+    /// Width of the 5h and week % columns: "100%" in Plex Mono 13 is 31.2 pt.
+    static let percentColumn: CGFloat = 32
+    static let nameColumn: CGFloat = 60
+    /// Row: name 60 + bar 126 + two % 64 + two times 80 + 5 gaps of 6 = 360 of the card's 364 pt.
+    static let rowSpacing: CGFloat = 6
 
     private func rateCard(_ s: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -71,7 +74,7 @@ struct PopoverView: View {
                     .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
                 Text("now").textStyle(.body).foregroundStyle(Palette.ink2)
                 Spacer(minLength: 0)
-                Text("\(Text("p99 threshold · "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
+                Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
                     .styled(.label)
                     .foregroundStyle(Palette.ink3)
                     .frame(height: TextStyle.label.lineHeight)
@@ -98,7 +101,7 @@ struct PopoverView: View {
 
     private func accountsCard(_ s: UsageSnapshot) -> some View {
         VStack(spacing: 0) {
-            ForEach(Array(s.accounts.enumerated()), id: \.element.id) { i, a in
+            ForEach(Array(s.rows.enumerated()), id: \.element.id) { i, a in
                 accountRow(a, hot: s.isUrgent && a.id == s.activeID)
                     .overlay(alignment: .top) {
                         if i > 0 { Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -0.25) }
@@ -114,20 +117,32 @@ struct PopoverView: View {
         return HStack(spacing: Self.rowSpacing) {
             Text(a.short).textStyle(a.isLive ? .emphasis : .body)
                 .foregroundStyle(ink)
-                .frame(width: 64, alignment: .leading)
-            AccountBarChart(percent: a.fiveHourPercent, hot: hot)
-                .padding(3)
-                .wellSurface(RoundedRectangle(cornerRadius: 6, style: .continuous), innerBlur: 2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("\(a.fiveHourPercent)%").textStyle(a.isLive ? .numberEmphasis : .number)
-                .foregroundStyle(hot ? Palette.red : ink)
-                .frame(width: 36, alignment: .trailing)
-            Text(a.fullAt ?? "—").textStyle(.number)
-                .foregroundStyle(a.fullAt == nil ? Palette.ink3 : hot ? Palette.red : ink)
-                .frame(width: Self.timeColumn, alignment: .trailing)
-            Text(a.fiveHourReset).textStyle(.number)
-                .foregroundStyle(Palette.ink3)
-                .frame(width: Self.timeColumn, alignment: .trailing)
+                .frame(width: Self.nameColumn, alignment: .leading)
+            if a.isBlocked {
+                // the bar would be full and "full at" would say "now": the reset is what matters
+                Text("\(Text("blocked until "))\(Text(a.fiveHourReset).styled(a.isLive ? .numberEmphasis : .number))")
+                    .styled(a.isLive ? .emphasis : .body)
+                    .foregroundStyle(hot ? Palette.red : ink)
+                    .frame(height: TextStyle.body.lineHeight)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                AccountBarChart(percent: a.fiveHourPercent, hot: hot)
+                    .padding(3)
+                    .wellSurface(RoundedRectangle(cornerRadius: 6, style: .continuous), innerBlur: 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(a.fiveHourPercent)%").textStyle(a.isLive ? .numberEmphasis : .number)
+                    .foregroundStyle(hot ? Palette.red : ink)
+                    .frame(width: Self.percentColumn, alignment: .trailing)
+                Text(a.fullAt ?? "").textStyle(.number)
+                    .foregroundStyle(hot ? Palette.red : ink)
+                    .frame(width: Self.timeColumn, alignment: .trailing)
+                Text(a.fiveHourReset).textStyle(.number)
+                    .foregroundStyle(Palette.ink3)
+                    .frame(width: Self.timeColumn, alignment: .trailing)
+            }
+            Text(a.weekPercent.map { "\($0)%" } ?? "").textStyle(.number)
+                .foregroundStyle(ink)
+                .frame(width: Self.percentColumn, alignment: .trailing)
         }
         .lineLimit(1)
         .frame(height: 30)

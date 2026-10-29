@@ -24,7 +24,10 @@ struct DemoDataTests {
         #expect(s.series.count == 60)
         #expect(s.urgency == nil)
         #expect(!s.isUrgent)
-        #expect(s.week == WeekLine(short: "work", percent: 74, reset: "Thu 00:00"))
+        #expect(s.accounts.map(\.weekPercent) == [74, 22, nil, 41, 9])
+        // personal is folded into the "not used today" line
+        #expect(s.rows.map(\.short) == ["work", "team", "side", "codex"])
+        #expect(s.unused.map(\.short) == ["personal"])
     }
 
     @Test func peakSnapshot() {
@@ -35,7 +38,8 @@ struct DemoDataTests {
         #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "04:40", "02:40", "01:55", "03:10"])
         #expect(s.accounts.map(\.isLive) == [true, false, true, false, false])
         #expect(s.rateNow == 184_000)
-        #expect(s.week.percent == 79)
+        #expect(s.accounts.map(\.weekPercent) == [79, 23, 64, 41, 10])
+        #expect(s.unused.isEmpty)
         #expect(s.urgency == Urgency(
             percent: 82, fullAt: "23:14", detail: "claude-work · in 9 min",
             source: "184k/min from “Refactor usage page”", switchLabel: "Switch to side · 12%"))

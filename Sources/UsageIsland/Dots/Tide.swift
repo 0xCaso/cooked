@@ -176,16 +176,26 @@ final class TideIsland {
 }
 
 /// The popover's 60 minutes as a liquid: when a minute closes the targets jump, and the surface flows into its
-/// new shape.
+/// new shape. Small drops keep it alive while nothing changes, like the island: they fall on a separate ripple layer,
+/// added to the data's heights only when drawn, so the data's columns stay where the minutes put them.
 final class TideHistogram {
     static let cols = 84, rows = 24
+    /// Drops per second, whatever the data.
+    static let dropRate = 2.4
+    /// The ripples never move a column further than this, in rows.
+    static let maxRipple = 0.55
 
     private var water = Water(cols: cols, k: 120, c: 110, d: 9)
+    private var ripple = Water(cols: cols, k: 30, c: 900, d: 5)
     private var stepper = FixedStepper()
     private var target: [Double] = []
     private var primed = false
+    private var drip = 0.0
+    private var seed: UInt64 = 5
     private(set) var thresholdRow = 0
     private(set) var field = LiquidField(cols: cols, rows: rows)
+    /// For tests: the column heights in rows as drawn, ripples included.
+    private(set) var shownHeights: [Double] = Array(repeating: 0, count: cols)
 
     func frame(_ history: MinuteHistory, at t: Double, urgent: Bool, still: Bool) -> LiquidField {
         target = TideScale.targets(history.values, cols: Self.cols, rows: Self.rows, top: history.top)
@@ -193,14 +203,40 @@ final class TideHistogram {
         if still || !primed {
             water.height = target
             water.velocity = Array(repeating: 0, count: Self.cols)
+            ripple = Water(cols: Self.cols, k: ripple.k, c: ripple.c, d: ripple.d)
             primed = true
             stepper.advance(to: t) { _ in }
         } else {
-            stepper.advance(to: t) { water.step($0, target: target) }
+            stepper.advance(to: t, step)
         }
         let line = Double(Self.rows - thresholdRow)
-        field.pour(water, hotRow: thresholdRow, urgent: urgent, still: still, reaches: target.map { $0 > line })
+        var shown = water
+        for c in 0..<Self.cols {
+            let h = water.height[c]
+            let r = min(Self.maxRipple, max(-Self.maxRipple, ripple.height[c]))
+            // a ripple never lifts a column into the threshold row, and never below the floor
+            shown.height[c] = max(0, r > 0 ? min(h + r, max(h, line - 1)) : h + r)
+            shown.velocity[c] += ripple.velocity[c] * 0.1
+        }
+        shownHeights = shown.height
+        field.pour(shown, hotRow: thresholdRow, urgent: urgent, still: still, reaches: target.map { $0 > line })
         return field
+    }
+
+    private func step(_ dt: Double) {
+        water.step(dt, target: target)
+        drip += dt * Self.dropRate
+        while drip > 1 {
+            drip -= 1
+            ripple.velocity[min(Self.cols - 1, Int(random() * Double(Self.cols)))] -= 8 + 6 * random()
+        }
+        ripple.step(dt, target: Array(repeating: 0, count: Self.cols))
+    }
+
+    /// Park–Miller, like the island: the same drops on every run.
+    private func random() -> Double {
+        seed = (seed * 16807) % 2_147_483_647
+        return Double(seed) / 2_147_483_647
     }
 
     /// For tests: the column heights in rows.

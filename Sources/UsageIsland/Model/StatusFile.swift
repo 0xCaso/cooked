@@ -20,6 +20,8 @@ struct StatusFile: Decodable, Equatable {
         var sevenDayResetsAt: String?
         /// "allowed", "allowed_warning", or a state that means the limit is hit.
         var limitStatus: String?
+        /// "HH:MM" today, or "dd/mm HH:MM": the account's last event.
+        var lastEventAt: String?
         var live: Bool?
         var projection: Projection?
         /// Set when the 5h window has already reset and no new data came in.
@@ -30,7 +32,7 @@ struct StatusFile: Decodable, Equatable {
             case tokensFresh = "tokens_fresh", spikeThreshold15m = "spike_threshold_15m"
             case fiveHourPct = "five_hour_pct", fiveHourResetsAt = "five_hour_resets_at"
             case sevenDayPct = "seven_day_pct", sevenDayResetsAt = "seven_day_resets_at"
-            case limitStatus = "limit_status"
+            case limitStatus = "limit_status", lastEventAt = "last_event_at"
         }
     }
 

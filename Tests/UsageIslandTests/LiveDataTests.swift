@@ -81,7 +81,8 @@ struct LiveDataTests {
         // only accounts with 5h data, work first
         #expect(s.accounts.map(\.short) == ["work", "personal"])
         #expect(s.accounts[0] == Account(id: "claudeAgent_work", short: "work", fiveHourPercent: 48, fiveHourReset: "19:00", isLive: true,
-                                       fullAt: "18:04"))
+                                       fullAt: "18:04", weekPercent: 87))
+        #expect(s.accounts[1].weekPercent == 81)
         // both live: work burned more in the last 15 min (250k vs 204k)
         #expect(s.activeID == "claudeAgent_work")
         #expect(s.rateNow == (4189 + 27004) / 5) // the chart's last 5 minutes
@@ -92,7 +93,6 @@ struct LiveDataTests {
         #expect(s.series[0] == 100) // minute − 60 is outside the hour
         #expect(s.clock == "15:25")
         #expect(s.historyStart == "14:26")
-        #expect(s.week == WeekLine(short: "work", percent: 87, reset: "Fri 00:00"))
         // 18:04 is 158 min away: not urgent
         #expect(s.urgency == nil)
     }
@@ -169,6 +169,86 @@ struct LiveDataTests {
         #expect(s.accounts.map(\.fullAt) == [nil, "now"])
         let withProjection = try #require(LiveSnapshot.make(status: try status(), minutes: .init(), now: now, calendar: calendar))
         #expect(withProjection.accounts[0].fullAt == "18:04")
+    }
+
+    /// A projection after the reset says nothing: the row leaves "full at" empty.
+    @Test func fullAtOnlyBeforeTheReset() throws {
+        let late = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "30 min", eta: "19:30") }
+        #expect(LiveSnapshot.make(status: late, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
+        let atReset = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "30 min", eta: "19:00") }
+        #expect(LiveSnapshot.make(status: atReset, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
+    }
+
+    /// `limit_status` "rejected": "blocked until" the 5h reset, no "full at".
+    @Test func rejectedAccountIsBlockedUntilTheReset() throws {
+        let st = try status {
+            $0.accounts["claudeAgent"]?.fiveHourPct = 103
+            $0.accounts["claudeAgent"]?.limitStatus = "rejected"
+            $0.accounts["claudeAgent"]?.live = false
+            $0.accounts["claudeAgent"]?.lastEventAt = "13:42"
+        }
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let personal = s.accounts[1]
+        #expect(personal.isBlocked)
+        #expect(personal.fiveHourReset == "20:20")
+        #expect(personal.fullAt == nil)
+        #expect(!personal.isUnused)
+        #expect(personal.weekPercent == 81)
+        #expect(!s.accounts[0].isBlocked)
+        // a stale window is not blocked any more
+        let stale = try status {
+            $0.accounts["claudeAgent"]?.limitStatus = "rejected"
+            $0.accounts["claudeAgent"]?.note = "5h window already reset, no new data"
+        }
+        #expect(LiveSnapshot.make(status: stale, minutes: .init(), now: now, calendar: calendar)?.accounts[1].isBlocked == false)
+    }
+
+    /// No event in the last 5 hours: the account folds into the "not used today" line.
+    @Test func unusedAccountsFold() throws {
+        let st = try status {
+            $0.accounts["codex"]?.fiveHourPct = 35
+            $0.accounts["codex"]?.fiveHourResetsAt = "24/10 03:55"
+            $0.accounts["codex"]?.sevenDayPct = 6
+            $0.accounts["codex"]?.sevenDayResetsAt = "30/10 21:55"
+            $0.accounts["codex"]?.lastEventAt = "24/10 00:52"
+            $0.accounts["codex"]?.note = "5h window already reset, no new data"
+            $0.accounts["claudeAgent"]?.lastEventAt = "10:26" // 4 h 59 min ago: still used today
+        }
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        #expect(s.rows.map(\.short) == ["work", "personal"])
+        #expect(s.unused.map(\.short) == ["codex"])
+        #expect(s.unused[0].weekPercent == 6)
+        #expect(PopoverView.unusedLine(s.unused) == "codex · not used today")
+
+        let old = try status { $0.accounts["claudeAgent"]?.lastEventAt = "10:20" }
+        #expect(LiveSnapshot.make(status: old, minutes: .init(), now: now, calendar: calendar)?.unused.map(\.short) == ["personal"])
+        // without a last event: not live and no tokens in the last 15 minutes
+        let quiet = try status {
+            $0.accounts["claudeAgent"]?.lastEventAt = nil
+            $0.accounts["claudeAgent"]?.live = false
+            $0.accounts["claudeAgent"]?.tokensFresh = ["15m": 0]
+        }
+        #expect(LiveSnapshot.make(status: quiet, minutes: .init(), now: now, calendar: calendar)?.unused.map(\.short) == ["personal"])
+        let busy = try status {
+            $0.accounts["claudeAgent"]?.lastEventAt = nil
+            $0.accounts["claudeAgent"]?.live = false
+        }
+        #expect(LiveSnapshot.make(status: busy, minutes: .init(), now: now, calendar: calendar)?.unused.isEmpty == true)
+    }
+
+    /// The account the island shows always keeps its row.
+    @Test func activeAccountNeverFolds() throws {
+        let st = try status {
+            for id in ["claudeAgent", "claudeAgent_work"] { $0.accounts[id]?.lastEventAt = "01/10 10:00" }
+        }
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        #expect(s.rows.map(\.id) == [s.activeID])
+    }
+
+    /// A week that reset with no new data shows no week %.
+    @Test func staleWeekHasNoPercent() throws {
+        let st = try status { $0.accounts["claudeAgent"]?.sevenDayResetsAt = "16/10 16:00" }
+        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar)?.accounts[1].weekPercent == nil)
     }
 
     @Test func shortNames() {

@@ -146,12 +146,12 @@ struct TideHistogramChart: View {
     }
 }
 
-/// One account's 5h bar: 20 dots, pitch 7, radius 1.9.
+/// One account's 5h bar: 20 dots, pitch 6, radius 1.65 (120 pt, so the row has room for the week).
 struct AccountBarChart: View {
     let percent: Int
     let hot: Bool
 
     var body: some View {
-        DotMatrix(grid: AccountBar.grid(percent: percent, hot: hot), pitch: 7, radius: 1.9, floor: { _ in 0.1 })
+        DotMatrix(grid: AccountBar.grid(percent: percent, hot: hot), pitch: 6, radius: 1.65, floor: { _ in 0.1 })
     }
 }

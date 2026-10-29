@@ -15,6 +15,8 @@ enum LiveSnapshot {
     static let okStates: Set<String> = ["allowed", "allowed_warning", "?"]
     /// An account with more headroom than this is worth switching to (the watcher's 75%).
     static let switchBelowPercent = 75
+    /// An account with no event for this long folds into the "not used today" line.
+    static let unusedAfter: TimeInterval = 5 * 3600
 
     static func short(id: String, name: String) -> String {
         shortNames[id] ?? name.lowercased().replacingOccurrences(of: "claude-", with: "")
@@ -43,16 +45,38 @@ enum LiveSnapshot {
             entry(id).projection.flatMap { WatcherTime.parse($0.eta, now: now, calendar: calendar) }
         }
 
-        let accounts = ids.map { id in
+        func resetDate(_ id: String) -> Date? {
+            entry(id).fiveHourResetsAt.flatMap { WatcherTime.parse($0, now: now, calendar: calendar) }
+        }
+        func blocked(_ id: String) -> Bool { !stale(id) && entry(id).limitStatus == "rejected" }
+        /// Shown only when it lands before the reset: the watcher means it so, and a later time says nothing.
+        func fullAt(_ id: String) -> String? {
+            if stale(id) || blocked(id) { return nil }
+            if percent(id) >= 100 { return "now" }
+            guard let eta = eta(id) else { return nil }
+            if let reset = resetDate(id), eta >= reset { return nil }
+            return clock(eta, calendar)
+        }
+        /// nil once the week has reset with no new data.
+        func weekPercent(_ id: String) -> Int? {
+            let reset = entry(id).sevenDayResetsAt.flatMap { WatcherTime.parse($0, now: now, calendar: calendar) }
+            if let reset, reset <= now { return nil }
+            return entry(id).sevenDayPct
+        }
+        /// No event in the last 5 hours; without a last event, not live and no tokens in the last 15 minutes.
+        func unused(_ id: String) -> Bool {
+            if blocked(id) { return false }
+            if let last = entry(id).lastEventAt.flatMap({ WatcherTime.parse($0, now: now, calendar: calendar) }) {
+                return now.timeIntervalSince(last) > unusedAfter
+            }
+            return entry(id).live != true && recent(id) == 0
+        }
+
+        var accounts = ids.map { id in
             Account(id: id, short: short(id: id, name: entry(id).name), fiveHourPercent: percent(id),
                     fiveHourReset: stale(id) ? "—" : clockPart(entry(id).fiveHourResetsAt) ?? "—",
-                    isLive: entry(id).live ?? false, fullAt: fullAt(id))
-        }
-        /// The watcher only writes a projection when it lands before the reset.
-        func fullAt(_ id: String) -> String? {
-            if stale(id) { return nil }
-            if percent(id) >= 100 { return "now" }
-            return eta(id).map { clock($0, calendar) }
+                    isLive: entry(id).live ?? false, fullAt: fullAt(id), weekPercent: weekPercent(id),
+                    isBlocked: blocked(id), isUnused: unused(id))
         }
 
         func isUrgent(_ id: String) -> Bool {
@@ -66,8 +90,8 @@ enum LiveSnapshot {
         let urgentID = ids.filter(isUrgent).max { percent($0) < percent($1) }
         let liveIDs = ids.filter { entry($0).live == true }
         let activeID = urgentID ?? (liveIDs.isEmpty ? ids : liveIDs).max { recent($0) < recent($1) } ?? ids[0]
-        let active = entry(activeID)
-        let short = short(id: activeID, name: active.name)
+        // the active account always keeps its row
+        if let i = accounts.firstIndex(where: { $0.id == activeID }) { accounts[i].isUnused = false }
 
         let urgency = urgentID.map { id -> Urgency in
             let fullAt = eta(id)
@@ -87,7 +111,6 @@ enum LiveSnapshot {
                     ?? "Pause the task")
         }
 
-        let weekReset = active.sevenDayResetsAt.flatMap { WatcherTime.parse($0, now: now, calendar: calendar) }
         return UsageSnapshot(
             clock: clock(now, calendar),
             historyStart: clock(now.addingTimeInterval(-Double(historyMinutes - 1) * 60), calendar),
@@ -96,8 +119,6 @@ enum LiveSnapshot {
             rateNow: Int(rate(activeID)),
             threshold: threshold(activeID),
             series: series(activeID),
-            week: WeekLine(short: short, percent: active.sevenDayPct ?? 0,
-                           reset: weekReset.map { weekday($0, calendar) } ?? "—"),
             urgency: urgency)
     }
 
@@ -109,11 +130,5 @@ enum LiveSnapshot {
     static func clock(_ d: Date, _ calendar: Calendar) -> String {
         let c = calendar.dateComponents([.hour, .minute], from: d)
         return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
-    }
-
-    /// "Fri 00:00", in English like the rest of the UI.
-    static func weekday(_ d: Date, _ calendar: Calendar) -> String {
-        let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        return "\(names[calendar.component(.weekday, from: d) - 1]) \(clock(d, calendar))"
     }
 }

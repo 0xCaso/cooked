@@ -6,8 +6,14 @@ struct Account: Identifiable, Equatable {
     let fiveHourReset: String
     let isLive: Bool
     /// When the watcher expects the 5h window to reach 100%, before it resets: "HH:MM", or "now" at 100% and over.
-    /// nil when it is not expected to fill up.
+    /// nil when it is not expected to fill up before the reset, or when the account is blocked.
     var fullAt: String? = nil
+    /// The week's %, nil when the week has already reset and no new data came in.
+    var weekPercent: Int? = nil
+    /// The limit is hit (`limit_status` "rejected"): blocked until `fiveHourReset`.
+    var isBlocked = false
+    /// No event in the last 5 hours: folded into one line under the rows.
+    var isUnused = false
 }
 
 /// The spike line of the urgent island: when the 5h window fills up and what to do.
@@ -19,25 +25,22 @@ struct Urgency: Equatable {
     let switchLabel: String
 }
 
-struct WeekLine: Equatable {
-    let short: String
-    let percent: Int
-    let reset: String
-}
-
 struct UsageSnapshot: Equatable {
     let clock: String
     let historyStart: String
-    let accounts: [Account]
+    var accounts: [Account]
     let activeID: String
     let rateNow: Int
     /// p99 threshold of the active account, tokens per minute.
     let threshold: Int
     /// Tokens per minute over the last 60 minutes, oldest first.
     let series: [Double]
-    let week: WeekLine
     let urgency: Urgency?
 
     var isUrgent: Bool { urgency != nil }
     var active: Account? { accounts.first { $0.id == activeID } }
+    /// The accounts with a full row, in display order.
+    var rows: [Account] { accounts.filter { !$0.isUnused } }
+    /// The accounts not used in the last 5 hours, in display order.
+    var unused: [Account] { accounts.filter(\.isUnused) }
 }
