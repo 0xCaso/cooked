@@ -13,6 +13,39 @@ final class TranscriptLog: @unchecked Sendable {
         var offset: UInt64 = 0
         /// Message id → (minute, new tokens). A message is written once per content block, with the same usage.
         var messages: [String: (minute: Int, tokens: Double)] = [:]
+        /// The working directory of the last call: the source's project.
+        var cwd: String?
+    }
+
+    /// One Claude session in the last 15 minutes: its own calls and its subagents' calls, which run in files of their own.
+    struct Session: Equatable {
+        let account: String
+        /// The session id, the transcript's file name; T3 Code keeps it as the thread's `nativeThreadRef.nativeId`.
+        let id: String
+        var cwd: String?
+        /// New tokens in the last 15 minutes, subagents included.
+        var tokens: Double
+        /// The session itself made a call in the last 5 minutes.
+        var mainActive: Bool
+        /// Subagents with a call in the last 5 minutes.
+        var activeSubagents: Int
+    }
+
+    struct Reading {
+        /// Account id → minute → new tokens.
+        var minutes: [String: [Int: Double]] = [:]
+        /// Sessions with tokens in the last 15 minutes, most tokens first.
+        var sessions: [Session] = []
+        subscript(id: String) -> [Int: Double]? { minutes[id] }
+    }
+
+    /// `<projects>/<dir>/<session>.jsonl` → (session, false); `<projects>/<dir>/<session>/subagents/agent-x.jsonl` → (session, true).
+    static func session(of url: URL) -> (id: String, isSubagent: Bool) {
+        let parent = url.deletingLastPathComponent()
+        if parent.lastPathComponent == "subagents" {
+            return (parent.deletingLastPathComponent().lastPathComponent, true)
+        }
+        return (url.deletingPathExtension().lastPathComponent, false)
     }
 
     private let lock = NSLock()
@@ -30,15 +63,16 @@ final class TranscriptLog: @unchecked Sendable {
         return home + "/.claude" + suffix
     }
 
-    /// Account id → minute → new tokens, for the `minutes` minutes up to `now`. Accounts without a transcript
-    /// directory are left out, so the caller keeps its other source for them.
-    func read(now: Date, minutes: Int = 60) -> [String: [Int: Double]] {
+    /// Account id → minute → new tokens, for the `minutes` minutes up to `now`, and the sessions of the last 15
+    /// minutes. Accounts without a transcript directory are left out, so the caller keeps its other source for them.
+    func read(now: Date, minutes: Int = 60) -> Reading {
         lock.lock()
         defer { lock.unlock() }
         let minuteNow = Int(now.timeIntervalSince1970) / 60
         let first = minuteNow - minutes + 1
         let since = now.addingTimeInterval(-Double(minutes + 1) * 60)
-        var out: [String: [Int: Double]] = [:]
+        var out = Reading()
+        var sessions: [String: Session] = [:]
         var seen = Set<String>()
         for (id, dir) in dirs {
             let root = URL(fileURLWithPath: dir + "/projects")
@@ -53,15 +87,28 @@ final class TranscriptLog: @unchecked Sendable {
                 seen.insert(url.path)
                 var file = files[url.path] ?? File(offset: Self.start(of: url, after: since))
                 Self.readNew(url, into: &file)
+                var recent = 0.0, active = false
                 for (minute, tokens) in file.messages.values where minute >= first && minute <= minuteNow {
                     account[minute, default: 0] += tokens
+                    if minute > minuteNow - 15 { recent += tokens }
+                    if minute > minuteNow - 5 { active = true }
+                }
+                if recent > 0 {
+                    let (sid, isSub) = Self.session(of: url)
+                    var s = sessions[sid] ?? Session(account: id, id: sid, cwd: nil, tokens: 0, mainActive: false, activeSubagents: 0)
+                    s.tokens += recent
+                    if isSub { s.activeSubagents += active ? 1 : 0 } else { s.mainActive = active }
+                    // a subagent may run in another folder: the session's own cwd wins
+                    if !isSub || s.cwd == nil { s.cwd = file.cwd ?? s.cwd }
+                    sessions[sid] = s
                 }
                 file.messages = file.messages.filter { $0.value.minute >= first }
                 files[url.path] = file
             }
-            out[id] = account
+            out.minutes[id] = account
         }
         files = files.filter { seen.contains($0.key) }
+        out.sessions = sessions.values.sorted { ($0.tokens, $0.id) > ($1.tokens, $1.id) }
         return out
     }
 
@@ -95,7 +142,10 @@ final class TranscriptLog: @unchecked Sendable {
         guard end > file.offset, (try? handle.seek(toOffset: file.offset)) != nil,
               let data = try? handle.readToEnd(), let last = data.lastIndex(of: UInt8(ascii: "\n")) else { return }
         for line in data[data.startIndex...last].split(separator: UInt8(ascii: "\n")) {
-            if let (id, minute, tokens) = parse(Data(line)) { file.messages[id] = (minute, tokens) }
+            if let call = parse(Data(line)) {
+                file.messages[call.id] = (call.minute, call.tokens)
+                if let cwd = call.cwd { file.cwd = cwd }
+            }
         }
         file.offset += UInt64(last - data.startIndex + 1)
     }
@@ -113,18 +163,19 @@ final class TranscriptLog: @unchecked Sendable {
         let type: String?
         let timestamp: String?
         let requestId: String?
+        let cwd: String?
         let message: Message?
     }
 
-    /// One transcript line → (message id, minute, new tokens), or nil when it is not an assistant call.
-    static func parse(_ line: Data) -> (String, Int, Double)? {
+    /// One transcript line → the call, or nil when it is not an assistant call.
+    static func parse(_ line: Data) -> (id: String, minute: Int, tokens: Double, cwd: String?)? {
         // most lines are tool output: skip them before decoding
         guard line.range(of: Data(#""usage""#.utf8)) != nil,
               let l = try? JSONDecoder().decode(Line.self, from: line), l.type == "assistant",
               let u = l.message?.usage, let stamp = l.timestamp, let at = iso.date(from: stamp) else { return nil }
         let id = l.message?.id ?? l.requestId ?? stamp
         let tokens = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.output_tokens ?? 0)
-        return (id, Int(at.timeIntervalSince1970) / 60, tokens)
+        return (id, Int(at.timeIntervalSince1970) / 60, tokens, l.cwd)
     }
 
     private nonisolated(unsafe) static let iso: ISO8601DateFormatter = {

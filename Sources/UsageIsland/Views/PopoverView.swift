@@ -21,6 +21,18 @@ struct PopoverView: View {
                 .foregroundStyle(sectionInk)
                 .padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             rateCard(s)
+            if !s.sources.isEmpty {
+                HStack {
+                    Text("What burns tokens")
+                    Spacer(minLength: 0)
+                    Text("last 15 min")
+                }
+                .lineLimit(1)
+                .textStyle(.label)
+                .foregroundStyle(sectionInk)
+                .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
+                sourcesCard(s.sources)
+            }
             accountsHeader
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
@@ -99,6 +111,19 @@ struct PopoverView: View {
         .cardSurface()
     }
 
+    private func sourcesCard(_ sources: [TokenSource]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
+                SourceRow(source: source)
+                    .overlay(alignment: .top) {
+                        if i > 0 { Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -0.25) }
+                    }
+            }
+        }
+        .padding(.horizontal, 12)
+        .cardSurface()
+    }
+
     private func accountsCard(_ s: UsageSnapshot) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(s.rows.enumerated()), id: \.element.id) { i, a in
@@ -146,5 +171,46 @@ struct PopoverView: View {
         }
         .lineLimit(1)
         .frame(height: 30)
+    }
+}
+
+/// One source: project and tokens/min, then the thread and who works on it. A click opens its T3 Code thread;
+/// on hover the agent count gives way to the hint.
+private struct SourceRow: View {
+    let source: TokenSource
+    @State private var hovering = false
+
+    var body: some View {
+        Button { T3Code.open(thread: source.threadID) } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(source.project).textStyle(.emphasis).foregroundStyle(Palette.ink)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 0)
+                    Text("\(Text(TokenFormat.short(source.rate)).styled(.number))\(Text("/min").styled(.number).foregroundStyle(Palette.ink3))")
+                        .foregroundStyle(Palette.ink)
+                        .layoutPriority(1)
+                }
+                HStack(spacing: 8) {
+                    Text(source.detail).textStyle(.body).foregroundStyle(Palette.ink2)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                    Group {
+                        if hovering { Text(source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗").foregroundStyle(Palette.ink) }
+                        else if let agents = source.agents { Text(agents).foregroundStyle(Palette.ink2) }
+                    }
+                    .textStyle(.body)
+                    .layoutPriority(1)
+                }
+            }
+            .lineLimit(1)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerStyle(.link)
+        .onHover { hovering = $0 }
+        .accessibilityLabel("\(source.project), \(TokenFormat.short(source.rate)) per minute, \(source.detail)")
+        .accessibilityHint(source.threadID == nil ? "Opens T3 Code" : "Opens the thread in T3 Code")
     }
 }

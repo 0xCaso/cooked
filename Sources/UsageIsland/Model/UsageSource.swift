@@ -36,12 +36,17 @@ struct UsageSource: Sendable {
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? now
         guard now.timeIntervalSince(modified) < Self.staleAfter else { return .failure(.watcherStopped) }
         // Without the database the island still has the percentages; only the histogram stays empty.
-        var minutes = (try? TokenLog(path: databasePath).read(now: now, running: running)) ?? TokenLog.Minutes()
+        let log = TokenLog(path: databasePath)
+        var minutes = (try? log.read(now: now, running: running)) ?? TokenLog.Minutes()
         // The transcripts have every call of the Claude accounts, subagents included: they replace the database there.
-        for (id, perMinute) in transcripts?.read(now: now) ?? [:] { minutes.byAccount[id] = perMinute }
-        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now) else {
+        let calls = transcripts?.read(now: now) ?? TranscriptLog.Reading()
+        for (id, perMinute) in calls.minutes { minutes.byAccount[id] = perMinute }
+        guard var snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now) else {
             return .failure(.noAccounts)
         }
+        snapshot.sources = TokenSources.make(
+            sessions: calls.sessions, threads: (try? log.threads(sessions: calls.sessions.map(\.id))) ?? [:],
+            recent: minutes.recentThreads, transcriptAccounts: Set(calls.minutes.keys))
         return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60))
     }
 }

@@ -38,6 +38,8 @@ struct UsageSnapshot: Equatable {
     /// Tokens per minute over the last 60 minutes, oldest first.
     let series: [Double]
     var urgency: Urgency?
+    /// "What burns tokens": the top sources of the last 15 minutes, empty when idle.
+    var sources: [TokenSource] = []
 
     var isUrgent: Bool { urgency != nil }
     var active: Account? { accounts.first { $0.id == activeID } }

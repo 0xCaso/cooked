@@ -288,13 +288,17 @@ struct TokenLogTests {
             CREATE TABLE orchestration_v2_projection_provider_turns (provider_turn_id TEXT PRIMARY KEY, thread_id TEXT,
               provider_thread_id TEXT, started_at TEXT, completed_at TEXT, payload_json TEXT);
             CREATE TABLE orchestration_v2_projection_provider_threads (provider_thread_id TEXT PRIMARY KEY, provider TEXT,
-              provider_instance_id TEXT);
-            CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, title TEXT);
+              provider_instance_id TEXT, thread_id TEXT, payload_json TEXT);
+            CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, title TEXT, project_id TEXT);
+            CREATE TABLE projection_projects (project_id TEXT PRIMARY KEY, title TEXT);
+            INSERT INTO projection_projects VALUES ('p-brain', 'garden-notes'), ('p-none', 'No project');
             """
         for (i, t) in turns.enumerated() {
             sql += """
-                INSERT OR IGNORE INTO orchestration_v2_projection_provider_threads VALUES ('pt-\(t.thread)', 'claudeAgent', '\(t.instance)');
-                INSERT OR IGNORE INTO orchestration_v2_projection_threads VALUES ('\(t.thread)', 'Thread \(t.thread)');
+                INSERT OR IGNORE INTO orchestration_v2_projection_provider_threads VALUES ('pt-\(t.thread)', 'claudeAgent', '\(t.instance)',
+                  '\(t.thread)', '{"nativeThreadRef":{"nativeId":"session-\(t.thread)"}}');
+                INSERT OR IGNORE INTO orchestration_v2_projection_threads VALUES ('\(t.thread)', 'Thread \(t.thread)',
+                  '\(t.thread == "c" ? "p-none" : "p-brain")');
                 INSERT INTO orchestration_v2_projection_provider_turns VALUES ('turn-\(i)', '\(t.thread)', 'pt-\(t.thread)',
                   \(started[i].map { "'\($0)'" } ?? "NULL"), '\(t.completed)',
                   '{"turnTokenUsage":{"inputTokens":\(t.input),"cachedInputTokens":\(t.cached),"outputTokens":\(t.output)}}');
@@ -302,7 +306,7 @@ struct TokenLogTests {
         }
         for (i, r) in running.enumerated() {
             sql += """
-                INSERT OR IGNORE INTO orchestration_v2_projection_provider_threads VALUES ('pt-r\(i)', 'claudeAgent', '\(r.instance)');
+                INSERT OR IGNORE INTO orchestration_v2_projection_provider_threads VALUES ('pt-r\(i)', 'claudeAgent', '\(r.instance)', NULL, '{}');
                 INSERT INTO orchestration_v2_projection_provider_turns VALUES ('run-\(i)', 'r\(i)', 'pt-r\(i)', '\(r.started)', NULL, '\(r.json)');
                 """
         }
@@ -364,6 +368,24 @@ struct TokenLogTests {
         // a finished turn leaves the running set: its total comes from the finished query instead
         let done = try makeDatabase([])
         #expect(try TokenLog(path: done).read(now: now, running: running).byAccount["claudeAgent_work"] == nil)
+    }
+
+    @Test func recentThreadsAndSessionThreads() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
+        let path = try makeDatabase([
+            ("codex", "a", "2026-10-29T14:25:10.000Z", 1000, 200, 50),        // 850
+            ("codex", "a", "2026-10-29T14:20:00.000Z", 150, 0, 0),            // 150
+            ("claudeAgent", "c", "2026-10-29T14:22:00.000Z", 300, 0, 0),
+            ("claudeAgent", "c", "2026-10-29T14:05:00.000Z", 9999, 0, 0),     // over 15 min ago
+        ])
+        let log = TokenLog(path: path)
+        let m = try log.read(now: now)
+        #expect(m.recentThreads == [
+            .init(account: "codex", thread: .init(id: "a", title: "Thread a", project: "garden-notes"), tokens: 1000),
+            .init(account: "claudeAgent", thread: .init(id: "c", title: "Thread c", project: nil), tokens: 300),
+        ])
+        let threads = try log.threads(sessions: ["session-c", "session-x", "it's"])
+        #expect(threads == ["session-c": .init(id: "c", title: "Thread c", project: nil)])
     }
 
     @Test func missingDatabaseThrows() {
@@ -498,5 +520,80 @@ struct LiveHistogramTests {
         let after = h.history(at: 3 * 60 + 5, still: false) // three minutes closed while nothing was drawn
         #expect(after.values.suffix(3).allSatisfy { $0 == 0 })
         #expect(after.values.prefix(57).allSatisfy { $0 == 32000 })
+    }
+}
+
+extension TranscriptLogTests {
+    /// A session's own file and its subagents' files make one session; the cwd comes from the session's own calls.
+    @Test func groupsSubagentsUnderTheirSession() throws {
+        let (home, sub) = try makeHome() // projects/p/s/subagents/agent-1.jsonl
+        let main = sub.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("s.jsonl")
+        func call(_ id: String, _ at: String, _ tokens: Int, cwd: String) -> String {
+            #"{"type":"assistant","timestamp":"\#(at)","cwd":"\#(cwd)","message":{"id":"\#(id)","usage":{"input_tokens":\#(tokens),"output_tokens":0}}}"#
+        }
+        try (call("m1", "2026-10-29T14:24:00.000Z", 3000, cwd: "/r/usage-island") + "\n").write(to: main, atomically: true, encoding: .utf8)
+        try (call("s1", "2026-10-29T14:25:00.000Z", 1500, cwd: "/tmp/wt") + "\n").write(to: sub, atomically: true, encoding: .utf8)
+        let other = sub.deletingLastPathComponent().appendingPathComponent("agent-2.jsonl")
+        try (call("s2", "2026-10-29T14:15:00.000Z", 1500, cwd: "/tmp/wt") + "\n").write(to: other, atomically: true, encoding: .utf8)
+        let r = TranscriptLog(dirs: ["claudeAgent_work": TranscriptLog.dir(for: "claudeAgent_work", home: home)]).read(now: now)
+        #expect(r.sessions == [.init(account: "claudeAgent_work", id: "s", cwd: "/r/usage-island", tokens: 6000,
+                                     mainActive: true, activeSubagents: 1)])
+    }
+}
+
+struct TokenSourcesTests {
+    let thread = TokenLog.Thread(id: "t1", title: "popover data", project: "usage-island")
+
+    @Test func namesSessionsByTheirT3ThreadAndKeepsTheTopThree() {
+        let sessions: [TranscriptLog.Session] = [
+            .init(account: "claudeAgent_work", id: "s1", cwd: "/r/usage-island", tokens: 1_695_000, mainActive: true, activeSubagents: 3),
+            .init(account: "claudeAgent_team", id: "s2", cwd: "/Users/m/.t3/scratch/2026-x", tokens: 60_000, mainActive: false, activeSubagents: 0),
+            .init(account: "claudeAgent", id: "s3", cwd: nil, tokens: 10, mainActive: true, activeSubagents: 0), // under 1/min
+            .init(account: "claudeAgent", id: "s4", cwd: "/r/atlas", tokens: 15_000, mainActive: false, activeSubagents: 2),
+        ]
+        let recent: [TokenLog.RecentThread] = [
+            .init(account: "codex", thread: .init(id: "t9", title: "Fix CI", project: nil), tokens: 30_000),
+            .init(account: "claudeAgent_work", thread: thread, tokens: 999_999), // has transcripts: counted from them
+        ]
+        let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], recent: recent,
+                                    transcriptAccounts: ["claudeAgent_work", "claudeAgent_team", "claudeAgent"])
+        #expect(out == [
+            .init(id: "t1", threadID: "t1", project: "usage-island", detail: "popover data · work", rate: 113_000, agents: "1 agent + 3 sub"),
+            .init(id: "s2", project: "t3 scratch", detail: "Claude Code session · team", rate: 4000, agents: nil),
+            .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI · codex", rate: 2000, agents: nil),
+        ])
+        #expect(TokenSources.make(sessions: [], threads: [:], recent: [], transcriptAccounts: []).isEmpty)
+    }
+
+    @Test func mergesSessionsOfOneThread() {
+        let sessions: [TranscriptLog.Session] = [
+            .init(account: "claudeAgent_work", id: "a", cwd: nil, tokens: 15_000, mainActive: false, activeSubagents: 0),
+            .init(account: "claudeAgent_work", id: "b", cwd: nil, tokens: 30_000, mainActive: true, activeSubagents: 0),
+        ]
+        let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], recent: [], transcriptAccounts: [])
+        #expect(out.map(\.rate) == [3000])
+        #expect(out.first?.agents == "1 agent")
+    }
+
+    @Test func agentLabels() {
+        #expect(TokenSources.agents(main: true, subagents: 0) == "1 agent")
+        #expect(TokenSources.agents(main: true, subagents: 3) == "1 agent + 3 sub")
+        #expect(TokenSources.agents(main: false, subagents: 2) == "2 sub")
+        #expect(TokenSources.agents(main: false, subagents: 0) == nil)
+        #expect(TokenSources.project(cwd: "/Users/m/Desktop/GitHub/garden-notes") == "garden-notes")
+        #expect(TokenSources.project(cwd: nil) == "unknown")
+    }
+}
+
+struct T3CodeTests {
+    @Test func threadLink() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("t3-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("environment-id")
+        try "6ee1c3a6-fb6a\n".write(to: file, atomically: true, encoding: .utf8)
+        #expect(T3Code.link(thread: "0c24a363", environmentFile: file.path)?.absoluteString
+                == "t3code://threads/6ee1c3a6-fb6a/0c24a363")
+        #expect(T3Code.link(thread: "x", environmentFile: "/nonexistent") == nil)
     }
 }
