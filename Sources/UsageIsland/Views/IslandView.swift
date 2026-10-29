@@ -6,6 +6,11 @@ struct IslandView: View {
     let model: IslandModel
     var namespace: Namespace.ID
     @Environment(\.self) private var env
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.solidSurfaces) private var solidSurfaces
+
+    /// The rate sits on the glass: ink3 there falls to 4.2:1 over a white window, so one step brighter.
+    private var rateInk: Color { reduceTransparency || solidSurfaces ? Palette.ink3 : Palette.ink2 }
 
     /// The island's equaliser: the last 18 minutes (20 in the peak card) of the popover's series.
     /// One surface for both states, so its shape grows from the capsule (radius 22 = half of 44) to the card.
@@ -38,7 +43,7 @@ struct IslandView: View {
             Text("\(s.active?.fiveHourPercent ?? 0)%").textStyle(.numberEmphasis)
                 .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
             Text(s.active?.short ?? "").textStyle(.body).foregroundStyle(Palette.ink2)
-            Text("\(TokenFormat.short(Double(model.rateNow)))/min").textStyle(.number).foregroundStyle(Palette.ink3)
+            Text("\(TokenFormat.short(Double(model.rateNow)))/min").textStyle(.number).foregroundStyle(rateInk)
                 .contentTransition(.numericText(value: Double(model.rateNow)))
                 .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
         }
