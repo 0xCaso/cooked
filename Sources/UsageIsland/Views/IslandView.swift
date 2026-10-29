@@ -7,8 +7,8 @@ struct IslandView: View {
     var namespace: Namespace.ID
     @Environment(\.self) private var env
 
-    private static let calmWave = DemoData.series(count: 18, peak: false)
-    private static let peakWave = DemoData.series(count: 20, peak: true)
+    /// The island's equaliser: the last 18 minutes (20 in the peak card) of the popover's series.
+    static func wave(_ s: UsageSnapshot) -> [Double] { Array(s.series.suffix(s.isUrgent ? 20 : 18)) }
 
     /// One surface for both states, so its shape grows from the capsule (radius 22 = half of 44) to the card.
     var body: some View {
@@ -31,7 +31,7 @@ struct IslandView: View {
 
     private func calm(_ s: UsageSnapshot) -> some View {
         HStack(spacing: 12) {
-            WaveChart(values: Self.calmWave, threshold: Double(s.threshold), urgent: false)
+            WaveChart(values: Self.wave(s), threshold: Double(s.threshold), urgent: false)
                 .padding(.horizontal, 8)
                 .frame(height: 36)
                 .wellSurface(Capsule(), innerBlur: 2.5)
@@ -61,7 +61,7 @@ struct IslandView: View {
                 }
                 .lineLimit(1)
                 Spacer(minLength: 0)
-                WaveChart(values: Self.peakWave, threshold: Double(s.threshold), urgent: true)
+                WaveChart(values: Self.wave(s), threshold: Double(s.threshold), urgent: true)
                     .padding(.horizontal, 6)
                     .wellSurface(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }

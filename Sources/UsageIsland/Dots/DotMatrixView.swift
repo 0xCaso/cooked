@@ -78,7 +78,7 @@ struct WaveChart: View {
 
 /// The popover's 60 × 18 histogram; the p99 row is a little brighter.
 struct HistogramChart: View {
-    let clock: HistogramClock
+    let clock: any HistogramSource
     let urgent: Bool
 
     var body: some View {

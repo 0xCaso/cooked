@@ -37,6 +37,19 @@ enum Snapshots {
         }
     }
 
+    /// `--snapshots <dir> --live`: the island and the open popover from the real status.json and database.
+    static func writeLive(to dir: URL) throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let model = IslandModel(feed: .live)
+        let now = Date()
+        model.apply(UsageSource().read(now: now), at: now)
+        if let problem = model.liveProblem { throw CocoaError(.fileReadUnknown, userInfo: [NSLocalizedDescriptionKey: problem.message]) }
+        let desk = Color(red: 27 / 255, green: 28 / 255, blue: 31 / 255)
+        try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-closed.png"))
+        model.open()
+        try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-open.png"))
+    }
+
     /// Gives a surface the glass namespace it needs.
     private struct SurfaceShot<Content: View>: View {
         @ViewBuilder var content: (Namespace.ID) -> Content

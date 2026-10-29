@@ -2,7 +2,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// What the island shows and whether the popover is open. Demo data for now.
+/// What the island shows and whether the popover is open: live data, or one of the two demos.
 @Observable @MainActor
 final class IslandModel {
     var snapshot: UsageSnapshot
@@ -11,8 +11,13 @@ final class IslandModel {
     var rateNow: Int
     /// The visible surfaces (island, popover) in the panel's top-left coordinates, for click-through.
     var hitRects: [CGRect] = []
-    /// The popover histogram's clock, rebuilt when the data changes.
-    private(set) var histogram: HistogramClock
+    /// The popover histogram, rebuilt when the feed changes; live data updates it in place.
+    private(set) var histogram: any HistogramSource
+    /// Live data, or a demo, chosen in the island's right-click menu.
+    private(set) var feed: Feed
+    /// Why live data is missing, shown in the menu. nil while live data arrives.
+    private(set) var liveProblem: UsageSource.Problem?
+    @ObservationIgnored private var liveHistogram: LiveHistogram?
     @ObservationIgnored private var calmRateIndex = 0
     /// Time zero of every chart. Lives as long as the model, so clicks and demo switches don't restart the wave.
     let chartEpoch = Date()
@@ -24,8 +29,19 @@ final class IslandModel {
     /// Moves the panel while the island is dragged (the panel itself).
     @ObservationIgnored weak var mover: IslandMover?
 
-    init(snapshot: UsageSnapshot = DemoData.calm, defaults: UserDefaults = .standard) {
+    enum Feed: String, CaseIterable { case live, demoCalm, demoPeak
+        var title: String {
+            switch self {
+            case .live: "Live"
+            case .demoCalm: "Demo: calm"
+            case .demoPeak: "Demo: peak"
+            }
+        }
+    }
+
+    init(snapshot: UsageSnapshot = DemoData.calm, feed: Feed? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        self.feed = feed ?? (snapshot.isUrgent ? .demoPeak : .demoCalm)
         glassStyle = defaults.string(forKey: GlassStyle.defaultsKey).flatMap(GlassStyle.init(rawValue:)) ?? .system
         self.snapshot = snapshot
         rateNow = snapshot.rateNow
@@ -33,10 +49,46 @@ final class IslandModel {
     }
 
     func toggleDemo() {
-        snapshot = snapshot.isUrgent ? DemoData.calm : DemoData.peak
-        calmRateIndex = 0
-        rateNow = snapshot.rateNow
-        histogram = Self.demoClock(snapshot)
+        select(snapshot.isUrgent ? .demoCalm : .demoPeak)
+    }
+
+    /// Switches the feed. Live keeps what is on screen until the first reading arrives.
+    func select(_ new: Feed) {
+        feed = new
+        switch new {
+        case .live:
+            liveHistogram = nil
+        case .demoCalm, .demoPeak:
+            liveHistogram = nil
+            liveProblem = nil
+            snapshot = new == .demoPeak ? DemoData.peak : DemoData.calm
+            calmRateIndex = 0
+            rateNow = snapshot.rateNow
+            histogram = Self.demoClock(snapshot)
+        }
+    }
+
+    /// A live reading (or why there is none). `at`: when it was read, for the histogram's easing.
+    func apply(_ result: Result<UsageSource.Reading, UsageSource.Problem>, at date: Date = Date()) {
+        guard feed == .live else { return }
+        switch result {
+        case .failure(let problem):
+            liveProblem = problem
+        case .success(let reading):
+            liveProblem = nil
+            let s = reading.snapshot
+            if snapshot != s { snapshot = s }
+            rateNow = s.rateNow
+            let t = date.timeIntervalSince(chartEpoch)
+            if let liveHistogram {
+                liveHistogram.update(values: s.series, threshold: Double(s.threshold), minute: reading.minute, at: t)
+            } else {
+                let h = LiveHistogram(values: s.series, threshold: Double(s.threshold), minute: reading.minute,
+                                      epoch: chartEpoch.timeIntervalSince1970)
+                liveHistogram = h
+                histogram = h
+            }
+        }
     }
 
     /// The mockup's demo feed: one minute lasts 4 s, each new minute takes a value from the series, ±15%.
@@ -61,9 +113,9 @@ final class IslandModel {
         isOpen = false
     }
 
-    /// Every 3 s: the next calm rate. The peak keeps its rate.
+    /// Every 3 s: the next calm rate. The peak and live data keep their rate.
     func tickRate() {
-        guard !snapshot.isUrgent else { return }
+        guard feed == .demoCalm else { return }
         calmRateIndex = (calmRateIndex + 1) % DemoData.calmRates.count
         rateNow = DemoData.calmRates[calmRateIndex]
     }

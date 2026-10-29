@@ -8,7 +8,10 @@ enum UsageIslandApp {
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--snapshots"), i + 1 < args.count {
             AppDelegate.registerFontsOutsideTheBundle()
-            do { try Snapshots.write(to: URL(fileURLWithPath: args[i + 1])) } catch { print(error); exit(1) }
+            let dir = URL(fileURLWithPath: args[i + 1])
+            do {
+                if args.contains("--live") { try Snapshots.writeLive(to: dir) } else { try Snapshots.write(to: dir) }
+            } catch { print(error.localizedDescription); exit(1) }
             exit(0)
         }
         let delegate = AppDelegate()
@@ -22,7 +25,7 @@ enum UsageIslandApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: IslandPanel?
-    let model = IslandModel()
+    let model = IslandModel(feed: .live)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.registerFontsOutsideTheBundle()

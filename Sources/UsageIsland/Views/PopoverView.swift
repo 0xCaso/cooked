@@ -4,7 +4,7 @@ import SwiftUI
 /// Glass outside, opaque cards and wells inside, so the data never sits on glass.
 struct PopoverView: View {
     let model: IslandModel
-    let histogram: HistogramClock
+    let histogram: any HistogramSource
     var namespace: Namespace.ID
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.solidSurfaces) private var solidSurfaces

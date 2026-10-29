@@ -6,6 +6,8 @@ import SwiftUI
 struct IslandRoot: View {
     let model: IslandModel
     var forceStill = false
+    /// Read every 5 s while the feed is live. nil in snapshots.
+    var source: UsageSource? = nil
     @Namespace private var glass
     @Environment(\.self) private var env
 
@@ -18,7 +20,14 @@ struct IslandRoot: View {
                         .contentShape(.rect)
                         .modifier(PressableIsland(model: model) { model.isOpen.toggle() })
                         .contextMenu {
-                            Button(model.snapshot.isUrgent ? "Demo: calm" : "Demo: peak") { model.toggleDemo() }
+                            Picker("Data", selection: Binding(get: { model.feed }, set: { model.select($0) })) {
+                                ForEach(IslandModel.Feed.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.inline)
+                            if model.feed == .live, let problem = model.liveProblem {
+                                Text(problem.message)
+                            }
+                            Divider()
                             Picker("Glass", selection: Bindable(model).glassStyle) {
                                 ForEach(GlassStyle.allCases, id: \.self) { Text($0.title).tag($0) }
                             }
@@ -50,6 +59,14 @@ struct IslandRoot: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
                 model.tickRate()
+            }
+        }
+        .task(id: model.feed) {
+            guard model.feed == .live, let source else { return }
+            while !Task.isCancelled {
+                let reading = await Task.detached(priority: .utility) { source.read() }.value
+                model.apply(reading)
+                try? await Task.sleep(for: .seconds(5))
             }
         }
     }
