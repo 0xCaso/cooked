@@ -41,6 +41,9 @@ enum Snapshots {
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))
         }
+        // "What burns tokens" with the first line hovered (lifted).
+        try render(SourcesCard(sources: peak.sources, hovered: peak.sources.first?.id).frame(width: 388).padding(24).background(desk),
+                   to: dir.appendingPathComponent("sources-hover.png"))
         // The peak card without an ETA: blocked, and urgent by % with no tokens.
         for (name, lead, time, detail) in [("blocked", "free at ", "20:20", "personal · cooked"),
                                            ("no-eta", "resets ", "20:20", "personal")] {

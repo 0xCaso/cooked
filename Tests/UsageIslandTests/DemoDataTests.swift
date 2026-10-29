@@ -25,7 +25,7 @@ struct DemoDataTests {
         #expect(s.urgency == nil)
         #expect(!s.isUrgent)
         #expect(s.accounts.map(\.weekPercent) == [74, 22, nil, 41, 9])
-        // personal is folded into the "not used today" line
+        // personal is not used today: hidden
         #expect(s.rows.map(\.short) == ["work", "team", "side", "codex"])
         #expect(s.unused.map(\.short) == ["personal"])
     }

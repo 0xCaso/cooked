@@ -221,7 +221,7 @@ struct LiveDataTests {
         #expect(LiveSnapshot.make(status: stale, minutes: .init(), now: now, calendar: calendar)?.accounts[1].isBlocked == false)
     }
 
-    /// No event in the last 5 hours: the account folds into the "not used today" line.
+    /// No event in the last 5 hours: the account is hidden from the popover.
     @Test func unusedAccountsFold() throws {
         let st = try status {
             $0.accounts["codex"]?.fiveHourPct = 35
@@ -236,7 +236,6 @@ struct LiveDataTests {
         #expect(s.rows.map(\.short) == ["work", "personal"])
         #expect(s.unused.map(\.short) == ["codex"])
         #expect(s.unused[0].weekPercent == 6)
-        #expect(PopoverView.unusedLine(s.unused) == "codex · not used today")
 
         let old = try status { $0.accounts["claudeAgent"]?.lastEventAt = "10:20" }
         #expect(LiveSnapshot.make(status: old, minutes: .init(), now: now, calendar: calendar)?.unused.map(\.short) == ["personal"])

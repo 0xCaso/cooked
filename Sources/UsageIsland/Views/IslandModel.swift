@@ -143,11 +143,9 @@ enum IslandLayout {
     /// Transparent margin around the surfaces, so glass edges and shadows are not clipped.
     static let margin: CGFloat = 24
 
-    /// Big enough for the tallest state (open, peak, with the "not used today" line), measured once.
+    /// Big enough for the tallest state (open, peak, every account in use, three sources), measured once.
     static let panelSize: CGSize = {
-        var tallest = DemoData.peak
-        tallest.accounts.append(Account(id: "unused", short: "side", fiveHourPercent: 0, fiveHourReset: "—", isLive: false,
-                                        isUnused: true))
+        let tallest = DemoData.peak
         let model = IslandModel(snapshot: tallest)
         model.isOpen = true
         let view = NSHostingView(rootView: AnyView(IslandRoot(model: model, forceStill: true).environment(\.solidSurfaces, true)))

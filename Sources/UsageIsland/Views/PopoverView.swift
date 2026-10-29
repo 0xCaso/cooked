@@ -36,23 +36,11 @@ struct PopoverView: View {
             accountsHeader
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
-            if !s.unused.isEmpty {
-                Text(Self.unusedLine(s.unused))
-                    .textStyle(.label)
-                    .foregroundStyle(sectionInk)
-                    .lineLimit(1)
-                    .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
-            }
         }
         .padding(8)
         .frame(width: IslandLayout.popoverWidth)
         .modifier(IslandSurface(shape: RoundedRectangle(cornerRadius: 24, style: .continuous), solidFill: Palette.bgDeep,
                                 glassID: "popover", namespace: namespace))
-    }
-
-    /// "side, codex · not used today": the folded accounts, still in view.
-    static func unusedLine(_ accounts: [Account]) -> String {
-        "\(accounts.map(\.short).joined(separator: ", ")) · not used today"
     }
 
     /// The section label, with the two time columns of the rows below as headings.
@@ -112,16 +100,7 @@ struct PopoverView: View {
     }
 
     private func sourcesCard(_ sources: [TokenSource]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
-                SourceRow(source: source)
-                    .overlay(alignment: .top) {
-                        if i > 0 { Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -0.25) }
-                    }
-            }
-        }
-        .padding(.horizontal, 12)
-        .cardSurface()
+        SourcesCard(sources: sources, hovered: nil)
     }
 
     private func accountsCard(_ s: UsageSnapshot) -> some View {
@@ -174,11 +153,44 @@ struct PopoverView: View {
     }
 }
 
+/// The sources, each a button. The hovered line lifts out of the card (mockup `.click .src:hover`): its own fill,
+/// a shadow, 1 pt up, and the hairlines on both sides fade.
+struct SourcesCard: View {
+    let sources: [TokenSource]
+    @State var hovered: String?
+    @Environment(\.self) private var env
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
+                let lifted = hovered == source.id
+                let lineHidden = lifted || (i > 0 && hovered == sources[i - 1].id)
+                SourceRow(source: source, lifted: lifted)
+                    .onHover { inside in
+                        if inside { hovered = source.id } else if hovered == source.id { hovered = nil }
+                    }
+                    .overlay(alignment: .top) {
+                        if i > 0 {
+                            Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -0.25)
+                                .padding(.horizontal, 8)
+                                .opacity(lineHidden ? 0 : 1)
+                        }
+                    }
+                    .zIndex(lifted ? 1 : 0)
+            }
+        }
+        .padding(4)
+        .animation(Motion.animation(.spring(duration: 0.2, bounce: 0.15), reduceMotion: env.reducesMotion), value: hovered)
+        .cardSurface()
+    }
+}
+
 /// One source: project and tokens/min, then the thread and who works on it. A click opens its T3 Code thread;
-/// on hover the agent count gives way to the hint.
+/// lifted (hovered), the agent count gives way to the hint.
 private struct SourceRow: View {
     let source: TokenSource
-    @State private var hovering = false
+    let lifted: Bool
+    @Environment(\.self) private var env
 
     var body: some View {
         Button { T3Code.open(thread: source.threadID) } label: {
@@ -196,7 +208,7 @@ private struct SourceRow: View {
                         .truncationMode(.tail)
                     Spacer(minLength: 0)
                     Group {
-                        if hovering { Text(source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗").foregroundStyle(Palette.ink) }
+                        if lifted { Text(source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗").foregroundStyle(Palette.ink) }
                         else if let agents = source.agents { Text(agents).foregroundStyle(Palette.ink2) }
                     }
                     .textStyle(.body)
@@ -204,12 +216,22 @@ private struct SourceRow: View {
                 }
             }
             .lineLimit(1)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(white: 0x20 / 255.0))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.45), radius: 7, y: 6)
+                    .shadow(color: .black.opacity(0.35), radius: 2, y: 2)
+                    .opacity(lifted ? 1 : 0)
+            }
+            .offset(y: lifted && !env.reducesMotion ? -1 : 0)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .pointerStyle(.link)
-        .onHover { hovering = $0 }
         .accessibilityLabel("\(source.project), \(TokenFormat.short(source.rate)) per minute, \(source.detail)")
         .accessibilityHint(source.threadID == nil ? "Opens T3 Code" : "Opens the thread in T3 Code")
     }

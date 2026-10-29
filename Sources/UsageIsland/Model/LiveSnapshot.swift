@@ -15,7 +15,7 @@ enum LiveSnapshot {
     static let okStates: Set<String> = ["allowed", "allowed_warning", "?"]
     /// An account with more headroom than this is worth switching to (the watcher's 75%).
     static let switchBelowPercent = 75
-    /// An account with no event for this long folds into the "not used today" line.
+    /// An account with no event for this long is hidden from the popover.
     static let unusedAfter: TimeInterval = 5 * 3600
 
     static func short(id: String, name: String) -> String {
