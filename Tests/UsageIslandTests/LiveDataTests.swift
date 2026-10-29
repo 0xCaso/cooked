@@ -253,41 +253,37 @@ struct UsageSourceTests {
 }
 
 struct LiveHistogramTests {
-    // threshold 40000 → top = 64000 unless the data is higher; 18 rows
-    func rows(_ v: Double) -> Double { v / 64000 * 18 }
     let epoch = 6_000.0 // a whole minute: chart time 0 = minute 100
 
     @Test func showsTheValuesAsTheyAre() {
         let h = LiveHistogram(values: Array(repeating: 32000, count: 60), threshold: 40000, minute: 100, epoch: epoch)
-        #expect(h.heights(at: 10, still: false).allSatisfy { abs($0 - 9) < 1e-9 })
-        #expect(h.thresholdRow == 18 - 11)
+        let history = h.history(at: 10, still: false)
+        #expect(history.values.allSatisfy { $0 == 32000 })
+        #expect(history.top == 64000 && history.threshold == 40000)
     }
 
     @Test func shiftsWhenTheWallClockMinuteCloses() {
         let values = (0..<60).map { Double(1000 * ($0 + 1)) }
         let h = LiveHistogram(values: values, threshold: 40000, minute: 100, epoch: epoch)
-        _ = h.heights(at: 59, still: false)
-        let atShift = h.heights(at: 60, still: false)
-        #expect(abs(atShift[10] - rows(11000)) < 1e-9) // eases from where it was
-        let settled = h.heights(at: 60.5, still: false)
-        #expect(abs(settled[10] - rows(12000)) < 1e-9)
-        #expect(settled[59] == 1) // the new minute starts empty
+        #expect(h.history(at: 59, still: false).values[10] == 11000)
+        let after = h.history(at: 60, still: false)
+        #expect(after.values[10] == 12000)
+        #expect(after.values[59] == 0) // the new minute starts empty
     }
 
-    @Test func newDataEasesInFromTheScreen() {
+    @Test func newDataReplacesTheHistory() {
         let h = LiveHistogram(values: Array(repeating: 16000, count: 60), threshold: 40000, minute: 100, epoch: epoch)
-        _ = h.heights(at: 10, still: false)
-        h.update(values: Array(repeating: 32000, count: 60), threshold: 40000, minute: 100, at: 10)
-        #expect(abs(h.heights(at: 10, still: false)[0] - rows(16000)) < 1e-9)
-        let mid = h.heights(at: 10.25, still: false)[0]
-        #expect(mid > rows(16000) && mid < rows(32000))
-        #expect(abs(h.heights(at: 10.5, still: false)[0] - rows(32000)) < 1e-9)
+        _ = h.history(at: 10, still: false)
+        h.update(values: Array(repeating: 32000, count: 60), threshold: 30000, minute: 100)
+        let history = h.history(at: 10, still: false)
+        #expect(history.values.allSatisfy { $0 == 32000 })
+        #expect(history.threshold == 30000)
     }
 
     @Test func catchesUpAfterSeveralMinutesUnseen() {
         let h = LiveHistogram(values: Array(repeating: 32000, count: 60), threshold: 40000, minute: 100, epoch: epoch)
-        let after = h.heights(at: 3 * 60 + 5, still: false) // three minutes closed while nothing was drawn
-        #expect(after.suffix(3).allSatisfy { abs($0 - 9) < 1e-9 }) // they ease down from what was on screen
-        #expect(h.heights(at: 3 * 60 + 6, still: false).suffix(3).allSatisfy { $0 == 1 })
+        let after = h.history(at: 3 * 60 + 5, still: false) // three minutes closed while nothing was drawn
+        #expect(after.values.suffix(3).allSatisfy { $0 == 0 })
+        #expect(after.values.prefix(57).allSatisfy { $0 == 32000 })
     }
 }

@@ -12,10 +12,10 @@ enum Snapshots {
             HistogramClock(values: s.series, threshold: Double(s.threshold), minuteLength: 60) { 0 }
         }
         let charts: [(String, AnyView)] = [
-            ("wave-calm", AnyView(WaveChart(values: DemoData.series(count: 18, peak: false), threshold: 40000, urgent: false))),
-            ("wave-peak", AnyView(WaveChart(values: DemoData.series(count: 20, peak: true), threshold: 40000, urgent: true))),
-            ("hist-calm", AnyView(HistogramChart(clock: clock(calm), urgent: false))),
-            ("hist-peak", AnyView(HistogramChart(clock: clock(peak), urgent: true))),
+            ("wave-calm", AnyView(TideIslandChart(rate: Double(calm.rateNow), threshold: Double(calm.threshold), urgent: false))),
+            ("wave-peak", AnyView(TideIslandChart(rate: Double(peak.rateNow), threshold: Double(peak.threshold), urgent: true))),
+            ("hist-calm", AnyView(TideHistogramChart(source: clock(calm), urgent: false))),
+            ("hist-peak", AnyView(TideHistogramChart(source: clock(peak), urgent: true))),
             ("bars-peak", AnyView(VStack(spacing: 8) {
                 ForEach(peak.accounts) { a in AccountBarChart(percent: a.fiveHourPercent, hot: a.id == "work") }
             })),
@@ -48,7 +48,7 @@ enum Snapshots {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let model = IslandModel(feed: .live)
         let now = Date()
-        model.apply(UsageSource().read(now: now), at: now)
+        model.apply(UsageSource().read(now: now))
         if let problem = model.liveProblem { throw CocoaError(.fileReadUnknown, userInfo: [NSLocalizedDescriptionKey: problem.message]) }
         let desk = Color(red: 27 / 255, green: 28 / 255, blue: 31 / 255)
         try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-closed.png"))

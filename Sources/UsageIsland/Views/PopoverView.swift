@@ -78,7 +78,7 @@ struct PopoverView: View {
             }
             .lineLimit(1)
             .padding(.bottom, 12)
-            HistogramChart(clock: histogram, urgent: s.isUrgent)
+            TideHistogramChart(source: histogram, urgent: s.isUrgent)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 .frame(maxWidth: .infinity)

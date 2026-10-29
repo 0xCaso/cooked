@@ -74,8 +74,8 @@ final class IslandModel {
         }
     }
 
-    /// A live reading (or why there is none). `at`: when it was read, for the histogram's easing.
-    func apply(_ result: Result<UsageSource.Reading, UsageSource.Problem>, at date: Date = Date()) {
+    /// A live reading (or why there is none).
+    func apply(_ result: Result<UsageSource.Reading, UsageSource.Problem>) {
         guard feed == .live else { return }
         switch result {
         case .failure(let problem):
@@ -85,9 +85,8 @@ final class IslandModel {
             let s = reading.snapshot
             if snapshot != s { snapshot = s }
             rateNow = s.rateNow
-            let t = date.timeIntervalSince(chartEpoch)
             if let liveHistogram {
-                liveHistogram.update(values: s.series, threshold: Double(s.threshold), minute: reading.minute, at: t)
+                liveHistogram.update(values: s.series, threshold: Double(s.threshold), minute: reading.minute)
             } else {
                 let h = LiveHistogram(values: s.series, threshold: Double(s.threshold), minute: reading.minute,
                                       epoch: chartEpoch.timeIntervalSince1970)

@@ -14,9 +14,11 @@ struct SnapshotsTests {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ui-snap-\(UUID().uuidString)")
         try Snapshots.write(to: dir)
         // chart + 8 pt padding on each side, at 2×
-        #expect(pixelSize(dir.appendingPathComponent("wave-calm.png")) == CGSize(width: (18 * 5 + 16) * 2, height: (7 * 5 + 16) * 2))
-        #expect(pixelSize(dir.appendingPathComponent("wave-peak.png")) == CGSize(width: (20 * 5 + 16) * 2, height: (7 * 5 + 16) * 2))
-        #expect(pixelSize(dir.appendingPathComponent("hist-calm.png")) == CGSize(width: (348 + 16) * 2, height: ((18 * 5.8 + 16) * 2).rounded(.up)))
+        let tank = CGSize(width: ((36 * 3.4 + 16) * 2 as CGFloat).rounded(.up), height: ((9 * 3.4 + 16) * 2 as CGFloat).rounded(.up))
+        #expect(pixelSize(dir.appendingPathComponent("wave-calm.png")) == tank)
+        #expect(pixelSize(dir.appendingPathComponent("wave-peak.png")) != nil)
+        let histHeight: CGFloat = ((24 * 348 / 84 + 16) * 2 as CGFloat).rounded(.up)
+        #expect(pixelSize(dir.appendingPathComponent("hist-calm.png")) == CGSize(width: (348 + 16) * 2, height: histHeight))
         #expect(pixelSize(dir.appendingPathComponent("hist-peak.png")) != nil)
         #expect(pixelSize(dir.appendingPathComponent("bars-peak.png")) != nil)
         // island and popover: surface + 24 pt desk on each side, at 2×
