@@ -62,6 +62,7 @@ struct IslandSurface<S: InsettableShape>: ViewModifier {
                 .overlay(shape.inset(by: -0.25).stroke(ring, lineWidth: 0.5))
         } else {
             content
+                .background { if glassStyle.veil > 0 { shape.fill(Palette.bgBase.opacity(glassStyle.veil)) } }
                 .glassEffect(glassStyle.glass, in: shape)
                 .glassEffectID(glassID, in: namespace)
                 .overlay { if showsRing { shape.inset(by: -0.25).stroke(ring, lineWidth: 0.5) } }
@@ -93,6 +94,11 @@ enum GlassStyle: String, CaseIterable {
         case .darker: .regular.tint(Color(white: 16 / 255).opacity(0.52))
         }
     }
+
+    /// A fixed dark layer over the glass. Liquid Glass sets its own brightness from what is under and around it:
+    /// alone over a white window the island turned mid-grey, next to the open popover it stayed dark. The veil
+    /// keeps both near the same dark grey.
+    var veil: Double { self == .darker ? 0.8 : 0 }
 
     /// The mockup's thin white rim belongs to its tinted glass; the system glass draws its own edge.
     var drawsRim: Bool { self == .darker }
