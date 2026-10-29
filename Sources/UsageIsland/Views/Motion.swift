@@ -53,7 +53,7 @@ struct PressScale: ViewModifier {
     }
 }
 
-/// The island takes clicks itself (it holds a button in the peak): sinks to 0.98 from the top centre while pressed.
+/// The island takes clicks itself (it holds a button in the peak), with the pointing hand: sinks to 0.98 from the top centre while pressed.
 /// A tap toggles the popover; past 3 pt the press becomes a drag that moves the panel and does not open anything.
 struct PressableIsland: ViewModifier {
     static let dragThreshold: CGFloat = 3
@@ -67,6 +67,7 @@ struct PressableIsland: ViewModifier {
     func body(content: Content) -> some View {
         content
             .modifier(PressScale(pressed: pressed && !dragging, scale: Motion.Scale.island, anchor: .top))
+            .pointerStyle(.link)
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .global)
                     .updating($pressed) { _, state, _ in state = true }

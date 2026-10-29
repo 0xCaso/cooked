@@ -130,6 +130,7 @@ struct SecondaryButtonStyle: ButtonStyle {
                     if isFocused { Capsule().inset(by: -3).stroke(Palette.ink2, lineWidth: 2) }
                 }
                 .contentShape(Capsule())
+                .pointerStyle(.link)
                 .modifier(PressScale(pressed: configuration.isPressed))
         }
     }
@@ -165,6 +166,7 @@ struct PrimaryButtonStyle: ButtonStyle {
                     if isFocused { Capsule().inset(by: -3).stroke(Palette.ink2, lineWidth: 2) }
                 }
                 .contentShape(Capsule())
+                .pointerStyle(.link)
                 .modifier(PressScale(pressed: configuration.isPressed))
         }
     }
