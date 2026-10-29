@@ -84,7 +84,7 @@ struct LiveDataTests {
                                        fullAt: "18:04"))
         // both live: work burned more in the last 15 min (250k vs 204k)
         #expect(s.activeID == "claudeAgent_work")
-        #expect(s.rateNow == 58613 / 5)
+        #expect(s.rateNow == (4189 + 27004) / 5) // the chart's last 5 minutes
         #expect(s.threshold == 617_094 / 15)
         #expect(s.series.count == 60)
         #expect(s.series.last == 4189)
@@ -106,7 +106,7 @@ struct LiveDataTests {
         #expect(u.fullAt == "—")
         #expect(u.detail == "personal · resets 20:20")
         #expect(u.switchLabel == "Switch to work · 48%")
-        #expect(u.source == "41k/min now")
+        #expect(u.source == "0/min now") // no minutes in this fixture: the rate comes from the chart
     }
 
     @Test func urgentWhenFullWithinTwentyMinutes() throws {
@@ -180,14 +180,15 @@ struct LiveDataTests {
 
 struct TokenLogTests {
     /// A database with the two tables the query reads, and the thread titles.
-    func makeDatabase(_ turns: [(instance: String, thread: String, completed: String, input: Int, cached: Int, output: Int)]) throws -> String {
+    func makeDatabase(_ turns: [(instance: String, thread: String, completed: String, input: Int, cached: Int, output: Int)],
+                      started: [Int: String] = [:], running: [(instance: String, started: String, json: String)] = []) throws -> String {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent("tokenlog-\(UUID().uuidString).sqlite").path
         var db: OpaquePointer?
         #expect(sqlite3_open(path, &db) == SQLITE_OK)
         defer { sqlite3_close(db) }
         var sql = """
             CREATE TABLE orchestration_v2_projection_provider_turns (provider_turn_id TEXT PRIMARY KEY, thread_id TEXT,
-              provider_thread_id TEXT, completed_at TEXT, payload_json TEXT);
+              provider_thread_id TEXT, started_at TEXT, completed_at TEXT, payload_json TEXT);
             CREATE TABLE orchestration_v2_projection_provider_threads (provider_thread_id TEXT PRIMARY KEY, provider TEXT,
               provider_instance_id TEXT);
             CREATE TABLE orchestration_v2_projection_threads (thread_id TEXT PRIMARY KEY, title TEXT);
@@ -196,8 +197,15 @@ struct TokenLogTests {
             sql += """
                 INSERT OR IGNORE INTO orchestration_v2_projection_provider_threads VALUES ('pt-\(t.thread)', 'claudeAgent', '\(t.instance)');
                 INSERT OR IGNORE INTO orchestration_v2_projection_threads VALUES ('\(t.thread)', 'Thread \(t.thread)');
-                INSERT INTO orchestration_v2_projection_provider_turns VALUES ('turn-\(i)', '\(t.thread)', 'pt-\(t.thread)', '\(t.completed)',
+                INSERT INTO orchestration_v2_projection_provider_turns VALUES ('turn-\(i)', '\(t.thread)', 'pt-\(t.thread)',
+                  \(started[i].map { "'\($0)'" } ?? "NULL"), '\(t.completed)',
                   '{"turnTokenUsage":{"inputTokens":\(t.input),"cachedInputTokens":\(t.cached),"outputTokens":\(t.output)}}');
+                """
+        }
+        for (i, r) in running.enumerated() {
+            sql += """
+                INSERT OR IGNORE INTO orchestration_v2_projection_provider_threads VALUES ('pt-r\(i)', 'claudeAgent', '\(r.instance)');
+                INSERT INTO orchestration_v2_projection_provider_turns VALUES ('run-\(i)', 'r\(i)', 'pt-r\(i)', '\(r.started)', NULL, '\(r.json)');
                 """
         }
         #expect(sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK)
@@ -222,8 +230,115 @@ struct TokenLogTests {
         #expect(m.topThread["claudeAgent"]?.title == "Thread c")
     }
 
+    @Test func spreadsAFinishedTurnOverTheMinutesItRan() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
+        let minute = Int(now.timeIntervalSince1970) / 60
+        // 3000 tokens over 14:22:30 → 14:25:30: half a minute, two whole minutes, half a minute
+        let path = try makeDatabase([("claudeAgent_work", "a", "2026-10-29T14:25:30.000Z", 3000, 0, 0)],
+                                    started: [0: "2026-10-29T14:22:30.000Z"])
+        let m = try TokenLog(path: path).read(now: now)
+        #expect(m.byAccount["claudeAgent_work"] == [minute - 3: 500, minute - 2: 1000, minute - 1: 1000, minute: 500])
+    }
+
+    @Test func spreadKeepsTheTotal() {
+        let parts = TokenLog.spread(7000, from: 100, to: 1000)
+        #expect(abs(parts.values.reduce(0, +) - 7000) < 1e-6)
+        #expect(parts.keys.sorted() == Array(1...16))
+        #expect(TokenLog.spread(500, from: 120, to: 120) == [2: 500])
+        #expect(TokenLog.spread(0, from: 0, to: 600).isEmpty)
+    }
+
+    @Test func countsARunningTurnBetweenReadings() throws {
+        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
+        let minute = Int(now.timeIntervalSince1970) / 60
+        func usage(_ input: Int, _ cached: Int, _ output: Int, _ at: String) -> String {
+            #"{"tokenUsage":{"inputTokens":\#(input),"cachedInputTokens":\#(cached),"outputTokens":\#(output),"updatedAt":"\#(at)"}}"#
+        }
+        let running = RunningTurns()
+        // first reading: only the last call is known, 1000 new input + 200 output
+        let first = try makeDatabase([], running: [("claudeAgent_work", "2026-10-29T14:20:00.000Z", usage(150_000, 149_000, 200, "2026-10-29T14:24:10.000Z"))])
+        #expect(try TokenLog(path: first).read(now: now, running: running).byAccount["claudeAgent_work"] == [minute - 1: 1200])
+        // later: the context grew by 30000 over several calls, so they all count
+        let second = try makeDatabase([], running: [("claudeAgent_work", "2026-10-29T14:20:00.000Z", usage(180_000, 179_500, 300, "2026-10-29T14:25:20.000Z"))])
+        #expect(try TokenLog(path: second).read(now: now, running: running).byAccount["claudeAgent_work"] == [minute - 1: 1200, minute: 30300])
+        // the same reading again adds nothing
+        #expect(try TokenLog(path: second).read(now: now, running: running).byAccount["claudeAgent_work"] == [minute - 1: 1200, minute: 30300])
+        // a finished turn leaves the running set: its total comes from the finished query instead
+        let done = try makeDatabase([])
+        #expect(try TokenLog(path: done).read(now: now, running: running).byAccount["claudeAgent_work"] == nil)
+    }
+
     @Test func missingDatabaseThrows() {
         #expect(throws: TokenLog.Failure.self) { try TokenLog(path: "/nonexistent/statev2.sqlite").read(now: Date()) }
+    }
+}
+
+struct TranscriptLogTests {
+    let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
+    var minute: Int { Int(now.timeIntervalSince1970) / 60 }
+
+    func line(_ id: String, _ at: String, input: Int, write: Int, read: Int, output: Int) -> String {
+        #"{"type":"assistant","timestamp":"\#(at)","message":{"id":"\#(id)","usage":{"input_tokens":\#(input),"cache_creation_input_tokens":\#(write),"cache_read_input_tokens":\#(read),"output_tokens":\#(output)}}}"#
+    }
+
+    func makeHome() throws -> (home: String, file: URL) {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("home-\(UUID().uuidString)").path
+        let dir = URL(fileURLWithPath: TranscriptLog.dir(for: "claudeAgent_work", home: home) + "/projects/p/s/subagents")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return (home, dir.appendingPathComponent("agent-1.jsonl"))
+    }
+
+    @Test func configDirs() {
+        #expect(TranscriptLog.dir(for: "claudeAgent", home: "/h") == "/h/.claude")
+        #expect(TranscriptLog.dir(for: "claudeAgent_team", home: "/h") == "/h/.claude-team")
+        #expect(TranscriptLog.dir(for: "claudeAgent_side", home: "/h") == "/h/.claude-side")
+    }
+
+    @Test func countsNewTokensPerMinuteOnceAndReadsOnlyNewLines() throws {
+        let (home, file) = try makeHome()
+        let text = [
+            line("m1", "2026-10-29T14:24:10.000Z", input: 2, write: 1000, read: 90000, output: 100), // 1102
+            line("m1", "2026-10-29T14:24:11.000Z", input: 2, write: 1000, read: 90000, output: 100), // same message, second block
+            #"{"type":"user","timestamp":"2026-10-29T14:24:12.000Z","message":{"content":"tool output"}}"#,
+            line("m2", "2026-10-29T14:25:05.000Z", input: 5, write: 0, read: 91000, output: 400),     // 405
+            line("old", "2026-10-29T13:10:00.000Z", input: 9999, write: 0, read: 0, output: 0),      // over an hour ago
+        ].joined(separator: "\n") + "\n"
+        try text.write(to: file, atomically: true, encoding: .utf8)
+        let log = TranscriptLog(dirs: ["claudeAgent_work": TranscriptLog.dir(for: "claudeAgent_work", home: home),
+                                       "claudeAgent": TranscriptLog.dir(for: "claudeAgent", home: home)])
+        let first = log.read(now: now)
+        #expect(first["claudeAgent_work"] == [minute - 1: 1102, minute: 405])
+        #expect(first["claudeAgent"] == nil) // no directory: the database stays the source
+        // a half-written line waits for its newline
+        let more = line("m3", "2026-10-29T14:25:30.000Z", input: 0, write: 0, read: 0, output: 50)
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(more.prefix(40).utf8))
+        #expect(log.read(now: now)["claudeAgent_work"] == [minute - 1: 1102, minute: 405])
+        try handle.write(contentsOf: Data((more.dropFirst(40) + "\n").utf8))
+        try handle.close()
+        #expect(log.read(now: now)["claudeAgent_work"] == [minute - 1: 1102, minute: 455])
+    }
+}
+
+extension TranscriptLogTests {
+    @Test func firstReadStartsNearTheWindow() throws {
+        let (_, file) = try makeHome()
+        // 300 lines, one per minute from 10:00; each about 200 bytes
+        let start = ISO8601DateFormatter().date(from: "2026-10-29T10:00:00Z")!
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let lines = (0..<300).map { line("m\($0)", f.string(from: start.addingTimeInterval(Double($0) * 60)), input: 1, write: 0, read: 0, output: 0) }
+        try (lines.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+        let since = start.addingTimeInterval(240 * 60)
+        let offset = TranscriptLog.start(of: file, after: since, block: 4096)
+        let text = try String(contentsOf: file, encoding: .utf8)
+        let tail = String(text.utf8.dropFirst(Int(offset)))!
+        #expect(offset > 0)
+        #expect(tail.hasPrefix(#"{"type""#)) // a line start
+        let firstMinute = Int(tail.split(separator: "\n")[0].split(separator: "\"")[13].dropFirst())! // "m<n>"
+        #expect(firstMinute <= 240 && firstMinute > 200) // before the window, but not far before
+        #expect(TranscriptLog.start(of: file, after: start.addingTimeInterval(-60), block: 4096) == 0)
     }
 }
 
@@ -237,18 +352,18 @@ struct UsageSourceTests {
 
     @Test func readsAFreshFile() throws {
         let path = try write(statusFixture, modified: Date())
-        let r = UsageSource(statusPath: path, databasePath: "/nonexistent").read()
+        let r = UsageSource(statusPath: path, databasePath: "/nonexistent", transcripts: nil).read()
         let reading = try r.get()
         #expect(reading.snapshot.accounts.count == 2)
         #expect(reading.snapshot.series == Array(repeating: 0, count: 60)) // no database: empty histogram
     }
 
     @Test func reportsProblems() throws {
-        #expect(UsageSource(statusPath: "/nonexistent").read() == .failure(.noStatus))
+        #expect(UsageSource(statusPath: "/nonexistent", transcripts: nil).read() == .failure(.noStatus))
         let old = try write(statusFixture, modified: Date().addingTimeInterval(-600))
-        #expect(UsageSource(statusPath: old).read() == .failure(.watcherStopped))
+        #expect(UsageSource(statusPath: old, transcripts: nil).read() == .failure(.watcherStopped))
         let empty = try write(#"{"updated_at": "x", "accounts": {}}"#, modified: Date())
-        #expect(UsageSource(statusPath: empty).read() == .failure(.noAccounts))
+        #expect(UsageSource(statusPath: empty, transcripts: nil).read() == .failure(.noAccounts))
     }
 }
 

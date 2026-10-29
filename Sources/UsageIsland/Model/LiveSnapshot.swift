@@ -36,6 +36,8 @@ enum LiveSnapshot {
             let m = minutes.byAccount[id] ?? [:]
             return (0..<historyMinutes).map { m[minuteNow - historyMinutes + 1 + $0] ?? 0 }
         }
+        /// Tokens per minute over the last 5 minutes, from the same minutes as the chart.
+        func rate(_ id: String) -> Double { series(id).suffix(5).reduce(0, +) / 5 }
         func recent(_ id: String) -> Int { entry(id).tokensFresh?["15m"] ?? 0 }
         func eta(_ id: String) -> Date? {
             entry(id).projection.flatMap { WatcherTime.parse($0.eta, now: now, calendar: calendar) }
@@ -71,7 +73,7 @@ enum LiveSnapshot {
             let fullAt = eta(id)
             let when = fullAt.map { "in \(max(0, Int($0.timeIntervalSince(now) / 60))) min" }
                 ?? "resets \(clockPart(entry(id).fiveHourResetsAt) ?? "—")"
-            let rate = TokenFormat.short(Double(entry(id).tokensFresh?["5m"] ?? 0) / 5)
+            let rate = TokenFormat.short(rate(id))
             let source = minutes.topThread[id].map { "\(TokenFormat.short($0.tokens / 5))/min from “\($0.title)”" }
                 ?? "\(rate)/min now"
             let alternative = ids.filter { $0 != id && !stale($0) && percent($0) < switchBelowPercent }
@@ -91,7 +93,7 @@ enum LiveSnapshot {
             historyStart: clock(now.addingTimeInterval(-Double(historyMinutes - 1) * 60), calendar),
             accounts: accounts,
             activeID: activeID,
-            rateNow: (active.tokensFresh?["5m"] ?? 0) / 5,
+            rateNow: Int(rate(activeID)),
             threshold: threshold(activeID),
             series: series(activeID),
             week: WeekLine(short: short, percent: active.sevenDayPct ?? 0,
