@@ -41,6 +41,15 @@ enum Snapshots {
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))
         }
+        // The peak card without an ETA: blocked, and urgent by % with no tokens.
+        for (name, lead, time, detail) in [("blocked", "free at ", "20:20", "personal · cooked"),
+                                           ("no-eta", "resets ", "20:20", "personal")] {
+            var s = peak
+            s.urgency = Urgency(percent: name == "blocked" ? 103 : 91, lead: lead, fullAt: time, detail: detail,
+                                source: "Idle for 5 min", switchLabel: "Switch to work · 48%")
+            try render(SurfaceShot { IslandView(model: IslandModel(snapshot: s), namespace: $0) }.padding(24).background(desk),
+                       to: dir.appendingPathComponent("island-peak-\(name).png"))
+        }
     }
 
     /// `--snapshots <dir> --live`: the island and the open popover from the real status.json and database.

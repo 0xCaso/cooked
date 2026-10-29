@@ -19,6 +19,8 @@ struct Account: Identifiable, Equatable {
 /// The spike line of the urgent island: when the 5h window fills up and what to do.
 struct Urgency: Equatable {
     let percent: Int
+    /// The words before the time in the headline: "100% at ", "free at ", "resets ".
+    var lead = "100% at "
     let fullAt: String
     let detail: String
     let source: String
@@ -35,7 +37,7 @@ struct UsageSnapshot: Equatable {
     let threshold: Int
     /// Tokens per minute over the last 60 minutes, oldest first.
     let series: [Double]
-    let urgency: Urgency?
+    var urgency: Urgency?
 
     var isUrgent: Bool { urgency != nil }
     var active: Account? { accounts.first { $0.id == activeID } }

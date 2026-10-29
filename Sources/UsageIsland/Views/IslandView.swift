@@ -59,7 +59,7 @@ struct IslandView: View {
             HStack(spacing: 16) {
                 Text("\(u.percent)%").textStyle(.hero).foregroundStyle(Palette.red)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("\(Text("100% at ").styled(.emphasis))\(Text(u.fullAt).styled(.number))")
+                    Text("\(Text(u.lead).styled(.emphasis))\(Text(u.fullAt).styled(.number))")
                         .foregroundStyle(Palette.ink)
                         .frame(height: TextStyle.emphasis.lineHeight)
                     Text(u.detail).textStyle(.body).foregroundStyle(Palette.ink2)

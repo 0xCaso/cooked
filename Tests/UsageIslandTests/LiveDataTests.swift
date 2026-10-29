@@ -103,10 +103,12 @@ struct LiveDataTests {
         let u = try #require(s.urgency)
         #expect(s.activeID == "claudeAgent")
         #expect(u.percent == 91)
-        #expect(u.fullAt == "—")
-        #expect(u.detail == "personal · resets 20:20")
+        // no ETA: the headline gives the reset, not "100% at —"
+        #expect(u.lead == "resets ")
+        #expect(u.fullAt == "20:20")
+        #expect(u.detail == "personal")
         #expect(u.switchLabel == "Switch to work · 48%")
-        #expect(u.source == "0/min now") // no minutes in this fixture: the rate comes from the chart
+        #expect(u.source == "Idle for 5 min") // no minutes in this fixture: never "0/min"
     }
 
     @Test func urgentWhenFullWithinTwentyMinutes() throws {
@@ -114,6 +116,7 @@ struct LiveDataTests {
         var minutes = TokenLog.Minutes()
         minutes.topThread["claudeAgent_work"] = ("Refactor usage page", 920_000)
         let u = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar)?.urgency)
+        #expect(u.lead == "100% at ")
         #expect(u.fullAt == "15:40")
         #expect(u.detail == "work · in 14 min")
         #expect(u.source == "184k/min from “Refactor usage page”")
@@ -177,6 +180,21 @@ struct LiveDataTests {
         #expect(LiveSnapshot.make(status: late, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
         let atReset = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "30 min", eta: "19:00") }
         #expect(LiveSnapshot.make(status: atReset, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
+    }
+
+    /// A live blocked account in the peak card: "blocked until" the reset; a thread under 1 token/min is not named.
+    @Test func blockedPeakSaysBlockedUntil() throws {
+        let st = try status {
+            $0.accounts["claudeAgent"]?.fiveHourPct = 103
+            $0.accounts["claudeAgent"]?.limitStatus = "rejected"
+        }
+        var minutes = TokenLog.Minutes()
+        minutes.topThread["claudeAgent"] = ("Old thread", 3)
+        let u = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar)?.urgency)
+        #expect(u.lead == "free at ")
+        #expect(u.fullAt == "20:20")
+        #expect(u.detail == "personal · cooked")
+        #expect(u.source == "Idle for 5 min")
     }
 
     /// `limit_status` "rejected": "blocked until" the 5h reset, no "full at".

@@ -94,18 +94,25 @@ enum LiveSnapshot {
         if let i = accounts.firstIndex(where: { $0.id == activeID }) { accounts[i].isUnused = false }
 
         let urgency = urgentID.map { id -> Urgency in
-            let fullAt = eta(id)
-            let when = fullAt.map { "in \(max(0, Int($0.timeIntervalSince(now) / 60))) min" }
-                ?? "resets \(clockPart(entry(id).fiveHourResetsAt) ?? "—")"
-            let rate = TokenFormat.short(rate(id))
-            let source = minutes.topThread[id].map { "\(TokenFormat.short($0.tokens / 5))/min from “\($0.title)”" }
-                ?? "\(rate)/min now"
+            let name = self.short(id: id, name: entry(id).name)
+            let reset = clockPart(entry(id).fiveHourResetsAt) ?? "—"
+            // Without an ETA the headline says when the window frees up, never "100% at —". Short: the card cuts at ~17 characters.
+            let (lead, time, when): (String, String, String?) =
+                if blocked(id) { ("free at ", reset, "cooked") }
+                else if let eta = eta(id) { ("100% at ", clock(eta, calendar), "in \(max(0, Int(eta.timeIntervalSince(now) / 60))) min") }
+                else if percent(id) >= 100 { ("100% ", "now", "resets \(reset)") }
+                else { ("resets ", reset, nil) }
+            let rate = rate(id)
+            let source = minutes.topThread[id].flatMap { $0.tokens / 5 >= 1 ? $0 : nil }
+                .map { "\(TokenFormat.short($0.tokens / 5))/min from “\($0.title)”" }
+                ?? (rate >= 1 ? "\(TokenFormat.short(rate))/min now" : "Idle for 5 min")
             let alternative = ids.filter { $0 != id && !stale($0) && percent($0) < switchBelowPercent }
                 .min { percent($0) < percent($1) }
             return Urgency(
                 percent: percent(id),
-                fullAt: fullAt.map { clock($0, calendar) } ?? (percent(id) >= 100 ? "now" : "—"),
-                detail: "\(self.short(id: id, name: entry(id).name)) · \(when)",
+                lead: lead,
+                fullAt: time,
+                detail: when.map { "\(name) · \($0)" } ?? name,
                 source: source,
                 switchLabel: alternative.map { "Switch to \(self.short(id: $0, name: entry($0).name)) · \(percent($0))%" }
                     ?? "Pause the task")
