@@ -1,26 +1,25 @@
 import SwiftUI
 
 extension EnvironmentValues {
-    /// Seconds since the chart clock started. 0 when the charts are still.
-    @Entry var chartTime: Double = 0
-    /// Reduce Motion (or the --reduce-motion flag): no wave, no growth, no easing.
+    /// Time zero of every chart. Set once by the root; it never changes, so it re-renders nothing.
+    @Entry var chartEpoch: Date = .distantPast
+    /// Reduce Motion (or --reduce-motion), and snapshots: no wave, no growth, no easing.
     @Entry var chartsStill: Bool = false
 }
 
-/// The one display-synced loop for every chart (60 fps). Paused when the charts are still.
-struct ChartClock<Content: View>: View {
+/// A chart's own display-synced clock (60 fps), paused when the charts are still.
+/// Each chart keeps its clock inside itself, so per-frame time never flows through the rest of the view:
+/// a time in the environment made SwiftUI rebuild the open context menu on every frame.
+struct ChartTimeline<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Time zero, owned by whoever outlives this view (the model), so a rebuilt body keeps the same time.
-    let epoch: Date
-    var forceStill = false
-    @ViewBuilder var content: Content
+    @Environment(\.chartEpoch) private var epoch
+    @Environment(\.chartsStill) private var forcedStill
+    @ViewBuilder var content: (_ t: Double, _ still: Bool) -> Content
 
     var body: some View {
-        let still = reduceMotion || forceStill
+        let still = reduceMotion || forcedStill
         TimelineView(.animation(minimumInterval: nil, paused: still)) { context in
-            content
-                .environment(\.chartTime, still ? 0 : context.date.timeIntervalSince(epoch))
-                .environment(\.chartsStill, still)
+            content(still ? 0 : context.date.timeIntervalSince(epoch), still)
         }
     }
 }
@@ -68,11 +67,12 @@ struct WaveChart: View {
     let values: [Double]
     let threshold: Double
     let urgent: Bool
-    @Environment(\.chartTime) private var t
 
     var body: some View {
-        DotMatrix(grid: WaveModel.grid(values: values, threshold: threshold, t: t, urgent: urgent),
-                  pitch: 5, radius: 1.7, vignette: true)
+        ChartTimeline { t, _ in
+            DotMatrix(grid: WaveModel.grid(values: values, threshold: threshold, t: t, urgent: urgent),
+                      pitch: 5, radius: 1.7, vignette: true)
+        }
     }
 }
 
@@ -80,13 +80,13 @@ struct WaveChart: View {
 struct HistogramChart: View {
     let clock: HistogramClock
     let urgent: Bool
-    @Environment(\.chartTime) private var t
-    @Environment(\.chartsStill) private var still
 
     var body: some View {
         let row = clock.thresholdRow
-        DotMatrix(grid: clock.grid(at: t, still: still, urgent: urgent),
-                  pitch: 348 / 60, radius: 1.95, floor: { $0 == row ? 0.2 : 0.07 })
+        ChartTimeline { t, still in
+            DotMatrix(grid: clock.grid(at: t, still: still, urgent: urgent),
+                      pitch: 348 / 60, radius: 1.95, floor: { $0 == row ? 0.2 : 0.07 })
+        }
     }
 }
 

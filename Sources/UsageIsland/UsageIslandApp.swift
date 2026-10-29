@@ -22,7 +22,7 @@ enum UsageIslandApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: IslandPanel?
-    private let model = IslandModel()
+    let model = IslandModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.registerFontsOutsideTheBundle()
@@ -34,6 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--open") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [model] in model.open() }
         }
+    }
+
+    /// Opening the app again (Applications, Spotlight, Dock) while it runs opens the popover.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        model.open()
+        return false
     }
 
     /// Registers Plex from the bundle, or from the repo under `swift run` (no bundle). The bundle also sets

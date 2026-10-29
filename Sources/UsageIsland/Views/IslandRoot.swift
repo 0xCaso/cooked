@@ -11,7 +11,7 @@ struct IslandRoot: View {
 
     var body: some View {
         let reduce = env.reducesMotion
-        ChartClock(epoch: model.chartEpoch, forceStill: forceStill || Motion.forcedReduce) {
+        Group {
             GlassEffectContainer(spacing: IslandLayout.gap) {
                 VStack(spacing: IslandLayout.gap) {
                     IslandView(model: model, namespace: glass)
@@ -42,6 +42,8 @@ struct IslandRoot: View {
             .frame(width: IslandLayout.popoverWidth + 2 * IslandLayout.margin)
             .coordinateSpace(.named(IslandRoot.space))
         }
+        .environment(\.chartEpoch, model.chartEpoch)
+        .environment(\.chartsStill, forceStill || Motion.forcedReduce)
         .environment(\.glassStyle, model.glassStyle)
         .preferredColorScheme(.dark)
         .task {

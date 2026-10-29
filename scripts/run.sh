@@ -3,21 +3,12 @@
 # Usage: scripts/run.sh [debug|release]   (default: debug)
 set -euo pipefail
 
-config="${1:-debug}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/build/UsageIsland.app"
-
-cd "$root"
-swift build -c "$config" --product UsageIsland
-bin="$(swift build -c "$config" --show-bin-path)/UsageIsland"
-
-rm -rf "$app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$bin" "$app/Contents/MacOS/UsageIsland"
-cp "$root/Resources/Info.plist" "$app/Contents/Info.plist"
-cp -R "$root/Resources/Fonts" "$app/Contents/Resources/Fonts"
-codesign --force --sign - "$app" >/dev/null
+"$root/scripts/bundle.sh" "${1:-debug}"
 
 pkill -x UsageIsland 2>/dev/null || true
+# open fails (-600) if the old copy is still quitting
+while pgrep -x UsageIsland >/dev/null; do sleep 0.1; done
 open "$app"
 echo "Launched: $app"

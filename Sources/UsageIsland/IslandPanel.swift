@@ -11,6 +11,8 @@ final class IslandPanel: NSPanel, IslandMover {
     /// While the panel takes the mouse it gets no moves from other apps, and as a non-key panel maybe none of its own:
     /// it checks the pointer itself until the pointer leaves the surfaces.
     private var insideTimer: Timer?
+    /// A context menu is open: it tracks the mouse itself, outside the island, so leave the panel as it is.
+    private var menuTracking = false
     /// Clicks in other apps close the popover; only installed while it is open.
     private var outsideClicks: Any?
     private var wasOpen = false
@@ -148,6 +150,16 @@ final class IslandPanel: NSPanel, IslandMover {
             monitors.append(local)
         }
         observeHitRects()
+        let center = NotificationCenter.default
+        center.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.menuTracking = true }
+        }
+        center.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.menuTracking = false
+                self?.updateMouseEvents()
+            }
+        }
     }
 
     /// Also when the surfaces change under a still pointer (popover opens or closes).
@@ -161,7 +173,8 @@ final class IslandPanel: NSPanel, IslandMover {
         }
     }
 
-    private func updateMouseEvents() {
+    func updateMouseEvents() {
+        guard !menuTracking else { return }
         let inside = IslandHitTest.hits(NSEvent.mouseLocation, rects: model.hitRects, panelFrame: frame)
         if ignoresMouseEvents == inside { ignoresMouseEvents = !inside }
         if inside, insideTimer == nil {

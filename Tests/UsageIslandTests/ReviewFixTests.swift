@@ -60,3 +60,30 @@ struct ReviewFixTests {
         #expect(AppDelegate.fontsDirectory(resourceURL: res.appendingPathComponent("missing")).path.hasSuffix("Resources/Fonts"))
     }
 }
+
+/// Bug found with a manual right-click test: while the context menu tracks, the pointer leaves the island,
+/// the panel went back to ignoring the mouse, and no menu item could be chosen.
+@MainActor
+struct ContextMenuTests {
+    @Test func panelKeepsTheMouseWhileAMenuTracks() {
+        let panel = IslandPanel(model: IslandModel()) // no hit rects: the pointer is never "inside"
+        panel.ignoresMouseEvents = false
+        NotificationCenter.default.post(name: NSMenu.didBeginTrackingNotification, object: NSMenu())
+        panel.updateMouseEvents()
+        #expect(!panel.ignoresMouseEvents)
+        NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: NSMenu())
+        panel.updateMouseEvents()
+        #expect(panel.ignoresMouseEvents)
+    }
+}
+
+@MainActor
+struct ReopenTests {
+    /// Opening the app from Applications or Spotlight while it already runs shows the popover.
+    @Test func reopeningShowsThePopover() {
+        let delegate = AppDelegate()
+        #expect(!delegate.model.isOpen)
+        _ = delegate.applicationShouldHandleReopen(NSApplication.shared, hasVisibleWindows: true)
+        #expect(delegate.model.isOpen)
+    }
+}
