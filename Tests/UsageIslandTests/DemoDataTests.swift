@@ -14,10 +14,10 @@ struct DemoDataTests {
         let s = DemoData.calm
         #expect(s.clock == "19:28")
         #expect(s.historyStart == "18:28")
-        #expect(s.accounts.map(\.short) == ["work", "personal", "side", "codex"])
-        #expect(s.accounts.map(\.fiveHourPercent) == [4, 0, 12, 6])
-        #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "—", "01:55", "03:10"])
-        #expect(s.accounts.map(\.isLive) == [true, false, false, false])
+        #expect(s.accounts.map(\.short) == ["work", "team", "personal", "side", "codex"])
+        #expect(s.accounts.map(\.fiveHourPercent) == [4, 11, 0, 12, 6])
+        #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "04:40", "—", "01:55", "03:10"])
+        #expect(s.accounts.map(\.isLive) == [true, false, false, false, false])
         #expect(s.activeID == "work")
         #expect(s.rateNow == 9000)
         #expect(s.threshold == 40000)
@@ -31,9 +31,9 @@ struct DemoDataTests {
         let s = DemoData.peak
         #expect(s.clock == "23:05")
         #expect(s.historyStart == "22:05")
-        #expect(s.accounts.map(\.fiveHourPercent) == [82, 31, 12, 9])
-        #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "02:40", "01:55", "03:10"])
-        #expect(s.accounts.map(\.isLive) == [true, true, false, false])
+        #expect(s.accounts.map(\.fiveHourPercent) == [82, 12, 31, 12, 9])
+        #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "04:40", "02:40", "01:55", "03:10"])
+        #expect(s.accounts.map(\.isLive) == [true, false, true, false, false])
         #expect(s.rateNow == 184_000)
         #expect(s.week.percent == 79)
         #expect(s.urgency == Urgency(

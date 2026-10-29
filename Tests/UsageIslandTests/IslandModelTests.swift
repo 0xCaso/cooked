@@ -46,8 +46,8 @@ struct IslandModelTests {
     @Test func panelSizeHoldsOpenPeak() {
         let size = IslandLayout.panelSize
         #expect(size.width == CGFloat(404 + 2 * 24))
-        // island 108 + gap 8 + popover ~449 + margins 48 (mockup: open-peak)
-        #expect((CGFloat(590)...CGFloat(640)).contains(size.height), "panel height \(size.height)")
+        // island 108 + gap 8 + popover ~479 with 5 accounts + margins 48 (mockup: open-peak, one more account row)
+        #expect((CGFloat(620)...CGFloat(670)).contains(size.height), "panel height \(size.height)")
     }
 }
 

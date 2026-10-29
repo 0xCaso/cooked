@@ -3,8 +3,8 @@ import Foundation
 /// Builds what the island shows from the watcher's status.json and the per-minute tokens of T3 Code's database.
 enum LiveSnapshot {
     /// Display order, then any other account in id order.
-    static let order = ["claudeAgent_work", "claudeAgent", "claudeAgent_side", "codex"]
-    static let shortNames = ["claudeAgent_work": "work", "claudeAgent": "personal",
+    static let order = ["claudeAgent_work", "claudeAgent_team", "claudeAgent", "claudeAgent_side", "codex"]
+    static let shortNames = ["claudeAgent_work": "work", "claudeAgent_team": "team", "claudeAgent": "personal",
                              "claudeAgent_side": "side", "codex": "codex"]
     /// The watcher's fallback p99 for 15 minutes, when status.json has none.
     static let fallbackThreshold15m = 500_000

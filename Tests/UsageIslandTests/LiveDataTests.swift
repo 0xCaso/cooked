@@ -160,6 +160,7 @@ struct LiveDataTests {
 
     @Test func shortNames() {
         #expect(LiveSnapshot.short(id: "claudeAgent_work", name: "claude-work") == "work")
+        #expect(LiveSnapshot.short(id: "claudeAgent_team", name: "claude-work-team") == "team")
         #expect(LiveSnapshot.short(id: "claudeAgent_new", name: "claude-new") == "new")
     }
 }
