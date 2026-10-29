@@ -38,7 +38,7 @@ struct IslandRoot: View {
                             }
                             .pickerStyle(.menu)
                             Divider()
-                            Button("Quit Usage Island") { NSApp.terminate(nil) }
+                            Button("Quit Cooked") { NSApp.terminate(nil) }
                         }
                         .reportsHitRect(into: model, slot: 0)
                     if model.isOpen {
