@@ -3,7 +3,7 @@ import SwiftUI
 extension EnvironmentValues {
     /// Opaque surfaces instead of glass: for snapshots (glass does not render off screen). Reduce Transparency does the same.
     @Entry var solidSurfaces: Bool = false
-    @Entry var glassStyle: GlassStyle = .system
+    @Entry var glassStyle: GlassStyle = .darker
 }
 
 // Surfaces from the mockup's look.html (hex's dark tokens). CSS shadow blur b → SwiftUI radius b / 2.

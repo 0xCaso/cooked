@@ -8,8 +8,8 @@ struct GlassStyleTests {
         try #require(UserDefaults(suiteName: "usage-island-glass-\(UUID().uuidString)"))
     }
 
-    @Test func defaultFollowsTheSystem() throws {
-        #expect(IslandModel(defaults: try freshDefaults()).glassStyle == .system)
+    @Test func defaultIsDarker() throws {
+        #expect(IslandModel(defaults: try freshDefaults()).glassStyle == .darker)
     }
 
     @Test func choiceIsKept() throws {

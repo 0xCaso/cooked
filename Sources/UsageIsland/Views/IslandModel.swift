@@ -48,7 +48,7 @@ final class IslandModel {
     init(snapshot: UsageSnapshot = DemoData.calm, feed: Feed? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.feed = feed ?? (snapshot.isUrgent ? .demoPeak : .demoCalm)
-        glassStyle = defaults.string(forKey: GlassStyle.defaultsKey).flatMap(GlassStyle.init(rawValue:)) ?? .system
+        glassStyle = defaults.string(forKey: GlassStyle.defaultsKey).flatMap(GlassStyle.init(rawValue:)) ?? .darker
         self.snapshot = snapshot
         rateNow = snapshot.rateNow
         histogram = Self.demoClock(snapshot)
