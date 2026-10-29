@@ -1,0 +1,56 @@
+import AppKit
+import SwiftUI
+
+/// `UsageIsland --snapshots <dir>`: renders parts of the island to PNG without a screen capture.
+/// Charts are drawn still (t = 0). Glass cannot render off screen, so surfaces are drawn opaque.
+@MainActor
+enum Snapshots {
+    static func write(to dir: URL) throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let calm = DemoData.calm, peak = DemoData.peak
+        func clock(_ s: UsageSnapshot) -> HistogramClock {
+            HistogramClock(values: s.series, threshold: Double(s.threshold), minuteLength: 60) { 0 }
+        }
+        let charts: [(String, AnyView)] = [
+            ("wave-calm", AnyView(WaveChart(values: DemoData.series(count: 18, peak: false), threshold: 40000, urgent: false))),
+            ("wave-peak", AnyView(WaveChart(values: DemoData.series(count: 20, peak: true), threshold: 40000, urgent: true))),
+            ("hist-calm", AnyView(HistogramChart(clock: clock(calm), urgent: false))),
+            ("hist-peak", AnyView(HistogramChart(clock: clock(peak), urgent: true))),
+            ("bars-peak", AnyView(VStack(spacing: 8) {
+                ForEach(peak.accounts) { a in AccountBarChart(percent: a.fiveHourPercent, hot: a.id == "work") }
+            })),
+        ]
+        for (name, view) in charts {
+            try render(view.padding(8).background(Color(white: 0.06)), to: dir.appendingPathComponent("\(name).png"))
+        }
+        // Island and popover with opaque surfaces, on the mockup's desk colour (#1b1c1f).
+        let desk = Color(red: 27 / 255, green: 28 / 255, blue: 31 / 255)
+        for (name, snapshot) in [("calm", calm), ("peak", peak)] {
+            let model = IslandModel(snapshot: snapshot)
+            try render(SurfaceShot { IslandView(model: model, namespace: $0) }.padding(24).background(desk),
+                       to: dir.appendingPathComponent("island-\(name).png"))
+            try render(SurfaceShot { PopoverView(model: model, histogram: clock(snapshot), namespace: $0) }.padding(24).background(desk),
+                       to: dir.appendingPathComponent("popover-\(name).png"))
+            model.open()
+            try render(IslandRoot(model: model, forceStill: true).background(desk),
+                       to: dir.appendingPathComponent("open-\(name).png"))
+        }
+    }
+
+    /// Gives a surface the glass namespace it needs.
+    private struct SurfaceShot<Content: View>: View {
+        @ViewBuilder var content: (Namespace.ID) -> Content
+        @Namespace private var ns
+        var body: some View { content(ns) }
+    }
+
+    static func render(_ view: some View, to url: URL) throws {
+        let renderer = ImageRenderer(content: view.environment(\.chartsStill, true).environment(\.colorScheme, .dark)
+            .environment(\.solidSurfaces, true))
+        renderer.scale = 2
+        guard let image = renderer.cgImage else { throw CocoaError(.fileWriteUnknown) }
+        let rep = NSBitmapImageRep(cgImage: image)
+        guard let png = rep.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
+        try png.write(to: url)
+    }
+}
