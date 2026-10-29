@@ -19,7 +19,7 @@ struct PopoverView: View {
             section("Tokens per minute", "last 60 min")
                 .padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             rateCard(s)
-            section("5-hour window", "resets")
+            accountsHeader
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
             Text("\(Text("Week: \(s.week.short) "))\(Text("\(s.week.percent)%").styled(.labelNumber)) · resets \(s.week.reset)")
@@ -43,6 +43,24 @@ struct PopoverView: View {
         .textStyle(.label)
         .foregroundStyle(sectionInk)
     }
+
+    /// The section label, with the two time columns of the rows below as headings.
+    private var accountsHeader: some View {
+        HStack(spacing: Self.rowSpacing) {
+            Text("5-hour window")
+            Spacer(minLength: 0)
+            Text("full at").frame(width: Self.timeColumn, alignment: .trailing)
+            Text("resets").frame(width: Self.timeColumn, alignment: .trailing)
+        }
+        .lineLimit(1)
+        .textStyle(.label)
+        .foregroundStyle(sectionInk)
+    }
+
+    /// Width of the "full at" and "resets" columns: "00:00" in Plex Mono 13 is 39 pt.
+    static let timeColumn: CGFloat = 40
+    /// Row: name 64 + bar 146 + percent 36 + two times 80 + 4 gaps of 8 = 358 of the card's 364 pt.
+    static let rowSpacing: CGFloat = 8
 
     private func rateCard(_ s: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,10 +111,10 @@ struct PopoverView: View {
 
     private func accountRow(_ a: Account, hot: Bool) -> some View {
         let ink = a.isLive ? Palette.ink : Palette.ink2
-        return HStack(spacing: 12) {
+        return HStack(spacing: Self.rowSpacing) {
             Text(a.short).textStyle(a.isLive ? .emphasis : .body)
                 .foregroundStyle(ink)
-                .frame(width: 76, alignment: .leading)
+                .frame(width: 64, alignment: .leading)
             AccountBarChart(percent: a.fiveHourPercent, hot: hot)
                 .padding(3)
                 .wellSurface(RoundedRectangle(cornerRadius: 6, style: .continuous), innerBlur: 2)
@@ -104,9 +122,12 @@ struct PopoverView: View {
             Text("\(a.fiveHourPercent)%").textStyle(a.isLive ? .numberEmphasis : .number)
                 .foregroundStyle(hot ? Palette.red : ink)
                 .frame(width: 36, alignment: .trailing)
+            Text(a.fullAt ?? "—").textStyle(.number)
+                .foregroundStyle(a.fullAt == nil ? Palette.ink3 : hot ? Palette.red : ink)
+                .frame(width: Self.timeColumn, alignment: .trailing)
             Text(a.fiveHourReset).textStyle(.number)
                 .foregroundStyle(Palette.ink3)
-                .frame(width: 44, alignment: .trailing)
+                .frame(width: Self.timeColumn, alignment: .trailing)
         }
         .lineLimit(1)
         .frame(height: 30)

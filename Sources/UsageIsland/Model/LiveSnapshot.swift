@@ -44,7 +44,13 @@ enum LiveSnapshot {
         let accounts = ids.map { id in
             Account(id: id, short: short(id: id, name: entry(id).name), fiveHourPercent: percent(id),
                     fiveHourReset: stale(id) ? "—" : clockPart(entry(id).fiveHourResetsAt) ?? "—",
-                    isLive: entry(id).live ?? false)
+                    isLive: entry(id).live ?? false, fullAt: fullAt(id))
+        }
+        /// The watcher only writes a projection when it lands before the reset.
+        func fullAt(_ id: String) -> String? {
+            if stale(id) { return nil }
+            if percent(id) >= 100 { return "now" }
+            return eta(id).map { clock($0, calendar) }
         }
 
         func isUrgent(_ id: String) -> Bool {

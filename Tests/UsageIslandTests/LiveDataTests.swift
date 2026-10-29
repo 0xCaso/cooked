@@ -80,7 +80,8 @@ struct LiveDataTests {
         let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar))
         // only accounts with 5h data, work first
         #expect(s.accounts.map(\.short) == ["work", "personal"])
-        #expect(s.accounts[0] == Account(id: "claudeAgent_work", short: "work", fiveHourPercent: 48, fiveHourReset: "19:00", isLive: true))
+        #expect(s.accounts[0] == Account(id: "claudeAgent_work", short: "work", fiveHourPercent: 48, fiveHourReset: "19:00", isLive: true,
+                                       fullAt: "18:04"))
         // both live: work burned more in the last 15 min (250k vs 204k)
         #expect(s.activeID == "claudeAgent_work")
         #expect(s.rateNow == 58613 / 5)
@@ -156,6 +157,18 @@ struct LiveDataTests {
     @Test func noFiveHourDataMeansNoSnapshot() throws {
         let st = try status { $0.accounts = $0.accounts.filter { $0.key == "codex" } }
         #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar) == nil)
+    }
+
+    @Test func fullAtComesFromTheProjection() throws {
+        let st = try status {
+            $0.accounts["claudeAgent"]?.fiveHourPct = 103
+            $0.accounts["claudeAgent_work"]?.projection = nil
+        }
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        // no projection: not expected to fill up; at 100% and over: already full
+        #expect(s.accounts.map(\.fullAt) == [nil, "now"])
+        let withProjection = try #require(LiveSnapshot.make(status: try status(), minutes: .init(), now: now, calendar: calendar))
+        #expect(withProjection.accounts[0].fullAt == "18:04")
     }
 
     @Test func shortNames() {

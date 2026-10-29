@@ -5,7 +5,13 @@ import SwiftUI
 /// What the island shows and whether the popover is open: live data, or one of the two demos.
 @Observable @MainActor
 final class IslandModel {
-    var snapshot: UsageSnapshot
+    var snapshot: UsageSnapshot {
+        didSet { if !snapshot.isUrgent { peakMinimized = false } }
+    }
+    /// The user shrank the peak card back to the calm capsule. Lasts until the peak ends.
+    var peakMinimized = false
+    /// The peak card, unless the user shrank it.
+    var showsPeakCard: Bool { snapshot.isUrgent && !peakMinimized }
     var isOpen = false
     /// Tokens per minute right now. In the calm demo it rolls through `DemoData.calmRates`.
     var rateNow: Int

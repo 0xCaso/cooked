@@ -1,10 +1,13 @@
-/// What the island shows at one moment. Demo values for now; the watcher's status.json comes next.
+/// What the island shows at one moment: live data from the watcher, or a demo.
 struct Account: Identifiable, Equatable {
     let id: String
     let short: String
     let fiveHourPercent: Int
     let fiveHourReset: String
     let isLive: Bool
+    /// When the watcher expects the 5h window to reach 100%, before it resets: "HH:MM", or "now" at 100% and over.
+    /// nil when it is not expected to fill up.
+    var fullAt: String? = nil
 }
 
 /// The spike line of the urgent island: when the 5h window fills up and what to do.

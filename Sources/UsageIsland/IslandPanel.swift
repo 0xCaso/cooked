@@ -44,6 +44,8 @@ final class IslandPanel: NSPanel, IslandMover {
         level = .statusBar
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         hidesOnDeactivate = false
+        // No fade on order out/in: handing the keyboard back re-orders the panel, and the fade made the island blink.
+        animationBehavior = .none
         isReleasedWhenClosed = false
         becomesKeyOnlyIfNeeded = true
         appearance = NSAppearance(named: .darkAqua)

@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 /// Everything the panel shows: the island at the top centre and, when open, the popover 8 pt below.
-/// One glass container, so the two shapes can merge, and one chart clock for every chart.
+/// Each surface has its own glass: in one container the island's glass merged with the popover's, went darker
+/// while open and vanished for ~240 ms when the popover closed. One chart clock for every chart.
 struct IslandRoot: View {
     let model: IslandModel
     var forceStill = false
@@ -14,8 +15,7 @@ struct IslandRoot: View {
     var body: some View {
         let reduce = env.reducesMotion
         Group {
-            GlassEffectContainer(spacing: IslandLayout.gap) {
-                VStack(spacing: IslandLayout.gap) {
+            VStack(spacing: IslandLayout.gap) {
                     IslandView(model: model, namespace: glass)
                         .contentShape(.rect)
                         .modifier(PressableIsland(model: model) { model.isOpen.toggle() })
@@ -26,6 +26,11 @@ struct IslandRoot: View {
                             .pickerStyle(.inline)
                             if model.feed == .live, let problem = model.liveProblem {
                                 Text(problem.message)
+                            }
+                            if model.snapshot.isUrgent {
+                                Button(model.peakMinimized ? "Show the peak card" : "Minimize the peak card") {
+                                    model.peakMinimized.toggle()
+                                }
                             }
                             Divider()
                             Picker("Glass", selection: Bindable(model).glassStyle) {
@@ -40,13 +45,11 @@ struct IslandRoot: View {
                         PopoverView(model: model, histogram: model.histogram, namespace: glass)
                             // grows out of the island: from 0.96 and transparent, anchored at the top centre
                             .transition(.scale(scale: Motion.Scale.popoverFrom, anchor: .top).combined(with: .opacity))
-                            .glassEffectTransition(.matchedGeometry)
                             .reportsHitRect(into: model, slot: 1)
                     }
-                }
             }
             .animation(Motion.animation(model.isOpen ? Motion.popoverIn : Motion.popoverOut, reduceMotion: reduce), value: model.isOpen)
-            .animation(Motion.animation(Motion.island, reduceMotion: reduce), value: model.snapshot.isUrgent)
+            .animation(Motion.animation(Motion.island, reduceMotion: reduce), value: model.showsPeakCard)
             .padding(IslandLayout.margin)
             .frame(width: IslandLayout.popoverWidth + 2 * IslandLayout.margin)
             .coordinateSpace(.named(IslandRoot.space))

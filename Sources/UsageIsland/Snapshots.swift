@@ -31,6 +31,12 @@ enum Snapshots {
                        to: dir.appendingPathComponent("island-\(name).png"))
             try render(SurfaceShot { PopoverView(model: model, histogram: clock(snapshot), namespace: $0) }.padding(24).background(desk),
                        to: dir.appendingPathComponent("popover-\(name).png"))
+            if snapshot.isUrgent {
+                model.peakMinimized = true
+                try render(SurfaceShot { IslandView(model: model, namespace: $0) }.padding(24).background(desk),
+                           to: dir.appendingPathComponent("island-\(name)-minimized.png"))
+                model.peakMinimized = false
+            }
             model.open()
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))

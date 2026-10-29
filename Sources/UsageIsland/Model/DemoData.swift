@@ -43,9 +43,9 @@ enum DemoData {
     static let peak = UsageSnapshot(
         clock: "23:05", historyStart: "22:05",
         accounts: [
-            Account(id: "work", short: "work", fiveHourPercent: 82, fiveHourReset: "00:20", isLive: true),
+            Account(id: "work", short: "work", fiveHourPercent: 82, fiveHourReset: "00:20", isLive: true, fullAt: "23:14"),
             Account(id: "team", short: "team", fiveHourPercent: 12, fiveHourReset: "04:40", isLive: false),
-            Account(id: "per", short: "personal", fiveHourPercent: 31, fiveHourReset: "02:40", isLive: true),
+            Account(id: "per", short: "personal", fiveHourPercent: 31, fiveHourReset: "02:40", isLive: true, fullAt: "01:50"),
             Account(id: "side", short: "side", fiveHourPercent: 12, fiveHourReset: "01:55", isLive: false),
             Account(id: "cdx", short: "codex", fiveHourPercent: 9, fiveHourReset: "03:10", isLive: false),
         ],

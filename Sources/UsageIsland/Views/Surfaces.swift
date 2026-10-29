@@ -98,6 +98,37 @@ enum GlassStyle: String, CaseIterable {
     var drawsRim: Bool { self == .darker }
 }
 
+/// The quiet button next to the white one: 28 high, capsule, no fill, ink text and a thin ring.
+struct SecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SecondaryButtonBody(configuration: configuration)
+    }
+
+    private struct SecondaryButtonBody: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isFocused) private var isFocused
+
+        var body: some View {
+            configuration.label
+                .font(TextStyle.emphasis.font)
+                .foregroundStyle(Palette.ink)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background {
+                    Capsule().fill(.white.opacity(configuration.isPressed ? 0.12 : 0.06))
+                    Capsule().inset(by: 0.25).stroke(.white.opacity(0.16), lineWidth: 0.5)
+                }
+                .overlay {
+                    if isFocused { Capsule().inset(by: -3).stroke(Palette.ink2, lineWidth: 2) }
+                }
+                .contentShape(Capsule())
+                .modifier(PressScale(pressed: configuration.isPressed))
+        }
+    }
+}
+
 /// The white button: 28 high, capsule, white → ink, dark text, a crisp ring and a lit top edge.
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

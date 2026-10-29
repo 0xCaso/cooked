@@ -13,9 +13,10 @@ struct IslandView: View {
     /// One surface for both states, so its shape grows from the capsule (radius 22 = half of 44) to the card.
     var body: some View {
         let snapshot = model.snapshot
-        let shape = RoundedRectangle(cornerRadius: snapshot.isUrgent ? 24 : 22, style: .continuous)
+        let card = model.showsPeakCard
+        let shape = RoundedRectangle(cornerRadius: card ? 24 : 22, style: .continuous)
         ZStack {
-            if let urgency = snapshot.urgency {
+            if card, let urgency = snapshot.urgency {
                 peak(snapshot, urgency)
                     .frame(width: IslandLayout.popoverWidth, alignment: .leading)
                     .transition(.blurIn(reduceMotion: env.reducesMotion))
@@ -31,11 +32,13 @@ struct IslandView: View {
 
     private func calm(_ s: UsageSnapshot) -> some View {
         HStack(spacing: 12) {
-            WaveChart(values: Self.wave(s), threshold: Double(s.threshold), urgent: false)
+            WaveChart(values: Self.wave(s), threshold: Double(s.threshold), urgent: s.isUrgent)
                 .padding(.horizontal, 8)
                 .frame(height: 36)
                 .wellSurface(Capsule(), innerBlur: 2.5)
-            Text("\(s.active?.fiveHourPercent ?? 0)%").textStyle(.numberEmphasis).foregroundStyle(Palette.ink)
+            // Minimized peak: the capsule keeps the red percentage and ring.
+            Text("\(s.active?.fiveHourPercent ?? 0)%").textStyle(.numberEmphasis)
+                .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
             Text(s.active?.short ?? "").textStyle(.body).foregroundStyle(Palette.ink2)
             Text("\(TokenFormat.short(Double(model.rateNow)))/min").textStyle(.number).foregroundStyle(Palette.ink3)
                 .contentTransition(.numericText(value: Double(model.rateNow)))
@@ -69,6 +72,8 @@ struct IslandView: View {
                 Text(u.source).textStyle(.body).foregroundStyle(Palette.ink2)
                     .lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 0)
+                Button("Minimize") { model.peakMinimized = true }
+                    .buttonStyle(SecondaryButtonStyle())
                 // Switching accounts is outside this plan: the button does nothing yet.
                 Button(u.switchLabel) {}
                     .buttonStyle(PrimaryButtonStyle())

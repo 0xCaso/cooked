@@ -37,6 +37,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--open") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [model] in model.open() }
         }
+        // `--toggle-every <s>`: opens and closes the popover on a timer, to record the transitions without clicking.
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--toggle-every"), i + 1 < args.count, let every = Double(args[i + 1]) {
+            Timer.scheduledTimer(withTimeInterval: every, repeats: true) { [model] _ in
+                MainActor.assumeIsolated { model.isOpen.toggle() }
+            }
+        }
     }
 
     /// Opening the app again (Applications, Spotlight, Dock) while it runs opens the popover.
