@@ -176,18 +176,6 @@ struct EvenPaceKey: View {
     }
 }
 
-/// The alert key in the chart header: a few dots, as the chart draws its threshold row.
-struct AlertKey: View {
-    var body: some View {
-        HStack(spacing: 2.2) {
-            ForEach(0..<3, id: \.self) { _ in
-                Circle().fill(Palette.ink.opacity(0.45)).frame(width: 2.3, height: 2.3)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 /// The chart's time ranges under the chart: a small
 /// segmented control, the chosen range lifted on a lighter key.
 struct RangeControl: View {

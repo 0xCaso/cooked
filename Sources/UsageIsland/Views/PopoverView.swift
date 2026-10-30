@@ -74,13 +74,10 @@ struct PopoverView: View {
                     .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
                 Text("now").textStyle(.body).foregroundStyle(Palette.ink2)
                 Spacer(minLength: 0)
-                HStack(spacing: 5) {
-                    AlertKey()
-                    Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
-                        .styled(.label)
-                        .frame(height: TextStyle.label.lineHeight)
-                }
-                .foregroundStyle(Palette.ink3)
+                Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
+                    .styled(.label)
+                    .frame(height: TextStyle.label.lineHeight)
+                    .foregroundStyle(Palette.ink3)
             }
             .lineLimit(1)
             .padding(.bottom, 12)
