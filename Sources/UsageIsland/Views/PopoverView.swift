@@ -84,18 +84,17 @@ struct PopoverView: View {
             }
             .lineLimit(1)
             .padding(.bottom, 12)
-            TideHistogramChart(source: histogram)
+            TideHistogramChart(source: histogram, range: model.chartRange)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 .frame(maxWidth: .infinity)
                 .wellSurface(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .padding(.horizontal, -4)
             HStack {
-                Text(s.historyStart).textStyle(.labelNumber)
+                RangeControl(selection: Bindable(model).chartRange)
                 Spacer()
-                Text("now").textStyle(.label)
+                Text("now").textStyle(.label).foregroundStyle(Palette.ink3)
             }
-            .foregroundStyle(Palette.ink3)
             .padding(.top, 6)
         }
         .padding(12)

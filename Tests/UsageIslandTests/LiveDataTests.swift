@@ -95,12 +95,11 @@ struct LiveDataTests {
         #expect(s.activeID == "claudeAgent_work")
         #expect(s.rateNow == (4189 + 27004) / 5) // the chart's last 5 minutes
         #expect(s.threshold == 617_094 / 15)
-        #expect(s.series.count == 60)
+        #expect(s.series.count == 1440) // a day, for the 1d range
         #expect(s.series.last == 4189)
-        #expect(s.series[58] == 27004)
-        #expect(s.series[0] == 100) // minute − 60 is outside the hour
+        #expect(s.series[1438] == 27004)
+        #expect(s.series[1380] == 100) // the hour's first minute
         #expect(s.clock == "15:25")
-        #expect(s.historyStart == "14:26")
         // 18:04 is 158 min away: not urgent
         #expect(s.urgency == nil)
     }
@@ -480,7 +479,7 @@ struct UsageSourceTests {
         let r = UsageSource(statusPath: path, databasePath: "/nonexistent", transcripts: nil).read()
         let reading = try r.get()
         #expect(reading.snapshot.accounts.count == 2)
-        #expect(reading.snapshot.series == Array(repeating: 0, count: 60)) // no database: empty histogram
+        #expect(reading.snapshot.series == Array(repeating: 0, count: 1440)) // no database: empty histogram
     }
 
     @Test func reportsProblems() throws {

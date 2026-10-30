@@ -34,7 +34,6 @@ struct Urgency: Equatable {
 
 struct UsageSnapshot: Equatable {
     let clock: String
-    let historyStart: String
     var accounts: [Account]
     let activeID: String
     let rateNow: Int

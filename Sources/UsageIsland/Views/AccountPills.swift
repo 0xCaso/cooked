@@ -187,3 +187,43 @@ struct AlertKey: View {
         .accessibilityHidden(true)
     }
 }
+
+/// The chart's time ranges under the chart: a small
+/// segmented control, the chosen range lifted on a lighter key.
+struct RangeControl: View {
+    @Binding var selection: ChartRange
+    @Environment(\.self) private var env
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(ChartRange.allCases) { range in
+                let on = range == selection
+                Button { selection = range } label: {
+                    Text(range.rawValue)
+                        .font(.custom(PlexFont.monoMedium, size: 11))
+                        .foregroundStyle(on ? Palette.ink : Palette.ink3)
+                        .padding(.horizontal, 6)
+                        .frame(height: 19)
+                        .background {
+                            if on {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color(white: 0.165))
+                                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHand()
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(white: 0.05))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 0.5)))
+        .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Chart range")
+    }
+}

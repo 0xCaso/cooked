@@ -31,6 +31,10 @@ final class IslandModel {
     var glassStyle: GlassStyle {
         didSet { defaults.set(glassStyle.rawValue, forKey: GlassStyle.defaultsKey) }
     }
+    /// How far back the popover's chart looks, kept across launches.
+    var chartRange: ChartRange {
+        didSet { defaults.set(chartRange.rawValue, forKey: ChartRange.defaultsKey) }
+    }
     @ObservationIgnored private let defaults: UserDefaults
     /// Moves the panel while the island is dragged (the panel itself).
     @ObservationIgnored weak var mover: IslandMover?
@@ -49,6 +53,7 @@ final class IslandModel {
         self.defaults = defaults
         self.feed = feed ?? (snapshot.isUrgent ? .demoPeak : .demoCalm)
         glassStyle = defaults.string(forKey: GlassStyle.defaultsKey).flatMap(GlassStyle.init(rawValue:)) ?? .darker
+        chartRange = defaults.string(forKey: ChartRange.defaultsKey).flatMap(ChartRange.init(rawValue:)) ?? .tenMinutes
         self.snapshot = snapshot
         rateNow = snapshot.rateNow
         histogram = Self.demoClock(snapshot)

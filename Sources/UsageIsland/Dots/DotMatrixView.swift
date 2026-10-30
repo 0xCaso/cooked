@@ -131,15 +131,16 @@ struct TideIslandChart: View {
     }
 }
 
-/// The popover's last hour: 84 × 24 dots across 348 pt, on a square-root scale. Every minute over the threshold is coral
+/// The popover's chart over `range`: 84 × 24 dots across 348 pt, on a square-root scale. Every minute over the threshold is coral
 /// above the threshold row, whether or not the rate is over it now.
 struct TideHistogramChart: View {
     let source: any HistogramSource
+    var range = ChartRange.hour
     @State private var tide = TideHistogram()
 
     var body: some View {
         ChartTimeline { t, still in
-            let field = tide.frame(source.history(at: t, still: still), at: t, still: still)
+            let field = tide.frame(source.history(at: t, still: still).window(range.minutes), at: t, still: still)
             LiquidMatrix(field: field, pitch: CGFloat(TideHistogram.pitch), radius: 1.2, thresholdRow: tide.thresholdRow)
         }
     }

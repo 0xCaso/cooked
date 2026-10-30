@@ -13,7 +13,6 @@ struct DemoDataTests {
     @Test func calmSnapshot() {
         let s = DemoData.calm
         #expect(s.clock == "19:28")
-        #expect(s.historyStart == "18:28")
         #expect(s.accounts.map(\.short) == ["work", "team", "personal", "side", "codex"])
         #expect(s.accounts.map(\.fiveHourPercent) == [4, 11, 0, 12, 6])
         #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "04:40", "—", "01:55", "03:10"])
@@ -33,7 +32,6 @@ struct DemoDataTests {
     @Test func peakSnapshot() {
         let s = DemoData.peak
         #expect(s.clock == "23:05")
-        #expect(s.historyStart == "22:05")
         #expect(s.accounts.map(\.fiveHourPercent) == [82, 12, 31, 12, 9])
         #expect(s.accounts.map(\.fiveHourReset) == ["00:20", "04:40", "02:40", "01:55", "03:10"])
         #expect(s.accounts.map(\.isLive) == [true, false, true, false, false])

@@ -28,7 +28,7 @@ enum DemoData {
     }
 
     static let calm = UsageSnapshot(
-        clock: "19:28", historyStart: "18:28",
+        clock: "19:28",
         accounts: [
             Account(id: "work", short: "work", fiveHourPercent: 4, fiveHourReset: "00:20", isLive: true, weekPercent: 74,
                     fiveHourElapsed: 0.38, weekElapsed: 0.71, weekReset: "Mon"),
@@ -45,7 +45,7 @@ enum DemoData {
         urgency: nil)
 
     static let peak = UsageSnapshot(
-        clock: "23:05", historyStart: "22:05",
+        clock: "23:05",
         accounts: [
             Account(id: "work", short: "work", fiveHourPercent: 82, fiveHourReset: "00:20", isLive: true, fullAt: "23:14", weekPercent: 79,
                     fiveHourElapsed: 0.55, weekElapsed: 0.71, weekReset: "Mon"),

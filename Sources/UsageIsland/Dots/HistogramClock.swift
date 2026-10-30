@@ -1,6 +1,6 @@
 import Foundation
 
-/// The last 60 minutes in tokens per minute, oldest first, the minute in progress last.
+/// The last minutes in tokens per minute, oldest first, the minute in progress last.
 /// `top` is the top of the scale, `threshold` the p99 threshold.
 struct MinuteHistory: Equatable {
     var values: [Double]
@@ -9,6 +9,31 @@ struct MinuteHistory: Equatable {
 
     /// Never below 1.6 × the threshold, so a calm hour does not fill the chart.
     static func top(_ v: [Double], _ threshold: Double) -> Double { max(v.max() ?? 0, threshold * 1.6, 1) }
+
+    /// The last `minutes` minutes, with empty minutes before the first one known, and the scale's top for them alone.
+    func window(_ minutes: Int) -> MinuteHistory {
+        let known = Array(values.suffix(minutes))
+        let v = Array(repeating: 0, count: max(0, minutes - known.count)) + known
+        return MinuteHistory(values: v, top: Self.top(v, threshold), threshold: threshold)
+    }
+}
+
+/// How far back the popover's chart looks: its 84 columns re-bin the
+/// range's minutes, each column the average tokens per minute of the minutes it covers.
+enum ChartRange: String, CaseIterable, Identifiable {
+    case tenMinutes = "10m", halfHour = "30m", hour = "1h", fourHours = "4h", day = "1d"
+    static let defaultsKey = "chartRange"
+
+    var id: String { rawValue }
+    var minutes: Int {
+        switch self {
+        case .tenMinutes: 10
+        case .halfHour: 30
+        case .hour: 60
+        case .fourHours: 4 * 60
+        case .day: 24 * 60
+        }
+    }
 }
 
 /// What the popover histogram draws from: the demo clock or the live data.

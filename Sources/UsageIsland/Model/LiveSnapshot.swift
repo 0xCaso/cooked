@@ -8,7 +8,8 @@ enum LiveSnapshot {
                              "claudeAgent_side": "side", "codex": "codex"]
     /// The watcher's fallback p99 for 15 minutes, when status.json has none.
     static let fallbackThreshold15m = 500_000
-    static let historyMinutes = 60
+    /// The chart keeps a day, for its longest range (`ChartRange.day`).
+    static let historyMinutes = 24 * 60
     /// Urgency rules.
     static let urgentPercent = 90
     static let urgentETA: TimeInterval = 20 * 60
@@ -125,7 +126,6 @@ enum LiveSnapshot {
 
         return UsageSnapshot(
             clock: clock(now, calendar),
-            historyStart: clock(now.addingTimeInterval(-Double(historyMinutes - 1) * 60), calendar),
             accounts: accounts,
             activeID: activeID,
             rateNow: Int(rate(activeID)),
