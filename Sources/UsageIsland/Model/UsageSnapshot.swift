@@ -12,7 +12,7 @@ struct Account: Identifiable, Equatable {
     var weekPercent: Int? = nil
     /// The limit is hit (`limit_status` "rejected"): blocked until `fiveHourReset`.
     var isBlocked = false
-    /// No event in the last 5 hours: folded into one line under the rows.
+    /// No event in the last 5 hours: hidden from the popover.
     var isUnused = false
     /// Even pace: the share of the 5h window that has gone by, 0...1. nil when the reset is unknown.
     var fiveHourElapsed: Double? = nil
@@ -44,6 +44,8 @@ struct UsageSnapshot: Equatable {
     var urgency: Urgency?
     /// "What burns tokens": the top sources of the last 15 minutes, empty when idle.
     var sources: [TokenSource] = []
+    /// "HH:MM" of the last limits when the watcher has stopped; nil while they are live.
+    var limitsAsOf: String? = nil
 
     var isUrgent: Bool { urgency != nil }
     var active: Account? { accounts.first { $0.id == activeID } }
@@ -51,4 +53,9 @@ struct UsageSnapshot: Equatable {
     var rows: [Account] { accounts.filter { !$0.isUnused } }
     /// The accounts not used in the last 5 hours, in display order.
     var unused: [Account] { accounts.filter(\.isUnused) }
+
+    /// The top source of `account`, else the top source: the thread the peak card names and opens.
+    static func peakSource(_ sources: [TokenSource], account: String?) -> TokenSource? {
+        sources.first { $0.account == account } ?? sources.first
+    }
 }

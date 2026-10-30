@@ -34,19 +34,21 @@ struct UsageSource: Sendable {
             return .failure(.noStatus)
         }
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? now
-        guard now.timeIntervalSince(modified) < Self.staleAfter else { return .failure(.watcherStopped) }
+        // A stopped watcher: its last limits still show, with their time, and the tokens stay live.
+        let limitsAsOf = now.timeIntervalSince(modified) < Self.staleAfter ? nil : modified
         // Without the database the island still has the percentages; only the histogram stays empty.
         let log = TokenLog(path: databasePath)
         var minutes = (try? log.read(now: now, minutes: LiveSnapshot.historyMinutes, running: running)) ?? TokenLog.Minutes()
         // The transcripts have every call of the Claude accounts, subagents included: they replace the database there.
         let calls = transcripts?.read(now: now, minutes: LiveSnapshot.historyMinutes) ?? TranscriptLog.Reading()
         for (id, perMinute) in calls.minutes { minutes.byAccount[id] = perMinute }
-        guard var snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now) else {
-            return .failure(.noAccounts)
-        }
-        snapshot.sources = TokenSources.make(
+        let sources = TokenSources.make(
             sessions: calls.sessions, threads: (try? log.threads(sessions: calls.sessions.map(\.id))) ?? [:],
             recent: minutes.recentThreads, transcriptAccounts: Set(calls.minutes.keys))
+        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now, sources: sources,
+                                               limitsAsOf: limitsAsOf) else {
+            return .failure(.noAccounts)
+        }
         return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60))
     }
 }

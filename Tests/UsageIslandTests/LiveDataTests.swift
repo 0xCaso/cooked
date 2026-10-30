@@ -91,9 +91,10 @@ struct LiveDataTests {
         #expect(work == Account(id: "claudeAgent_work", short: "work", fiveHourPercent: 48, fiveHourReset: "19:00", isLive: true,
                                fullAt: "18:04", weekPercent: 87))
         #expect(s.accounts[1].weekPercent == 81)
-        // both live: work burned more in the last 15 min (250k vs 204k)
+        // both live: only work has minutes in the last 15
         #expect(s.activeID == "claudeAgent_work")
-        #expect(s.rateNow == (4189 + 27004) / 5) // the chart's last 5 minutes
+        // the chart's last 4 whole minutes and the 51 s of this one
+        #expect(s.rateNow == Int(Double(4189 + 27004) / (4 + 51.0 / 60)))
         #expect(s.threshold == 617_094 / 15)
         #expect(s.series.count == 1440) // a day, for the 1d range
         #expect(s.series.last == 4189)
@@ -119,13 +120,18 @@ struct LiveDataTests {
 
     @Test func urgentWhenFullWithinTwentyMinutes() throws {
         let st = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "5 min", eta: "15:40") }
-        var minutes = TokenLog.Minutes()
-        minutes.topThread["claudeAgent_work"] = ("Refactor usage page", 920_000)
-        let u = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar)?.urgency)
+        // the card names the thread its button opens: work's top source, not the overall top one
+        let sources = [TokenSource(id: "p", threadID: "tp", project: "p", detail: "Other account", account: "personal",
+                                   rate: 300_000, agents: nil),
+                       TokenSource(id: "w", threadID: "tw", project: "p", detail: "Refactor usage page", account: "work",
+                                   rate: 184_000, agents: nil)]
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: sources))
+        let u = try #require(s.urgency)
         #expect(u.lead == "100% at ")
         #expect(u.fullAt == "15:40")
-        #expect(u.detail == "work · in 14 min")
+        #expect(u.detail == "work in 14 min")
         #expect(u.source == "184k/min from “Refactor usage page”")
+        #expect(IslandView.peakThread(s) == "tw")
     }
 
     @Test func urgentOnASpikeMinute() throws {
@@ -187,18 +193,36 @@ struct LiveDataTests {
         #expect(LiveSnapshot.make(status: atReset, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
     }
 
+    /// The island follows the account the chart's minutes (the transcripts) show burning most, not the database's
+    /// finished turns: on 30/10 13:44 the database had work ahead while team burned 5 times more.
+    @Test func activeAccountIsTheOneTheMinutesShowBurning() throws {
+        let st = try status { $0.accounts["claudeAgent"]?.tokensFresh?["15m"] = 1 }
+        var minutes = TokenLog.Minutes()
+        minutes.byAccount["claudeAgent"] = [minuteNow - 3: 500_000]
+        minutes.byAccount["claudeAgent_work"] = [minuteNow - 3: 100_000]
+        let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar))
+        #expect(s.activeID == "claudeAgent")
+    }
+
+    /// An ETA already gone by says nothing: no "full 15:20" at 15:25, no "in 0 min" peak.
+    @Test func etaInThePastIsDropped() throws {
+        let st = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "5 min", eta: "15:20") }
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        #expect(s.accounts[0].fullAt == nil)
+        #expect(s.urgency == nil)
+    }
+
     /// A live blocked account in the peak card: "blocked until" the reset; a thread under 1 token/min is not named.
     @Test func blockedPeakSaysBlockedUntil() throws {
         let st = try status {
             $0.accounts["claudeAgent"]?.fiveHourPct = 103
             $0.accounts["claudeAgent"]?.limitStatus = "rejected"
         }
-        var minutes = TokenLog.Minutes()
-        minutes.topThread["claudeAgent"] = ("Old thread", 3)
-        let u = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar)?.urgency)
+        let slow = [TokenSource(id: "o", project: "p", detail: "Old thread", account: "personal", rate: 0.2, agents: nil)]
+        let u = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: slow)?.urgency)
         #expect(u.lead == "free at ")
         #expect(u.fullAt == "20:20")
-        #expect(u.detail == "personal · cooked")
+        #expect(u.detail == "personal is cooked")
         #expect(u.source == "Idle for 5 min")
     }
 
@@ -331,9 +355,6 @@ struct TokenLogTests {
         let minute = Int(now.timeIntervalSince1970) / 60
         #expect(m.byAccount["claudeAgent_work"] == [minute: 1000, minute - 1: 5000])
         #expect(m.byAccount["claudeAgent"] == [minute - 3: 300])
-        #expect(m.topThread["claudeAgent_work"]?.title == "Thread b")
-        #expect(m.topThread["claudeAgent_work"]?.tokens == 5000)
-        #expect(m.topThread["claudeAgent"]?.title == "Thread c")
     }
 
     @Test func spreadsAFinishedTurnOverTheMinutesItRan() throws {
@@ -482,10 +503,23 @@ struct UsageSourceTests {
         #expect(reading.snapshot.series == Array(repeating: 0, count: 1440)) // no database: empty histogram
     }
 
+    /// A stopped watcher: the last limits show with their time, nothing turns red on them, and the menu says why.
+    @MainActor @Test func stoppedWatcherShowsItsLastLimitsAsOld() throws {
+        let modified = Date().addingTimeInterval(-600)
+        let old = try write(statusFixture.replacingOccurrences(of: #""five_hour_pct": 18"#, with: #""five_hour_pct": 95"#),
+                            modified: modified)
+        let s = try UsageSource(statusPath: old, databasePath: "/nonexistent", transcripts: nil).read().get().snapshot
+        #expect(s.limitsAsOf == LiveSnapshot.clock(modified, .current))
+        #expect(s.urgency == nil)
+        #expect(s.accounts.allSatisfy { $0.fullAt == nil })
+        #expect(s.accounts.first { $0.short == "personal" }?.fiveHourPercent == 95)
+        let model = IslandModel(feed: .live, defaults: UserDefaults(suiteName: "stopped-\(UUID())")!)
+        model.apply(.success(.init(snapshot: s, minute: 0)))
+        #expect(model.liveProblem == .watcherStopped)
+    }
+
     @Test func reportsProblems() throws {
         #expect(UsageSource(statusPath: "/nonexistent", transcripts: nil).read() == .failure(.noStatus))
-        let old = try write(statusFixture, modified: Date().addingTimeInterval(-600))
-        #expect(UsageSource(statusPath: old, transcripts: nil).read() == .failure(.watcherStopped))
         let empty = try write(#"{"updated_at": "x", "accounts": {}}"#, modified: Date())
         #expect(UsageSource(statusPath: empty, transcripts: nil).read() == .failure(.noAccounts))
     }

@@ -61,7 +61,7 @@ enum DemoData {
         activeID: "work", rateNow: 184_000, threshold: threshold,
         series: series(count: 60, peak: true),
         urgency: Urgency(
-            percent: 82, fullAt: "23:14", detail: "claude-work · in 9 min",
+            percent: 82, fullAt: "23:14", detail: "claude-work in 9 min",
             source: "184k/min from “Refactor usage page”"),
         sources: [
             TokenSource(id: "t1", threadID: "t1", project: "usage-island", detail: "Refactor usage page", account: "work", rate: 113_000,

@@ -57,13 +57,13 @@ enum Snapshots {
         }
         // A long thread title in a T3 thread, plain and hovered: the hint takes only its own width.
         let long = [TokenSource(id: "l1", threadID: "t", project: "usage-island-polish",
-                                detail: "Fix five visual bugs in the popover and the island · work", rate: 52_000, agents: "1 agent")]
+                                detail: "Fix five visual bugs in the popover and the island", rate: 52_000, agents: "1 agent")]
         for (name, hovered) in [("sources-long", nil), ("sources-long-hover", "l1")] as [(String, String?)] {
             try render(SourcesCard(sources: long, hovered: hovered).frame(width: 388).padding(24).background(desk),
                        to: dir.appendingPathComponent("\(name).png"))
         }
         // The peak card without an ETA: blocked, and urgent by % with no tokens.
-        for (name, lead, time, detail) in [("blocked", "free at ", "20:20", "personal · cooked"),
+        for (name, lead, time, detail) in [("blocked", "free at ", "20:20", "personal is cooked"),
                                            ("no-eta", "resets ", "20:20", "personal")] {
             var s = peak
             s.urgency = Urgency(percent: name == "blocked" ? 103 : 91, lead: lead, fullAt: time, detail: detail,

@@ -11,15 +11,8 @@ struct TokenLog {
     struct Minutes: Equatable {
         /// Account id → minute (Unix seconds / 60) → new tokens.
         var byAccount: [String: [Int: Double]] = [:]
-        /// Account id → the thread with the most new tokens in the last 5 minutes.
-        var topThread: [String: (title: String, tokens: Double)] = [:]
         /// Threads with turns finished in the last 15 minutes, for the accounts without transcripts (Codex).
         var recentThreads: [RecentThread] = []
-
-        static func == (a: Minutes, b: Minutes) -> Bool {
-            a.byAccount == b.byAccount && a.recentThreads == b.recentThreads
-                && a.topThread.mapValues { "\($0.title)|\($0.tokens)" } == b.topThread.mapValues { "\($0.title)|\($0.tokens)" }
-        }
     }
 
     /// A T3 Code thread and its project, as the app names them.
@@ -129,15 +122,6 @@ struct TokenLog {
                     out.byAccount[id, default: [:]][minute, default: 0] += tokens
                 }
             }
-        }
-        let top = """
-            SELECT COALESCE(pth.provider_instance_id, pth.provider), t.title, SUM(\(Self.fresh)) AS n
-            \(Self.from) LEFT JOIN orchestration_v2_projection_threads t ON t.thread_id = pt.thread_id
-            WHERE pt.completed_at >= ? GROUP BY 1, pt.thread_id ORDER BY n DESC
-            """
-        try query(db, top, since: now.timeIntervalSince1970 - 300) { row in
-            guard let id = row.text(0), let title = row.text(1), out.topThread[id] == nil else { return }
-            out.topThread[id] = (title, Double(row.int(2)))
         }
         let recent = """
             SELECT COALESCE(pth.provider_instance_id, pth.provider), \(Self.threadColumns), SUM(\(Self.fresh)) AS n

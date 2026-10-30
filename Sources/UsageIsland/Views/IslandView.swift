@@ -99,7 +99,6 @@ struct IslandView: View {
 
     /// The top source of the account that makes the island urgent, else the top source.
     static func peakSource(_ s: UsageSnapshot) -> TokenSource? {
-        let account = s.active?.short
-        return s.sources.first { $0.account == account } ?? s.sources.first
+        UsageSnapshot.peakSource(s.sources, account: s.active?.short)
     }
 }

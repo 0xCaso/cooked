@@ -23,8 +23,10 @@ enum LiveSnapshot {
         shortNames[id] ?? name.lowercased().replacingOccurrences(of: "claude-", with: "")
     }
 
-    /// nil when no account has 5h data yet.
-    static func make(status: StatusFile, minutes: TokenLog.Minutes, now: Date, calendar: Calendar = .current) -> UsageSnapshot? {
+    /// nil when no account has 5h data yet. `sources` name the peak card's thread, the one its button opens.
+    /// `limitsAsOf`: the watcher has stopped and its limits date from then; they show, but nothing turns red on them.
+    static func make(status: StatusFile, minutes: TokenLog.Minutes, now: Date, calendar: Calendar = .current,
+                     sources: [TokenSource] = [], limitsAsOf: Date? = nil) -> UsageSnapshot? {
         let ids = status.accounts.keys
             .filter { status.accounts[$0]?.fiveHourPct != nil }
             .sorted { (order.firstIndex(of: $0) ?? 99, $0) < (order.firstIndex(of: $1) ?? 99, $1) }
@@ -39,11 +41,18 @@ enum LiveSnapshot {
             let m = minutes.byAccount[id] ?? [:]
             return (0..<historyMinutes).map { m[minuteNow - historyMinutes + 1 + $0] ?? 0 }
         }
-        /// Tokens per minute over the last 5 minutes, from the same minutes as the chart.
-        func rate(_ id: String) -> Double { series(id).suffix(5).reduce(0, +) / 5 }
-        func recent(_ id: String) -> Int { entry(id).tokensFresh?["15m"] ?? 0 }
+        /// Tokens per minute over the last 5 minutes, from the same minutes as the chart: the 4 whole minutes and the
+        /// part of this one gone by, so the rate does not drop when a minute starts.
+        func rate(_ id: String) -> Double {
+            let gone = 4 + now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60
+            return series(id).suffix(5).reduce(0, +) / gone
+        }
+        /// Tokens in the last 15 minutes, from the chart's minutes (the transcripts for Claude): the island follows the
+        /// account that burns most, the same one the chart and the sources show.
+        func recent(_ id: String) -> Double { series(id).suffix(15).reduce(0, +) }
+        /// nil once it has gone by: the watcher projects from its last event, and an account that stopped never fills.
         func eta(_ id: String) -> Date? {
-            entry(id).projection.flatMap { WatcherTime.parse($0.eta, now: now, calendar: calendar) }
+            entry(id).projection.flatMap { WatcherTime.parse($0.eta, now: now, calendar: calendar) }.flatMap { $0 > now ? $0 : nil }
         }
 
         func resetDate(_ id: String) -> Date? {
@@ -52,7 +61,7 @@ enum LiveSnapshot {
         func blocked(_ id: String) -> Bool { !stale(id) && entry(id).limitStatus == "rejected" }
         /// Shown only when it lands before the reset: the watcher means it so, and a later time says nothing.
         func fullAt(_ id: String) -> String? {
-            if stale(id) || blocked(id) { return nil }
+            if stale(id) || blocked(id) || limitsAsOf != nil { return nil }
             if percent(id) >= 100 { return "now" }
             guard let eta = eta(id) else { return nil }
             if let reset = resetDate(id), eta >= reset { return nil }
@@ -76,7 +85,7 @@ enum LiveSnapshot {
             if let last = entry(id).lastEventAt.flatMap({ WatcherTime.parse($0, now: now, calendar: calendar) }) {
                 return now.timeIntervalSince(last) > unusedAfter
             }
-            return entry(id).live != true && recent(id) == 0
+            return entry(id).live != true && recent(id) == 0 && (entry(id).tokensFresh?["15m"] ?? 0) == 0
         }
 
         var accounts = ids.map { id in
@@ -91,7 +100,7 @@ enum LiveSnapshot {
 
         func isUrgent(_ id: String) -> Bool {
             let e = entry(id)
-            guard !stale(id), e.live == true else { return false }
+            guard !stale(id), e.live == true, limitsAsOf == nil else { return false }
             if percent(id) >= urgentPercent { return true }
             if let eta = eta(id), eta.timeIntervalSince(now) <= urgentETA { return true }
             if let state = e.limitStatus, !okStates.contains(state) { return true }
@@ -108,23 +117,24 @@ enum LiveSnapshot {
             let reset = clockPart(entry(id).fiveHourResetsAt) ?? "—"
             // Without an ETA the headline says when the window frees up, never "100% at —". Short: the card cuts at ~17 characters.
             let (lead, time, when): (String, String, String?) =
-                if blocked(id) { ("free at ", reset, "cooked") }
+                if blocked(id) { ("free at ", reset, "is cooked") }
                 else if let eta = eta(id) { ("100% at ", clock(eta, calendar), "in \(max(0, Int(eta.timeIntervalSince(now) / 60))) min") }
                 else if percent(id) >= 100 { ("100% ", "now", "resets \(reset)") }
                 else { ("resets ", reset, nil) }
             let rate = rate(id)
-            let source = minutes.topThread[id].flatMap { $0.tokens / 5 >= 1 ? $0 : nil }
-                .map { "\(TokenFormat.short($0.tokens / 5))/min from “\($0.title)”" }
+            // the thread "Open thread ↗" opens
+            let source = UsageSnapshot.peakSource(sources, account: name).flatMap { $0.rate >= 1 ? $0 : nil }
+                .map { "\(TokenFormat.short($0.rate))/min from “\($0.detail)”" }
                 ?? (rate >= 1 ? "\(TokenFormat.short(rate))/min now" : "Idle for 5 min")
             return Urgency(
                 percent: percent(id),
                 lead: lead,
                 fullAt: time,
-                detail: when.map { "\(name) · \($0)" } ?? name,
+                detail: when.map { "\(name) \($0)" } ?? name,
                 source: source)
         }
 
-        return UsageSnapshot(
+        var snapshot = UsageSnapshot(
             clock: clock(now, calendar),
             accounts: accounts,
             activeID: activeID,
@@ -132,6 +142,9 @@ enum LiveSnapshot {
             threshold: threshold(activeID),
             series: series(activeID),
             urgency: urgency)
+        snapshot.sources = sources
+        snapshot.limitsAsOf = limitsAsOf.map { clock($0, calendar) }
+        return snapshot
     }
 
     /// "30/10 19:00" → "19:00".
