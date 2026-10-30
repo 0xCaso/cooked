@@ -7,8 +7,10 @@ struct TokenSource: Identifiable, Equatable {
     /// The T3 Code thread, when the source runs in one: a click opens it.
     var threadID: String? = nil
     let project: String
-    /// "Draft the release notes · work": the thread's title and the account.
+    /// The thread's title: "Draft the release notes".
     let detail: String
+    /// The account's short name: "team".
+    var account = ""
     /// New tokens per minute over the last 15 minutes.
     let rate: Double
     /// "1 agent + 3 sub", "3 sub"; nil when nothing ran in the last 5 minutes.
@@ -27,19 +29,19 @@ enum TokenSources {
         var out = sessions.map { s in
             let thread = threads[s.id]
             return TokenSource(id: thread?.id ?? s.id, threadID: thread?.id, project: thread.map(project) ?? project(cwd: s.cwd),
-                               detail: detail(thread?.title ?? "Claude Code session", account: s.account),
+                               detail: thread?.title ?? "Claude Code session", account: short(s.account),
                                rate: s.tokens / window, agents: agents(main: s.mainActive, subagents: s.activeSubagents))
         }
         out += recent.filter { !transcriptAccounts.contains($0.account) }.map { r in
             // finished turns only: the database has no running count, so one agent per thread
-            TokenSource(id: r.thread.id, threadID: r.thread.id, project: project(r.thread), detail: detail(r.thread.title, account: r.account),
+            TokenSource(id: r.thread.id, threadID: r.thread.id, project: project(r.thread), detail: r.thread.title, account: short(r.account),
                         rate: r.tokens / window, agents: nil)
         }
         // one T3 thread can hold several sessions (a resumed or handed-off conversation): one line
         var merged: [String: TokenSource] = [:]
         for s in out {
             if let m = merged[s.id] {
-                merged[s.id] = TokenSource(id: s.id, threadID: m.threadID, project: m.project, detail: m.detail, rate: m.rate + s.rate,
+                merged[s.id] = TokenSource(id: s.id, threadID: m.threadID, project: m.project, detail: m.detail, account: m.account, rate: m.rate + s.rate,
                                            agents: m.agents ?? s.agents)
             } else { merged[s.id] = s }
         }
@@ -57,9 +59,7 @@ enum TokenSources {
         }
     }
 
-    static func detail(_ title: String, account: String) -> String {
-        "\(title) · \(LiveSnapshot.short(id: account, name: account))"
-    }
+    static func short(_ account: String) -> String { LiveSnapshot.short(id: account, name: account) }
 
     static func project(_ thread: TokenLog.Thread) -> String { thread.project ?? "t3 scratch" }
 

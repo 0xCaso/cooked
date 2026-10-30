@@ -44,27 +44,26 @@ struct PopoverView: View {
                                 glassID: "popover", namespace: namespace))
     }
 
-    /// The section label, with the two time columns of the rows below as headings.
+    /// The section label, with the two windows as column headings over the pills, and the key to their line.
     private var accountsHeader: some View {
         HStack(spacing: Self.rowSpacing) {
-            Text("5-hour window")
-            Spacer(minLength: 0)
-            Text("full at").frame(width: Self.timeColumn, alignment: .trailing)
-            Text("resets").frame(width: Self.timeColumn, alignment: .trailing)
-            Text("week").frame(width: Self.percentColumn, alignment: .trailing)
+            Text("Usage").frame(width: Self.nameColumn, alignment: .leading)
+            Text("5 hours").frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 0) {
+                Text("week")
+                Spacer(minLength: 0)
+                EvenPaceKey()
+            }
+            .frame(maxWidth: .infinity)
         }
         .lineLimit(1)
         .textStyle(.label)
         .foregroundStyle(sectionInk)
     }
 
-    /// Width of the "full at" and "resets" columns: "00:00" in Plex Mono 13 is 39 pt.
-    static let timeColumn: CGFloat = 40
-    /// Width of the 5h and week % columns: "100%" in Plex Mono 13 is 31.2 pt.
-    static let percentColumn: CGFloat = 32
     static let nameColumn: CGFloat = 60
-    /// Row: name 60 + bar 126 + two % 64 + two times 80 + 5 gaps of 6 = 360 of the card's 364 pt.
-    static let rowSpacing: CGFloat = 6
+    /// Row: name 60 + two pills of 144 + 2 gaps of 8 = 364, the card's inner width.
+    static let rowSpacing: CGFloat = 8
 
     private func rateCard(_ s: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -75,10 +74,13 @@ struct PopoverView: View {
                     .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
                 Text("now").textStyle(.body).foregroundStyle(Palette.ink2)
                 Spacer(minLength: 0)
-                Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
-                    .styled(.label)
-                    .foregroundStyle(Palette.ink3)
-                    .frame(height: TextStyle.label.lineHeight)
+                HStack(spacing: 5) {
+                    AlertKey()
+                    Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
+                        .styled(.label)
+                        .frame(height: TextStyle.label.lineHeight)
+                }
+                .foregroundStyle(Palette.ink3)
             }
             .lineLimit(1)
             .padding(.bottom, 12)
@@ -105,52 +107,40 @@ struct PopoverView: View {
     }
 
     private func accountsCard(_ s: UsageSnapshot) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(s.rows.enumerated()), id: \.element.id) { i, a in
-                accountRow(a, hot: s.isUrgent && a.id == s.activeID)
-                    .overlay(alignment: .top) {
-                        if i > 0 { Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -0.25) }
-                    }
-            }
+        VStack(spacing: 10) {
+            ForEach(s.rows) { a in accountRow(a) }
         }
         .padding(.horizontal, 12)
+        .padding(.vertical, 11)
         .cardSurface()
     }
 
-    private func accountRow(_ a: Account, hot: Bool) -> some View {
-        let ink = a.isLive ? Palette.ink : Palette.ink2
+    /// Name, then a pill per window. The 5h pill turns red, "full at" in place of the reset, when the window fills
+    /// before it resets; a blocked account is red up to its reset.
+    private func accountRow(_ a: Account) -> some View {
+        let fills = a.isBlocked || a.fullAt != nil
         return HStack(spacing: Self.rowSpacing) {
             Text(a.short).textStyle(a.isLive ? .emphasis : .body)
-                .foregroundStyle(ink)
+                .foregroundStyle(a.isLive ? Palette.ink : Palette.ink2)
+                .lineLimit(1)
                 .frame(width: Self.nameColumn, alignment: .leading)
-            if a.isBlocked {
-                // the bar would be full and "full at" would say "now": the reset is what matters
-                Text("\(Text("blocked until "))\(Text(a.fiveHourReset).styled(a.isLive ? .numberEmphasis : .number))")
-                    .styled(a.isLive ? .emphasis : .body)
-                    .foregroundStyle(hot ? Palette.red : ink)
-                    .frame(height: TextStyle.body.lineHeight)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                AccountBarChart(percent: a.fiveHourPercent, hot: hot)
-                    .padding(3)
-                    .wellSurface(RoundedRectangle(cornerRadius: 6, style: .continuous), innerBlur: 2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("\(a.fiveHourPercent)%").textStyle(a.isLive ? .numberEmphasis : .number)
-                    .foregroundStyle(hot ? Palette.red : ink)
-                    .frame(width: Self.percentColumn, alignment: .trailing)
-                Text(a.fullAt ?? "").textStyle(.number)
-                    .foregroundStyle(hot ? Palette.red : ink)
-                    .frame(width: Self.timeColumn, alignment: .trailing)
-                Text(a.fiveHourReset).textStyle(.number)
-                    .foregroundStyle(Palette.ink3)
-                    .frame(width: Self.timeColumn, alignment: .trailing)
-            }
-            Text(a.weekPercent.map { "\($0)%" } ?? "").textStyle(.number)
-                .foregroundStyle(ink)
-                .frame(width: Self.percentColumn, alignment: .trailing)
+            AccountPill(percent: a.fiveHourPercent, elapsed: a.isBlocked ? 1 : a.fiveHourElapsed,
+                        trailing: a.isBlocked || a.fullAt == nil ? a.fiveHourReset : a.fullAt!,
+                        hot: fills, live: a.isLive)
+            AccountPill(percent: a.weekPercent, elapsed: a.weekElapsed, trailing: a.weekReset ?? "",
+                        hot: false, live: false)
         }
-        .lineLimit(1)
-        .frame(height: 30)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(a))
+    }
+
+    private func accessibilityText(_ a: Account) -> String {
+        var parts = ["\(a.short): 5 hours \(a.fiveHourPercent)%"]
+        if a.isBlocked { parts.append("blocked until \(a.fiveHourReset)") }
+        else if let full = a.fullAt { parts.append("full at \(full), before the reset at \(a.fiveHourReset)") }
+        else { parts.append("resets \(a.fiveHourReset)") }
+        if let w = a.weekPercent { parts.append("week \(w)%" + (a.weekReset.map { ", resets \($0)" } ?? "")) }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -190,8 +180,8 @@ struct SourcesCard: View {
     }
 }
 
-/// One source: project and tokens/min, then the thread and who works on it. A click opens its T3 Code thread;
-/// lifted (hovered), the agent count gives way to the hint.
+/// One source: project and tokens/min, then the thread and its account. A click opens its T3 Code thread;
+/// lifted (hovered), the account gives way to the hint and the agent count shows by the rate.
 private struct SourceRow: View {
     let source: TokenSource
     let lifted: Bool
@@ -204,6 +194,9 @@ private struct SourceRow: View {
                     Text(source.project).textStyle(.emphasis).foregroundStyle(Palette.ink)
                         .truncationMode(.middle)
                     Spacer(minLength: 0)
+                    if lifted, let agents = source.agents {
+                        Text(agents).textStyle(.body).foregroundStyle(Palette.ink3)
+                    }
                     Text("\(Text(TokenFormat.short(source.rate)).styled(.number))\(Text("/min").styled(.number).foregroundStyle(Palette.ink3))")
                         .foregroundStyle(Palette.ink)
                         .layoutPriority(1)
@@ -212,12 +205,10 @@ private struct SourceRow: View {
                     Text(source.detail).textStyle(.body).foregroundStyle(Palette.ink2)
                         .truncationMode(.tail)
                     Spacer(minLength: 0)
-                    Group {
-                        if lifted { Text(source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗").foregroundStyle(Palette.ink) }
-                        else if let agents = source.agents { Text(agents).foregroundStyle(Palette.ink2) }
-                    }
-                    .textStyle(.body)
-                    .layoutPriority(1)
+                    Text(lifted ? (source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗") : source.account)
+                        .textStyle(.body)
+                        .foregroundStyle(lifted ? Palette.ink : Palette.ink2)
+                        .layoutPriority(1)
                 }
             }
             .lineLimit(1)
@@ -239,7 +230,7 @@ private struct SourceRow: View {
         }
         .buttonStyle(.plain)
         .pointingHand()
-        .accessibilityLabel("\(source.project), \(TokenFormat.short(source.rate)) per minute, \(source.detail)")
+        .accessibilityLabel("\(source.project), \(TokenFormat.short(source.rate)) per minute, \(source.detail), \(source.account)")
         .accessibilityHint(source.threadID == nil ? "Opens T3 Code" : "Opens the thread in T3 Code")
     }
 }

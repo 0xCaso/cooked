@@ -69,6 +69,8 @@ struct LiquidMatrix: View {
     let radius: CGFloat
     var rimCols = 0
     var thresholdRow: Int?
+    /// The popover's light wave (`DotWave`) at this time; nil for none.
+    var waveTime: Double?
 
     // The mockup's hex palette: a warm pearl body, a whiter core where the surface is; coral over the threshold.
     static let tones = 8
@@ -97,13 +99,14 @@ struct LiquidMatrix: View {
                 let center = CGPoint(x: (CGFloat(c) + 0.5) * pitch, y: (CGFloat(r) + 0.5) * pitch)
                 let rr = radius * CGFloat(s.radiusScale)
                 let tone = Int((s.fresh * Float(Self.tones)).rounded())
+                let wave = waveTime.map { s.alpha > 0.15 ? DotWave.factor(t: $0, x: Double(center.x)) : 1 } ?? 1
                 var dot = ctx
-                dot.opacity = Double(s.alpha)
+                dot.opacity = Double(s.alpha) * wave
                 dot.fill(Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: 2 * rr, height: 2 * rr)),
                          with: .color((s.hot ? Self.coral : Self.pearl)[tone]))
                 if s.glow > 0.01 {
                     var layer = ctx
-                    layer.opacity = Double(s.glow)
+                    layer.opacity = Double(s.glow) * wave
                     layer.draw(s.hot ? redSprite : inkSprite,
                                in: CGRect(x: center.x - spriteSide / 2, y: center.y - spriteSide / 2, width: spriteSide, height: spriteSide))
                 }
@@ -141,17 +144,7 @@ struct TideHistogramChart: View {
         ChartTimeline { t, still in
             let field = tide.frame(source.history(at: t, still: still), at: t, still: still)
             LiquidMatrix(field: field, pitch: 348 / CGFloat(TideHistogram.cols), radius: 1.2,
-                         thresholdRow: tide.thresholdRow)
+                         thresholdRow: tide.thresholdRow, waveTime: still ? nil : t)
         }
-    }
-}
-
-/// One account's 5h bar: 20 dots, pitch 6, radius 1.65 (120 pt, so the row has room for the week).
-struct AccountBarChart: View {
-    let percent: Int
-    let hot: Bool
-
-    var body: some View {
-        DotMatrix(grid: AccountBar.grid(percent: percent, hot: hot), pitch: 6, radius: 1.65, floor: { _ in 0.1 })
     }
 }

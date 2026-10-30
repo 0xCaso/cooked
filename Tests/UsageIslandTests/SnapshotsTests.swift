@@ -20,7 +20,7 @@ struct SnapshotsTests {
         let histHeight: CGFloat = ((24 * 348 / 84 + 16) * 2 as CGFloat).rounded(.up)
         #expect(pixelSize(dir.appendingPathComponent("hist-calm.png")) == CGSize(width: (348 + 16) * 2, height: histHeight))
         #expect(pixelSize(dir.appendingPathComponent("hist-peak.png")) != nil)
-        #expect(pixelSize(dir.appendingPathComponent("bars-peak.png")) != nil)
+        #expect(pixelSize(dir.appendingPathComponent("pills-peak.png")) != nil)
         // island and popover: surface + 24 pt desk on each side, at 2×
         #expect(pixelSize(dir.appendingPathComponent("island-calm.png"))?.height == CGFloat((44 + 48) * 2))
         #expect(pixelSize(dir.appendingPathComponent("island-peak.png"))?.width == CGFloat((404 + 48) * 2))

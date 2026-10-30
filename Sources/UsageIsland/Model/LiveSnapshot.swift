@@ -13,8 +13,8 @@ enum LiveSnapshot {
     static let urgentPercent = 90
     static let urgentETA: TimeInterval = 20 * 60
     static let okStates: Set<String> = ["allowed", "allowed_warning", "?"]
-    /// An account with more headroom than this is worth switching to (the watcher's 75%).
-    static let switchBelowPercent = 75
+    static let fiveHours: TimeInterval = 5 * 3600
+    static let week: TimeInterval = 7 * 86400
     /// An account with no event for this long is hidden from the popover.
     static let unusedAfter: TimeInterval = 5 * 3600
 
@@ -57,11 +57,17 @@ enum LiveSnapshot {
             if let reset = resetDate(id), eta >= reset { return nil }
             return clock(eta, calendar)
         }
+        func weekResetDate(_ id: String) -> Date? {
+            entry(id).sevenDayResetsAt.flatMap { WatcherTime.parse($0, now: now, calendar: calendar) }
+        }
         /// nil once the week has reset with no new data.
         func weekPercent(_ id: String) -> Int? {
-            let reset = entry(id).sevenDayResetsAt.flatMap { WatcherTime.parse($0, now: now, calendar: calendar) }
-            if let reset, reset <= now { return nil }
+            if let reset = weekResetDate(id), reset <= now { return nil }
             return entry(id).sevenDayPct
+        }
+        func weekReset(_ id: String) -> String? {
+            guard weekPercent(id) != nil, let reset = weekResetDate(id) else { return nil }
+            return weekday(reset, calendar)
         }
         /// No event in the last 5 hours; without a last event, not live and no tokens in the last 15 minutes.
         func unused(_ id: String) -> Bool {
@@ -76,7 +82,10 @@ enum LiveSnapshot {
             Account(id: id, short: short(id: id, name: entry(id).name), fiveHourPercent: percent(id),
                     fiveHourReset: stale(id) ? "—" : clockPart(entry(id).fiveHourResetsAt) ?? "—",
                     isLive: entry(id).live ?? false, fullAt: fullAt(id), weekPercent: weekPercent(id),
-                    isBlocked: blocked(id), isUnused: unused(id))
+                    isBlocked: blocked(id), isUnused: unused(id),
+                    fiveHourElapsed: stale(id) ? nil : resetDate(id).map { elapsed(until: $0, window: fiveHours, now: now) },
+                    weekElapsed: weekPercent(id) == nil ? nil : weekResetDate(id).map { elapsed(until: $0, window: week, now: now) },
+                    weekReset: weekReset(id))
         }
 
         func isUrgent(_ id: String) -> Bool {
@@ -106,16 +115,12 @@ enum LiveSnapshot {
             let source = minutes.topThread[id].flatMap { $0.tokens / 5 >= 1 ? $0 : nil }
                 .map { "\(TokenFormat.short($0.tokens / 5))/min from “\($0.title)”" }
                 ?? (rate >= 1 ? "\(TokenFormat.short(rate))/min now" : "Idle for 5 min")
-            let alternative = ids.filter { $0 != id && !stale($0) && percent($0) < switchBelowPercent }
-                .min { percent($0) < percent($1) }
             return Urgency(
                 percent: percent(id),
                 lead: lead,
                 fullAt: time,
                 detail: when.map { "\(name) · \($0)" } ?? name,
-                source: source,
-                switchLabel: alternative.map { "Switch to \(self.short(id: $0, name: entry($0).name)) · \(percent($0))%" }
-                    ?? "Pause the task")
+                source: source)
         }
 
         return UsageSnapshot(
@@ -132,6 +137,17 @@ enum LiveSnapshot {
     /// "30/10 19:00" → "19:00".
     static func clockPart(_ s: String?) -> String? {
         s.flatMap { $0.split(separator: " ").last.map(String.init) }
+    }
+
+    /// Even pace: how much of a window that ends at `reset` has gone by.
+    static func elapsed(until reset: Date, window: TimeInterval, now: Date) -> Double {
+        min(1, max(0, 1 - reset.timeIntervalSince(now) / window))
+    }
+
+    /// "Mon": English, as every other word in the island.
+    static func weekday(_ d: Date, _ calendar: Calendar) -> String {
+        let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return names[(calendar.component(.weekday, from: d) - 1) % 7]
     }
 
     static func clock(_ d: Date, _ calendar: Calendar) -> String {

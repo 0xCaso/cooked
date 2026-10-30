@@ -42,7 +42,7 @@ struct DemoDataTests {
         #expect(s.unused.isEmpty)
         #expect(s.urgency == Urgency(
             percent: 82, fullAt: "23:14", detail: "claude-work · in 9 min",
-            source: "184k/min from “Refactor usage page”", switchLabel: "Switch to side · 12%"))
+            source: "184k/min from “Refactor usage page”"))
         #expect(s.isUrgent)
     }
 

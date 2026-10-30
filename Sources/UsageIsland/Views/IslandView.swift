@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The island under the menu bar. Calm: a 44 pt capsule with the wave, the active account and the rate.
-/// Peak: a 404 pt card with the 5h percentage in red, when the window fills up, and the switch button.
+/// Peak: a 404 pt card with the 5h percentage in red, when the window fills up, and a button to its top thread.
 struct IslandView: View {
     let model: IslandModel
     var namespace: Namespace.ID
@@ -85,11 +85,18 @@ struct IslandView: View {
                 Spacer(minLength: 0)
                 Button("Minimize") { model.peakMinimized = true }
                     .buttonStyle(SecondaryButtonStyle())
-                // Switching accounts is outside this plan: the button does nothing yet.
-                Button(u.switchLabel) {}
+                // The top source of the account that fills up, else the top source: what to check or stop.
+                Button("Open thread ↗") { T3Code.open(thread: Self.peakThread(s)) }
                     .buttonStyle(PrimaryButtonStyle())
+                    .pointingHand()
             }
         }
         .padding(16)
+    }
+
+    /// nil brings T3 Code to the front.
+    static func peakThread(_ s: UsageSnapshot) -> String? {
+        let account = s.active?.short
+        return (s.sources.first { $0.account == account } ?? s.sources.first)?.threadID
     }
 }

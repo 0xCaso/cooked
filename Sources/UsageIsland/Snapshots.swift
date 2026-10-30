@@ -20,8 +20,11 @@ enum Snapshots {
             ("hist-peak", AnyView(TideHistogramChart(source: clock(peak)))),
             // Calm now, but ten minutes over the threshold half an hour ago: those columns are coral above the line.
             ("hist-past-peak", AnyView(TideHistogramChart(source: HistogramClock(values: pastPeak, threshold: Double(calm.threshold), minuteLength: 60) { 0 }))),
-            ("bars-peak", AnyView(VStack(spacing: 8) {
-                ForEach(peak.accounts) { a in AccountBarChart(percent: a.fiveHourPercent, hot: a.id == "work") }
+            ("pills-peak", AnyView(VStack(spacing: 8) {
+                ForEach(peak.accounts) { a in
+                    AccountPill(percent: a.fiveHourPercent, elapsed: a.fiveHourElapsed, trailing: a.fullAt ?? a.fiveHourReset,
+                                hot: a.fullAt != nil, live: a.isLive).frame(width: 144)
+                }
             })),
         ]
         for (name, view) in charts {
@@ -62,7 +65,7 @@ enum Snapshots {
                                            ("no-eta", "resets ", "20:20", "personal")] {
             var s = peak
             s.urgency = Urgency(percent: name == "blocked" ? 103 : 91, lead: lead, fullAt: time, detail: detail,
-                                source: "Idle for 5 min", switchLabel: "Switch to work · 48%")
+                                source: "Idle for 5 min")
             try render(SurfaceShot { IslandView(model: IslandModel(snapshot: s), namespace: $0) }.padding(24).background(desk),
                        to: dir.appendingPathComponent("island-peak-\(name).png"))
         }

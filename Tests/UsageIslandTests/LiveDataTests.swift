@@ -80,8 +80,16 @@ struct LiveDataTests {
         let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar))
         // only accounts with 5h data, work first
         #expect(s.accounts.map(\.short) == ["work", "personal"])
-        #expect(s.accounts[0] == Account(id: "claudeAgent_work", short: "work", fiveHourPercent: 48, fiveHourReset: "19:00", isLive: true,
-                                       fullAt: "18:04", weekPercent: 87))
+        var work = s.accounts[0]
+        // even pace: 3 h 34 min left of the 5 h window, about 5 h 54 min of the week
+        #expect(abs((work.fiveHourElapsed ?? 0) - 0.2862) < 0.001)
+        #expect(abs((work.weekElapsed ?? 0) - 0.9490) < 0.001)
+        #expect(work.weekReset == "Fri")
+        work.fiveHourElapsed = nil
+        work.weekElapsed = nil
+        work.weekReset = nil
+        #expect(work == Account(id: "claudeAgent_work", short: "work", fiveHourPercent: 48, fiveHourReset: "19:00", isLive: true,
+                               fullAt: "18:04", weekPercent: 87))
         #expect(s.accounts[1].weekPercent == 81)
         // both live: work burned more in the last 15 min (250k vs 204k)
         #expect(s.activeID == "claudeAgent_work")
@@ -107,7 +115,6 @@ struct LiveDataTests {
         #expect(u.lead == "resets ")
         #expect(u.fullAt == "20:20")
         #expect(u.detail == "personal")
-        #expect(u.switchLabel == "Switch to work · 48%")
         #expect(u.source == "Idle for 5 min") // no minutes in this fixture: never "0/min"
     }
 
@@ -120,7 +127,6 @@ struct LiveDataTests {
         #expect(u.fullAt == "15:40")
         #expect(u.detail == "work · in 14 min")
         #expect(u.source == "184k/min from “Refactor usage page”")
-        #expect(u.switchLabel == "Switch to personal · 18%")
     }
 
     @Test func urgentOnASpikeMinute() throws {
@@ -558,9 +564,9 @@ struct TokenSourcesTests {
         let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], recent: recent,
                                     transcriptAccounts: ["claudeAgent_work", "claudeAgent_team", "claudeAgent"])
         #expect(out == [
-            .init(id: "t1", threadID: "t1", project: "usage-island", detail: "popover data · work", rate: 113_000, agents: "1 agent + 3 sub"),
-            .init(id: "s2", project: "t3 scratch", detail: "Claude Code session · team", rate: 4000, agents: nil),
-            .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI · codex", rate: 2000, agents: nil),
+            .init(id: "t1", threadID: "t1", project: "usage-island", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
+            .init(id: "s2", project: "t3 scratch", detail: "Claude Code session", account: "team", rate: 4000, agents: nil),
+            .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI", account: "codex", rate: 2000, agents: nil),
         ])
         #expect(TokenSources.make(sessions: [], threads: [:], recent: [], transcriptAccounts: []).isEmpty)
     }

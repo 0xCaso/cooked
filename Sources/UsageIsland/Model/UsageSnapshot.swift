@@ -14,6 +14,12 @@ struct Account: Identifiable, Equatable {
     var isBlocked = false
     /// No event in the last 5 hours: folded into one line under the rows.
     var isUnused = false
+    /// Even pace: the share of the 5h window that has gone by, 0...1. nil when the reset is unknown.
+    var fiveHourElapsed: Double? = nil
+    /// The share of the week that has gone by, 0...1.
+    var weekElapsed: Double? = nil
+    /// The day the week resets: "Mon".
+    var weekReset: String? = nil
 }
 
 /// The spike line of the urgent island: when the 5h window fills up and what to do.
@@ -24,7 +30,6 @@ struct Urgency: Equatable {
     let fullAt: String
     let detail: String
     let source: String
-    let switchLabel: String
 }
 
 struct UsageSnapshot: Equatable {
