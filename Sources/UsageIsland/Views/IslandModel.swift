@@ -15,6 +15,8 @@ final class IslandModel {
     var isOpen = false
     /// Tokens per minute right now. In the calm demo it rolls through `DemoData.calmRates`.
     var rateNow: Int
+    /// The popover's "now": every account summed in live data, else `rateNow`.
+    var chartRate: Int { snapshot.totalRate ?? rateNow }
     /// The visible surfaces (island, popover) in the panel's top-left coordinates, for click-through.
     var hitRects: [CGRect] = []
     /// The popover histogram, rebuilt when the feed changes; live data updates it in place.
@@ -91,9 +93,9 @@ final class IslandModel {
             if snapshot != s { snapshot = s }
             rateNow = s.rateNow
             if let liveHistogram {
-                liveHistogram.update(values: s.series, threshold: Double(s.threshold), minute: reading.minute)
+                liveHistogram.update(values: s.series, threshold: Double(s.chartThreshold), minute: reading.minute)
             } else {
-                let h = LiveHistogram(values: s.series, threshold: Double(s.threshold), minute: reading.minute,
+                let h = LiveHistogram(values: s.series, threshold: Double(s.chartThreshold), minute: reading.minute,
                                       epoch: chartEpoch.timeIntervalSince1970)
                 liveHistogram = h
                 histogram = h
@@ -105,7 +107,7 @@ final class IslandModel {
     static func demoClock(_ s: UsageSnapshot) -> HistogramClock {
         let source = s.series, n = source.count
         var feed = 0
-        return HistogramClock(values: source, threshold: Double(s.threshold), minuteLength: 4) {
+        return HistogramClock(values: source, threshold: Double(s.chartThreshold), minuteLength: 4) {
             let v = source[(feed * 7) % max(1, n - 10) + 5]
             feed += 1
             return v * (0.85 + 0.3 * Double((feed * 37) % 10) / 10)

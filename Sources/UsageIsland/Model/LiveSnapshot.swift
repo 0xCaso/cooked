@@ -40,12 +40,14 @@ enum LiveSnapshot {
             let m = minutes.byAccount[id] ?? [:]
             return (0..<historyMinutes).map { m[minuteNow - historyMinutes + 1 + $0] ?? 0 }
         }
-        /// Tokens per minute over the last 5 minutes, from the same minutes as the chart: the 4 whole minutes and the
-        /// part of this one gone by, so the rate does not drop when a minute starts.
-        func rate(_ id: String) -> Double {
+        /// Tokens per minute over the last 5 minutes: the 4 whole minutes and the part of this one gone by, so the
+        /// rate does not drop when a minute starts.
+        func rate(of series: [Double]) -> Double {
             let gone = 4 + now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60
-            return series(id).suffix(5).reduce(0, +) / gone
+            return series.suffix(5).reduce(0, +) / gone
         }
+        /// From the same minutes as the chart.
+        func rate(_ id: String) -> Double { rate(of: series(id)) }
         /// Tokens in the last 15 minutes, from the chart's minutes (the transcripts for Claude): the island follows the
         /// account that burns most, the same one the chart and the sources show.
         func recent(_ id: String) -> Double { series(id).suffix(15).reduce(0, +) }
@@ -133,15 +135,22 @@ enum LiveSnapshot {
                 source: source)
         }
 
+        // The popover's chart sums every account; the island
+        // keeps the active account, since each account has its own limit.
+        let total = minutes.byAccount.keys.map(series).reduce(into: Array(repeating: 0.0, count: historyMinutes)) { sum, s in
+            for i in s.indices { sum[i] += s[i] }
+        }
         var snapshot = UsageSnapshot(
             clock: clock(now, calendar),
             accounts: accounts,
             activeID: activeID,
             rateNow: Int(rate(activeID)),
             threshold: threshold(activeID),
-            series: series(activeID),
+            series: total,
             urgency: urgency)
         snapshot.sources = sources
+        snapshot.totalRate = Int(rate(of: total))
+        snapshot.totalThreshold = (status.totalThreshold15m ?? ids.map { threshold($0) * 15 }.max() ?? fallbackThreshold15m) / 15
         return snapshot
     }
 

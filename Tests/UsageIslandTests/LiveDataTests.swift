@@ -105,6 +105,29 @@ struct LiveDataTests {
         #expect(s.urgency == nil)
     }
 
+    /// The popover's chart sums every account; the island keeps the active one (2026-10-30-aggregated-popover-chart).
+    @Test func popoverChartSumsEveryAccount() throws {
+        var minutes = TokenLog.Minutes()
+        minutes.byAccount["claudeAgent_work"] = [minuteNow: 4000, minuteNow - 1: 20000]
+        minutes.byAccount["claudeAgent"] = [minuteNow: 1000, minuteNow - 2: 3000]
+        minutes.byAccount["codex"] = [minuteNow - 1: 500]
+        var st = try status()
+        st.totalThreshold15m = 900_000
+        let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar))
+        #expect(s.activeID == "claudeAgent_work")
+        #expect(s.series.last == 5000)
+        #expect(s.series[1438] == 20500)
+        #expect(s.series[1437] == 3000)
+        let gone = 4 + 51.0 / 60
+        #expect(s.rateNow == Int(24000 / gone))
+        #expect(s.totalRate == Int(28500 / gone))
+        #expect(s.threshold == 617_094 / 15)
+        #expect(s.chartThreshold == 60_000)
+        // without a summed p99, the largest account threshold
+        st.totalThreshold15m = nil
+        #expect(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar)?.chartThreshold == 617_094 / 15)
+    }
+
     @Test func urgentWhenFiveHourReachesNinety() throws {
         let st = try status { $0.accounts["claudeAgent"]?.fiveHourPct = 91 }
         let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))

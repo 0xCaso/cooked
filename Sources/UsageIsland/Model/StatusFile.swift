@@ -5,6 +5,8 @@ import Foundation
 struct StatusFile: Decodable, Equatable {
     var updatedAt: String
     var accounts: [String: Entry]
+    /// p99 of every account's 15-min buckets summed, for the popover's chart. Not in the watcher's file.
+    var totalThreshold15m: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case updatedAt = "updated_at", accounts

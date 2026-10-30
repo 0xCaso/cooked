@@ -86,6 +86,20 @@ struct TokenLog {
         return out
     }
 
+    /// New tokens of each 15-minute bucket with finished turns since `since`, every account together: the popover's
+    /// summed alert threshold.
+    func totalBuckets15(since: Date) throws -> [Double] {
+        let db = try open()
+        defer { sqlite3_close(db) }
+        let sql = """
+            SELECT CAST(strftime('%s', pt.completed_at) AS INTEGER) / 900, SUM(\(Self.fresh))
+            \(Self.from) WHERE pt.completed_at >= ? GROUP BY 1
+            """
+        var out: [Double] = []
+        try query(db, sql, since: since.timeIntervalSince1970) { row in out.append(Double(row.int(1))) }
+        return out
+    }
+
     private func open() throws -> OpaquePointer? {
         var db: OpaquePointer?
         guard sqlite3_open_v2("file:\(path)?mode=ro", &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {

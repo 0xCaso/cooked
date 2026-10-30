@@ -60,13 +60,13 @@ struct PopoverView: View {
     private func rateCard(_ s: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(TokenFormat.short(Double(model.rateNow))).textStyle(.hero)
+                Text(TokenFormat.short(Double(model.chartRate))).textStyle(.hero)
                     .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
-                    .contentTransition(.numericText(value: Double(model.rateNow)))
-                    .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
+                    .contentTransition(.numericText(value: Double(model.chartRate)))
+                    .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.chartRate)
                 Text("now").textStyle(.body).foregroundStyle(Palette.ink2)
                 Spacer(minLength: 0)
-                Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.threshold))).styled(.labelNumber))/min")
+                Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.chartThreshold))).styled(.labelNumber))/min")
                     .styled(.label)
                     .frame(height: TextStyle.label.lineHeight)
                     .foregroundStyle(Palette.ink3)

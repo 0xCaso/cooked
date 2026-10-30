@@ -47,7 +47,7 @@ final class LimitLog: @unchecked Sendable {
     private let lock = NSLock()
     private var files: [String: File] = [:]
     private var samples: [String: [Sample]] = [:]
-    private var thresholds: (at: Double, values: [String: Int])?
+    private var thresholds: (at: Double, values: [String: Int], total: Int)?
 
     init(dir: String = LimitLog.defaultDir) { self.dir = dir }
 
@@ -81,13 +81,16 @@ final class LimitLog: @unchecked Sendable {
         let t = now.timeIntervalSince1970
         if thresholds.map({ t - $0.at >= Self.thresholdsMaxAge }) ?? true {
             let buckets = (try? database?.buckets15(since: now.addingTimeInterval(-14 * 86400))) ?? [:]
-            thresholds = (t, Self.thresholds(buckets: buckets))
+            let values = Self.thresholds(buckets: buckets)
+            let total = (try? database?.totalBuckets15(since: now.addingTimeInterval(-14 * 86400))) ?? []
+            thresholds = (t, values, Self.totalThreshold(buckets: total, fallback: values.values.max() ?? 500_000))
         }
         var accounts: [String: StatusFile.Entry] = [:]
         for (id, s) in samples where !s.isEmpty {
             accounts[id] = Self.entry(id: id, samples: s, threshold: thresholds?.values[id], now: now, calendar: calendar)
         }
-        return StatusFile(updatedAt: ISO8601DateFormatter().string(from: now), accounts: accounts)
+        return StatusFile(updatedAt: ISO8601DateFormatter().string(from: now), accounts: accounts,
+                          totalThreshold15m: thresholds?.total)
     }
 
     /// Sorted, one per time, only the current 5 h window (the last sample's reset), the last hour before the last one.
@@ -131,14 +134,22 @@ final class LimitLog: @unchecked Sendable {
         return (last.five - first.five) / (last.at - first.at)
     }
 
+    /// p99 of the summed 15-min buckets; with little history, `fallback` (the largest account threshold).
+    static func totalThreshold(buckets: [Double], fallback: Int) -> Int {
+        p99(buckets) ?? fallback
+    }
+
+    static func p99(_ values: [Double]) -> Int? {
+        guard values.count >= minimumBuckets else { return nil }
+        let sorted = values.sorted()
+        return Int(sorted[min(sorted.count - 1, sorted.count * 99 / 100)])
+    }
+
     /// p99 of each account's 15-min buckets. An account with little history takes the largest p99 of the other Claude
     /// accounts (the same person's pace), else the fixed fallback: team sat at the fallback 600k on 30/10.
     static func thresholds(buckets: [String: [Double]]) -> [String: Int] {
         var own: [String: Int] = [:]
-        for (id, values) in buckets where values.count >= minimumBuckets {
-            let sorted = values.sorted()
-            own[id] = Int(sorted[min(sorted.count - 1, sorted.count * 99 / 100)])
-        }
+        for (id, values) in buckets { own[id] = p99(values) }
         var out: [String: Int] = [:]
         for id in Set(fallbackThreshold15m.keys).union(buckets.keys) {
             let others = claude.contains(id) ? claude.filter { $0 != id }.compactMap { own[$0] }.max() : nil

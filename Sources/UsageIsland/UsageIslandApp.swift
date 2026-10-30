@@ -23,6 +23,7 @@ enum UsageIslandApp {
                       "eta \(e.projection.map { "\($0.eta) (\($0.window))" } ?? "-") alert \(e.spikeThreshold15m ?? -1)",
                       e.note ?? "")
             }
+            print("all accounts: alert \(status.totalThreshold15m ?? -1)")
             exit(0)
         }
         let delegate = AppDelegate()

@@ -46,10 +46,15 @@ struct UsageSnapshot: Equatable {
     var accounts: [Account]
     let activeID: String
     let rateNow: Int
-    /// p99 threshold of the active account, tokens per minute.
+    /// p99 threshold of the active account, tokens per minute: the island's.
     let threshold: Int
-    /// Tokens per minute over the last 60 minutes, oldest first.
+    /// The popover chart's tokens per minute, oldest first: live, every account summed; the demos, one account.
     let series: [Double]
+    /// The popover's "now" and alert line, every account summed; nil in the demos, which show one account.
+    var totalRate: Int?
+    var totalThreshold: Int?
+    /// The popover's alert line, tokens per minute.
+    var chartThreshold: Int { totalThreshold ?? threshold }
     var urgency: Urgency?
     /// "What burns tokens": the top sources of the last 15 minutes, empty when idle.
     var sources: [TokenSource] = []

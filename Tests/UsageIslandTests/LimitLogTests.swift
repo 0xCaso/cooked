@@ -135,6 +135,12 @@ struct LimitLogTests {
         #expect(t["codex"] == 350_000)
     }
 
+    /// The popover's chart sums every account: its line is the p99 of the summed buckets.
+    @Test func totalThresholdOnTheSum() {
+        #expect(LimitLog.totalThreshold(buckets: (1...200).map { Double($0 * 10) }, fallback: 7) == 1990)
+        #expect(LimitLog.totalThreshold(buckets: [1, 2, 3], fallback: 7) == 7)
+    }
+
     @Test func clockOnOtherDays() {
         let tomorrow = calendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 9, minute: 5))!
         #expect(LimitLog.clock(tomorrow.timeIntervalSince1970, now, calendar) == "31/10 09:05")
