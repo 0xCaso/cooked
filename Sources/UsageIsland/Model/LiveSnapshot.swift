@@ -114,11 +114,11 @@ enum LiveSnapshot {
         let urgency = urgentID.map { id -> Urgency in
             let name = self.short(id: id, name: entry(id).name)
             let reset = clockPart(entry(id).fiveHourResetsAt) ?? "—"
-            // Without an ETA the headline says when the window frees up, never "100% at —". Short: the card cuts at ~17 characters.
+            // Without an ETA the headline says when the window frees up, never "full at —". Short: the card cuts at ~17 characters.
             let (lead, time, when): (String, String, String?) =
                 if blocked(id) { ("free at ", reset, "is cooked") }
-                else if let eta = eta(id) { ("100% at ", clock(eta, calendar), "in \(max(0, Int(eta.timeIntervalSince(now) / 60))) min") }
-                else if percent(id) >= 100 { ("100% ", "now", "resets \(reset)") }
+                else if let eta = eta(id) { ("full at ", clock(eta, calendar), "in \(max(0, Int(eta.timeIntervalSince(now) / 60))) min") }
+                else if percent(id) >= 100 { ("full ", "now", "resets \(reset)") }
                 else { ("resets ", reset, nil) }
             let rate = rate(id)
             // the thread "Open thread ↗" opens

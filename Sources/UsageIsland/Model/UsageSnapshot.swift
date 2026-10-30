@@ -20,16 +20,25 @@ struct Account: Identifiable, Equatable {
     var weekElapsed: Double? = nil
     /// The day the week resets: "Mon".
     var weekReset: String? = nil
+
+    /// What is left of a window, counted like T3 Code's Usage page: 100 − used, within 0...100.
+    static func left(_ used: Int) -> Int { 100 - min(max(used, 0), 100) }
+    /// The 5 h window's % left; 0 when blocked.
+    var fiveHourLeft: Int { isBlocked ? 0 : Self.left(fiveHourPercent) }
 }
 
 /// The spike line of the urgent island: when the 5h window fills up and what to do.
 struct Urgency: Equatable {
+    /// % used of the 5 h window.
     let percent: Int
-    /// The words before the time in the headline: "100% at ", "free at ", "resets ".
-    var lead = "100% at "
+    /// The words before the time in the headline: "full at ", "free at ", "resets ".
+    var lead = "full at "
     let fullAt: String
     let detail: String
     let source: String
+
+    /// % left, what the card shows.
+    var left: Int { Account.left(percent) }
 }
 
 struct UsageSnapshot: Equatable {

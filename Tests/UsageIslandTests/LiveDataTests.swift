@@ -111,7 +111,8 @@ struct LiveDataTests {
         let u = try #require(s.urgency)
         #expect(s.activeID == "claudeAgent")
         #expect(u.percent == 91)
-        // no ETA: the headline gives the reset, not "100% at —"
+        #expect(u.left == 9) // the card counts what is left, like the popover
+        // no ETA: the headline gives the reset, not "full at —"
         #expect(u.lead == "resets ")
         #expect(u.fullAt == "20:20")
         #expect(u.detail == "personal")
@@ -127,7 +128,7 @@ struct LiveDataTests {
                                    rate: 184_000, agents: nil)]
         let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: sources))
         let u = try #require(s.urgency)
-        #expect(u.lead == "100% at ")
+        #expect(u.lead == "full at ")
         #expect(u.fullAt == "15:40")
         #expect(u.detail == "work in 14 min")
         #expect(u.source == "184k/min from “Refactor usage page”")
@@ -202,6 +203,15 @@ struct LiveDataTests {
         minutes.byAccount["claudeAgent_work"] = [minuteNow - 3: 100_000]
         let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar))
         #expect(s.activeID == "claudeAgent")
+    }
+
+    /// The island counts what is left, like the popover: 18% used is 82%, a blocked account is 0%.
+    @Test func islandCountsWhatIsLeft() {
+        var a = Account(id: "x", short: "x", fiveHourPercent: 18, fiveHourReset: "20:20", isLive: true)
+        #expect(a.fiveHourLeft == 82)
+        a.isBlocked = true
+        #expect(a.fiveHourLeft == 0)
+        #expect(Account(id: "y", short: "y", fiveHourPercent: 103, fiveHourReset: "-", isLive: true).fiveHourLeft == 0)
     }
 
     /// An ETA already gone by says nothing: no "full 15:20" at 15:25, no "in 0 min" peak.

@@ -118,7 +118,7 @@ struct PopoverView: View {
     private func accountRow(_ a: Account, urgent: Bool) -> some View {
         let fills = urgent || a.isBlocked || a.fullAt != nil
         return HStack(spacing: Self.rowSpacing) {
-            UsagePill(name: a.short, left: a.isBlocked ? 0 : Self.left(a.fiveHourPercent),
+            UsagePill(name: a.short, left: a.fiveHourLeft,
                       timeLeft: a.fiveHourElapsed.map { 1 - $0 }, hot: fills, live: a.isLive) {
                 PillTimes(full: a.isBlocked ? nil : a.fullAt, reset: a.fiveHourReset, red: a.isBlocked)
             }
@@ -132,7 +132,7 @@ struct PopoverView: View {
         .accessibilityLabel(accessibilityText(a))
     }
 
-    static func left(_ used: Int) -> Int { 100 - min(max(used, 0), 100) }
+    static func left(_ used: Int) -> Int { Account.left(used) }
 
     private func accessibilityText(_ a: Account) -> String {
         var parts = ["\(a.short): 5 hours \(Self.left(a.fiveHourPercent))% left"]

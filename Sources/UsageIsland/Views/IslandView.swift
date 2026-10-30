@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The island under the menu bar. Calm: a 44 pt capsule with the wave, the active account and the rate.
-/// Peak: a 404 pt card with the 5h percentage in red, when the window fills up, and a button to its top thread.
+/// Peak: a 404 pt card with the 5h % left in red, when the window fills up, and a button to its top thread.
 struct IslandView: View {
     let model: IslandModel
     var namespace: Namespace.ID
@@ -42,7 +42,7 @@ struct IslandView: View {
                 .wellSurface(Capsule(), innerBlur: 2.5)
             // Minimized peak: the capsule keeps the red percentage and ring. Red 13 pt needs 4.5:1, which no glass
             // reaches (#2d2d2d at best, 4.0:1): there it sits in a well, red on #1b1b1b is 5.1:1. Same layout.
-            Text("\(s.active?.fiveHourPercent ?? 0)%").textStyle(.numberEmphasis)
+            Text("\(s.active?.fiveHourLeft ?? 100)%").textStyle(.numberEmphasis)
                 .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
                 .background {
                     if s.isUrgent {
@@ -65,7 +65,7 @@ struct IslandView: View {
     private func peak(_ s: UsageSnapshot, _ u: Urgency) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 16) {
-                Text("\(u.percent)%").textStyle(.hero).foregroundStyle(Palette.red)
+                Text("\(u.left)%").textStyle(.hero).foregroundStyle(Palette.red)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("\(Text(u.lead).styled(.emphasis))\(Text(u.fullAt).styled(.number))")
                         .foregroundStyle(Palette.ink)
