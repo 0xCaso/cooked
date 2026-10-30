@@ -1,6 +1,6 @@
 import Foundation
 
-/// Builds what the island shows from the watcher's status.json and the per-minute tokens of T3 Code's database.
+/// Builds what the island shows from the accounts' limits (`LimitLog`) and the per-minute tokens.
 enum LiveSnapshot {
     /// Display order, then any other account in id order.
     static let order = ["claudeAgent_work", "claudeAgent_team", "claudeAgent", "claudeAgent_side", "codex"]
@@ -24,9 +24,8 @@ enum LiveSnapshot {
     }
 
     /// nil when no account has 5h data yet. `sources` name the peak card's thread, the one its button opens.
-    /// `limitsAsOf`: the watcher has stopped and its limits date from then; they show, but nothing turns red on them.
     static func make(status: StatusFile, minutes: TokenLog.Minutes, now: Date, calendar: Calendar = .current,
-                     sources: [TokenSource] = [], limitsAsOf: Date? = nil) -> UsageSnapshot? {
+                     sources: [TokenSource] = []) -> UsageSnapshot? {
         let ids = status.accounts.keys
             .filter { status.accounts[$0]?.fiveHourPct != nil }
             .sorted { (order.firstIndex(of: $0) ?? 99, $0) < (order.firstIndex(of: $1) ?? 99, $1) }
@@ -61,7 +60,7 @@ enum LiveSnapshot {
         func blocked(_ id: String) -> Bool { !stale(id) && entry(id).limitStatus == "rejected" }
         /// Shown only when it lands before the reset: the watcher means it so, and a later time says nothing.
         func fullAt(_ id: String) -> String? {
-            if stale(id) || blocked(id) || limitsAsOf != nil { return nil }
+            if stale(id) || blocked(id) { return nil }
             if percent(id) >= 100 { return "now" }
             guard let eta = eta(id) else { return nil }
             if let reset = resetDate(id), eta >= reset { return nil }
@@ -100,7 +99,7 @@ enum LiveSnapshot {
 
         func isUrgent(_ id: String) -> Bool {
             let e = entry(id)
-            guard !stale(id), e.live == true, limitsAsOf == nil else { return false }
+            guard !stale(id), e.live == true else { return false }
             if percent(id) >= urgentPercent { return true }
             if let eta = eta(id), eta.timeIntervalSince(now) <= urgentETA { return true }
             if let state = e.limitStatus, !okStates.contains(state) { return true }
@@ -143,7 +142,6 @@ enum LiveSnapshot {
             series: series(activeID),
             urgency: urgency)
         snapshot.sources = sources
-        snapshot.limitsAsOf = limitsAsOf.map { clock($0, calendar) }
         return snapshot
     }
 

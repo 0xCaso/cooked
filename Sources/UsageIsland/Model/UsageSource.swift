@@ -1,15 +1,14 @@
 import Foundation
 
-/// Where the live island reads from: the watcher's status.json and T3 Code's database.
+/// Where the live island reads from: T3 Code's provider logs (the limits), its database and the Claude transcripts.
 struct UsageSource: Sendable {
-    var statusPath = NSHomeDirectory() + "/.t3/usage-watch/status.json"
+    /// The limits; keeps its read positions and samples across readings.
+    var limits = LimitLog()
     var databasePath = TokenLog.defaultPath
     /// Adds up the calls of running turns across readings.
     let running = RunningTurns()
     /// The Claude accounts' minutes; nil reads only the database.
     var transcripts: TranscriptLog? = .standard()
-    /// status.json older than this means the watcher has stopped (it runs every 30 s).
-    static let staleAfter: TimeInterval = 5 * 60
 
     struct Reading: Equatable {
         let snapshot: UsageSnapshot
@@ -18,26 +17,14 @@ struct UsageSource: Sendable {
     }
 
     enum Problem: Error, Equatable {
-        case noStatus, watcherStopped, noAccounts
-        var message: String {
-            switch self {
-            case .noStatus: "No status from usage-watch"
-            case .watcherStopped: "usage-watch has stopped"
-            case .noAccounts: "No account data yet"
-            }
-        }
+        case noAccounts
+        var message: String { "No limits in T3 Code's logs yet" }
     }
 
     func read(now: Date = Date()) -> Result<Reading, Problem> {
-        let url = URL(fileURLWithPath: statusPath)
-        guard let data = try? Data(contentsOf: url), let status = try? StatusFile.decode(data) else {
-            return .failure(.noStatus)
-        }
-        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? now
-        // A stopped watcher: its last limits still show, with their time, and the tokens stay live.
-        let limitsAsOf = now.timeIntervalSince(modified) < Self.staleAfter ? nil : modified
         // Without the database the island still has the percentages; only the histogram stays empty.
         let log = TokenLog(path: databasePath)
+        let status = limits.read(now: now, database: log)
         var minutes = (try? log.read(now: now, minutes: LiveSnapshot.historyMinutes, running: running)) ?? TokenLog.Minutes()
         // The transcripts have every call of the Claude accounts, subagents included: they replace the database there.
         let calls = transcripts?.read(now: now, minutes: LiveSnapshot.historyMinutes) ?? TranscriptLog.Reading()
@@ -45,8 +32,7 @@ struct UsageSource: Sendable {
         let sources = TokenSources.make(
             sessions: calls.sessions, threads: (try? log.threads(sessions: calls.sessions.map(\.id))) ?? [:],
             recent: minutes.recentThreads, transcriptAccounts: Set(calls.minutes.keys))
-        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now, sources: sources,
-                                               limitsAsOf: limitsAsOf) else {
+        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now, sources: sources) else {
             return .failure(.noAccounts)
         }
         return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60))

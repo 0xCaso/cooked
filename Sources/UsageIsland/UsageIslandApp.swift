@@ -14,6 +14,17 @@ enum UsageIslandApp {
             } catch { print(error.localizedDescription); exit(1) }
             exit(0)
         }
+        // `--limits`: every account's limits as the app reads them from T3 Code's logs, one line each.
+        if args.contains("--limits") {
+            let status = LimitLog().read(now: Date(), database: TokenLog(path: TokenLog.defaultPath))
+            for (id, e) in status.accounts.sorted(by: { $0.key < $1.key }) {
+                print(id, "5h \(e.fiveHourPct ?? -1)% reset \(e.fiveHourResetsAt ?? "-")", "week \(e.sevenDayPct ?? -1)% reset \(e.sevenDayResetsAt ?? "-")",
+                      "status \(e.limitStatus ?? "-") last \(e.lastEventAt ?? "-") live \(e.live ?? false)",
+                      "eta \(e.projection.map { "\($0.eta) (\($0.window))" } ?? "-") alert \(e.spikeThreshold15m ?? -1)",
+                      e.note ?? "")
+            }
+            exit(0)
+        }
         let delegate = AppDelegate()
         app.delegate = delegate
         // No Dock icon and no menu bar, also when run with `swift run` (the bundle sets LSUIElement too).

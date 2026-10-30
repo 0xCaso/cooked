@@ -58,6 +58,34 @@ struct TokenLog {
         return out
     }
 
+    /// T3 Code thread id → its account (`providerInstanceId`), for rate-limit events that do not name it.
+    func threadAccounts() throws -> [String: String] {
+        let db = try open()
+        defer { sqlite3_close(db) }
+        var out: [String: String] = [:]
+        try query(db, "SELECT thread_id, json_extract(payload_json,'$.providerInstanceId') FROM orchestration_v2_projection_threads",
+                  since: nil) { row in
+            if let id = row.text(0), let account = row.text(1) { out[id] = account }
+        }
+        return out
+    }
+
+    /// Account id → new tokens of each 15-minute bucket with finished turns since `since`: the alert thresholds' history.
+    func buckets15(since: Date) throws -> [String: [Double]] {
+        let db = try open()
+        defer { sqlite3_close(db) }
+        let sql = """
+            SELECT COALESCE(pth.provider_instance_id, pth.provider),
+              CAST(strftime('%s', pt.completed_at) AS INTEGER) / 900, SUM(\(Self.fresh))
+            \(Self.from) WHERE pt.completed_at >= ? GROUP BY 1, 2
+            """
+        var out: [String: [Double]] = [:]
+        try query(db, sql, since: since.timeIntervalSince1970) { row in
+            if let id = row.text(0) { out[id, default: []].append(Double(row.int(2))) }
+        }
+        return out
+    }
+
     private func open() throws -> OpaquePointer? {
         var db: OpaquePointer?
         guard sqlite3_open_v2("file:\(path)?mode=ro", &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {

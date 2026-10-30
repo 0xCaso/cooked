@@ -33,7 +33,7 @@ struct PopoverView: View {
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
                 sourcesCard(s.sources)
             }
-            accountsHeader(asOf: s.limitsAsOf)
+            accountsHeader
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
         }
@@ -44,17 +44,13 @@ struct PopoverView: View {
                                 glassID: "popover", namespace: namespace))
     }
 
-    /// The section label: the two windows are named over their columns inside the card. When the watcher has
-    /// stopped, the time of its last limits on the right.
-    private func accountsHeader(asOf: String?) -> some View {
-        HStack {
-            Text("Usage")
-            Spacer(minLength: 0)
-            if let asOf { Text("\(Text("as of "))\(Text(asOf).styled(.labelNumber))") }
-        }
-        .lineLimit(1)
-        .textStyle(.label)
-        .foregroundStyle(sectionInk)
+    /// Only the section label: the two windows are named over their columns inside the card.
+    private var accountsHeader: some View {
+        Text("Usage")
+            .lineLimit(1)
+            .textStyle(.label)
+            .foregroundStyle(sectionInk)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The week pill's width; the 5-hour pill, with the account name, takes the rest of the card's 364 pt.

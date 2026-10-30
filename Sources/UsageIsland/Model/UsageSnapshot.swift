@@ -44,8 +44,6 @@ struct UsageSnapshot: Equatable {
     var urgency: Urgency?
     /// "What burns tokens": the top sources of the last 15 minutes, empty when idle.
     var sources: [TokenSource] = []
-    /// "HH:MM" of the last limits when the watcher has stopped; nil while they are live.
-    var limitsAsOf: String? = nil
 
     var isUrgent: Bool { urgency != nil }
     var active: Account? { accounts.first { $0.id == activeID } }

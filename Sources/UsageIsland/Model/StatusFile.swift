@@ -1,6 +1,7 @@
 import Foundation
 
-/// `~/.t3/usage-watch/status.json`, written by `usage-watch.py` every 30 s. Only the fields the island uses.
+/// Every account's limits, as the watcher script's status.json had them: `LimitLog` builds it now, and the tests
+/// still decode fixtures in that form. Only the fields the island uses.
 struct StatusFile: Decodable, Equatable {
     var updatedAt: String
     var accounts: [String: Entry]

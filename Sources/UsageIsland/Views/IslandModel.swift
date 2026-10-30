@@ -86,7 +86,7 @@ final class IslandModel {
         case .failure(let problem):
             liveProblem = problem
         case .success(let reading):
-            liveProblem = reading.snapshot.limitsAsOf == nil ? nil : .watcherStopped
+            liveProblem = nil
             let s = reading.snapshot
             if snapshot != s { snapshot = s }
             rateNow = s.rateNow

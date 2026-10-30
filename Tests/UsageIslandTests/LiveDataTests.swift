@@ -488,40 +488,19 @@ extension TranscriptLogTests {
 }
 
 struct UsageSourceTests {
-    func write(_ text: String, modified: Date) throws -> String {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("status-\(UUID().uuidString).json")
-        try Data(text.utf8).write(to: url)
-        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
-        return url.path
-    }
-
-    @Test func readsAFreshFile() throws {
-        let path = try write(statusFixture, modified: Date())
-        let r = UsageSource(statusPath: path, databasePath: "/nonexistent", transcripts: nil).read()
-        let reading = try r.get()
-        #expect(reading.snapshot.accounts.count == 2)
+    @Test func readsTheLimitsFromTheProviderLogs() throws {
+        let now = Date()
+        let dir = try LimitLogTests.logDir([LimitLogTests.claudeLine(at: now.addingTimeInterval(-60), account: "claudeAgent_work",
+                                                                    five: 0.48, fiveReset: now.addingTimeInterval(3600))])
+        let reading = try UsageSource(limits: LimitLog(dir: dir), databasePath: "/nonexistent", transcripts: nil).read(now: now).get()
+        #expect(reading.snapshot.accounts.map(\.short) == ["work"])
+        #expect(reading.snapshot.accounts[0].fiveHourPercent == 48)
         #expect(reading.snapshot.series == Array(repeating: 0, count: 1440)) // no database: empty histogram
     }
 
-    /// A stopped watcher: the last limits show with their time, nothing turns red on them, and the menu says why.
-    @MainActor @Test func stoppedWatcherShowsItsLastLimitsAsOld() throws {
-        let modified = Date().addingTimeInterval(-600)
-        let old = try write(statusFixture.replacingOccurrences(of: #""five_hour_pct": 18"#, with: #""five_hour_pct": 95"#),
-                            modified: modified)
-        let s = try UsageSource(statusPath: old, databasePath: "/nonexistent", transcripts: nil).read().get().snapshot
-        #expect(s.limitsAsOf == LiveSnapshot.clock(modified, .current))
-        #expect(s.urgency == nil)
-        #expect(s.accounts.allSatisfy { $0.fullAt == nil })
-        #expect(s.accounts.first { $0.short == "personal" }?.fiveHourPercent == 95)
-        let model = IslandModel(feed: .live, defaults: UserDefaults(suiteName: "stopped-\(UUID())")!)
-        model.apply(.success(.init(snapshot: s, minute: 0)))
-        #expect(model.liveProblem == .watcherStopped)
-    }
-
-    @Test func reportsProblems() throws {
-        #expect(UsageSource(statusPath: "/nonexistent", transcripts: nil).read() == .failure(.noStatus))
-        let empty = try write(#"{"updated_at": "x", "accounts": {}}"#, modified: Date())
-        #expect(UsageSource(statusPath: empty, transcripts: nil).read() == .failure(.noAccounts))
+    @Test func reportsNoAccounts() throws {
+        let dir = try LimitLogTests.logDir([])
+        #expect(UsageSource(limits: LimitLog(dir: dir), databasePath: "/nonexistent", transcripts: nil).read() == .failure(.noAccounts))
     }
 }
 
