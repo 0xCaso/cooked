@@ -78,14 +78,26 @@ enum TideScale {
     }
 }
 
+/// How bright the liquid under the meniscus is: `base + gain·e^(−depth/scale)`.
+struct LiquidBody {
+    let base: Double, gain: Double, scale: Double
+    /// The island's tank: 20–52% light.
+    static let tank = LiquidBody(base: 0.2, gain: 0.32, scale: 4)
+    /// The popover's chart, brighter: 34–70% light.
+    static let chart = LiquidBody(base: 0.34, gain: 0.36, scale: 5)
+
+    func light(depth: Double) -> Double { depth > 0 ? base + gain * exp(-depth / scale) : 0 }
+}
+
 /// A grid of dots, row 0 at the top, index `r * cols + c`. `level` 0...1 is brightness,
-/// `fresh` 0...1 how white the dot's core is, `hot` coral.
+/// `fresh` 0...1 how white the dot's core is, `hot` coral, `lift` how far the dot sits above its grid place, in points.
 struct LiquidField {
     let cols: Int
     let rows: Int
     var level: [Float]
     var fresh: [Float]
     var hot: [Bool]
+    var lift: [Float]
 
     init(cols: Int, rows: Int) {
         self.cols = cols
@@ -93,12 +105,14 @@ struct LiquidField {
         level = Array(repeating: 0, count: cols * rows)
         fresh = Array(repeating: 0, count: cols * rows)
         hot = Array(repeating: false, count: cols * rows)
+        lift = Array(repeating: 0, count: cols * rows)
     }
 
     /// The surface row is bright, the liquid below fades with depth; where the surface moves fast it catches
     /// more light. Dots above `hotRow` are coral when `urgent`; with `reaches`, only in the columns whose real value
     /// reaches that row, so a spring overshooting the threshold never flashes coral.
-    mutating func pour(_ water: Water, hotRow: Int, urgent: Bool, still: Bool, reaches: [Bool]? = nil) {
+    mutating func pour(_ water: Water, hotRow: Int, urgent: Bool, still: Bool, reaches: [Bool]? = nil,
+                       body liquid: LiquidBody = .tank) {
         for c in 0..<cols {
             let h = water.height[c]
             let speed = still ? 0 : min(0.35, abs(water.velocity[c]) * 0.05)
@@ -107,7 +121,7 @@ struct LiquidField {
                 let depth = h - (Double(rows - 1 - r) + 0.5)
                 // the meniscus: one row, its edge anti-aliased
                 let top = clamp01(depth + 0.5) * (1 - Double(smoothstep(0.5, 1.6, Float(depth))))
-                let body = depth > 0 ? 0.2 + 0.32 * exp(-depth / 4) : 0
+                let body = liquid.light(depth: depth)
                 level[i] = Float(min(1, max(top * (0.8 + speed), body)))
                 fresh[i] = Float(top > 0.5 ? 0.6 + speed : 0.15)
                 hot[i] = urgent && r < hotRow && reaches?[c] != false
@@ -176,14 +190,22 @@ final class TideIsland {
 }
 
 /// The popover's 60 minutes as a liquid: when a minute closes the targets jump, and the surface flows into its
-/// new shape. Small drops keep it alive while nothing changes, like the island: they fall on a separate ripple layer,
-/// added to the data's heights only when drawn, so the data's columns stay where the minutes put them.
+/// new shape. Slow drops keep it alive while nothing changes, like the island: they fall on a separate ripple layer,
+/// added to the data's heights only when drawn, so the data's columns stay where the minutes put them. The ripple
+/// reaches into the body: the dots under a moving surface rise and sink with it, less with depth.
 final class TideHistogram {
     static let cols = 84, rows = 24
-    /// Drops per second, whatever the data.
-    static let dropRate = 2.4
+    static let pitch = 348.0 / Double(cols)
+    /// The ripple layer runs at this share of real time: 40% slower than the island.
+    static let slow = 0.6
+    /// Drops per second of ripple time, whatever the data.
+    static let dropRate = 1.6
     /// The ripples never move a column further than this, in rows.
-    static let maxRipple = 0.55
+    static let maxRipple = 0.6
+    /// A body dot never moves further than this from its grid place, in points.
+    static let maxLift = 0.5
+    /// Rows under the surface over which a body dot's movement fades by e.
+    static let liftDepth = 6.0
 
     private var water = Water(cols: cols, k: 120, c: 110, d: 9)
     private var ripple = Water(cols: cols, k: 30, c: 900, d: 5)
@@ -218,21 +240,36 @@ final class TideHistogram {
             let r = min(Self.maxRipple, max(-Self.maxRipple, ripple.height[c]))
             // a ripple never lifts a column into the threshold row, and never below the floor
             shown.height[c] = max(0, r > 0 ? min(h + r, max(h, line - 1)) : h + r)
-            shown.velocity[c] += ripple.velocity[c] * 0.1
+            shown.velocity[c] += ripple.velocity[c] * Self.slow * 0.1
         }
         shownHeights = shown.height
-        field.pour(shown, hotRow: thresholdRow, urgent: true, still: still, reaches: target.map { $0 > line })
+        field.pour(shown, hotRow: thresholdRow, urgent: true, still: still, reaches: target.map { $0 > line }, body: .chart)
+        for c in 0..<Self.cols {
+            let moved = shown.height[c] - water.height[c]
+            for r in 0..<Self.rows {
+                let depth = shown.height[c] - (Double(Self.rows - 1 - r) + 0.5)
+                field.lift[r * Self.cols + c] = Float(Self.lift(moved: moved, depth: depth))
+            }
+        }
         return field
+    }
+
+    /// Points a dot `depth` rows under the surface rises (negative: sinks) when its column's surface moved by `moved`
+    /// rows: the whole ripple's share of 0.5 pt, fading with depth; dry dots stay put.
+    static func lift(moved: Double, depth: Double) -> Double {
+        guard depth > 0 else { return 0 }
+        return max(-1, min(1, moved / maxRipple)) * maxLift * exp(-depth / liftDepth)
     }
 
     private func step(_ dt: Double) {
         water.step(dt, target: target)
-        drip += dt * Self.dropRate
+        let slowed = dt * Self.slow
+        drip += slowed * Self.dropRate
         while drip > 1 {
             drip -= 1
             ripple.velocity[min(Self.cols - 1, Int(random() * Double(Self.cols)))] -= 8 + 6 * random()
         }
-        ripple.step(dt, target: Array(repeating: 0, count: Self.cols))
+        ripple.step(slowed, target: Array(repeating: 0, count: Self.cols))
     }
 
     /// Park–Miller, like the island: the same drops on every run.

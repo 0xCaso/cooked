@@ -20,12 +20,53 @@ import Testing
     @Test func stripLightsTheUsedShareAndPutsTheLineAtEvenPace() {
         // team on 30/10: 26% used, 17% of the window gone, 15 columns
         let l = PaceStrip.layout(percent: 26, elapsed: 0.17, cols: 15)
-        #expect(l.lit == 4)
+        #expect(abs(l.fill - 3.9) < 0.001)
         #expect(l.line == 2)
         #expect(abs(l.ahead - 2.55) < 0.001)
-        #expect(PaceStrip.layout(percent: 140, elapsed: nil, cols: 15).lit == 15)
+        #expect(PaceStrip.layout(percent: 140, elapsed: nil, cols: 15).fill == 15)
         #expect(PaceStrip.layout(percent: 140, elapsed: nil, cols: 15).line == nil)
         #expect(PaceStrip.columns(width: 46) == 15)
+    }
+
+    /// Dot motion task 3: each row's front sways on its spring, within ±0.7 column, and settles.
+    @Test func frontsSwayWithinBoundsAndKeepMoving() {
+        let fronts = PaceFronts()
+        var biggest = 0.0, moving = 0
+        var rows = Set<Int>()
+        for frame in 0...(60 * 60) {
+            let sway = fronts.sway(at: Double(frame) / 60, still: false)
+            #expect(sway.count == 3)
+            biggest = max(biggest, sway.map(abs).max()!)
+            if sway.contains(where: { abs($0) > 0.05 }) { moving += 1 }
+            for r in sway.indices where abs(sway[r]) > 0.05 { rows.insert(r) }
+        }
+        print("pill fronts: biggest sway \(biggest) columns, moving in \(moving) of 3601 frames")
+        #expect(biggest <= PaceFronts.maxSway)
+        #expect(biggest > 0.2)
+        #expect(moving > 1000) // slow kicks: the fronts rest a while between them
+        #expect(rows.count == 3) // every row has its own front
+    }
+
+    @Test func stillFrontsDoNotSway() {
+        let fronts = PaceFronts()
+        for frame in 0...600 { _ = fronts.sway(at: Double(frame) / 60, still: false) }
+        #expect(fronts.sway(at: 10.1, still: true) == [0, 0, 0])
+    }
+
+    @Test func frontDotIsPartlyLitAndTheDotsBehindMoveLess() {
+        // 3.9 columns lit: columns 0-2 full, column 3 at 90%, column 4 dark
+        #expect(PaceStrip.cover(column: 2, fill: 3.9, sway: 0) == 1)
+        #expect(abs(PaceStrip.cover(column: 3, fill: 3.9, sway: 0) - 0.9) < 1e-9)
+        #expect(PaceStrip.cover(column: 4, fill: 3.9, sway: 0) == 0)
+        #expect(abs(PaceStrip.cover(column: 4, fill: 3.9, sway: 0.5) - 0.4) < 1e-9)
+        // an empty strip does not sway into its first dot
+        #expect(PaceStrip.cover(column: 0, fill: 0, sway: 0.7) == 0)
+        let front = PaceStrip.shift(column: 3, fill: 3.9, sway: 0.7)
+        let back = PaceStrip.shift(column: 0, fill: 3.9, sway: 0.7)
+        #expect(abs(front - PaceStrip.maxShift) < 1e-9)
+        #expect(back > 0 && back < front)
+        #expect(PaceStrip.shift(column: 3, fill: 3.9, sway: 0) == 0)
+        #expect(PaceStrip.shift(column: 6, fill: 3.9, sway: 0.7) == 0) // dark dots stay put
     }
 
     @Test func peakOpensTheTopThreadOfTheAccountThatFills() {

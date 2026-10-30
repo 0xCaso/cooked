@@ -1,20 +1,62 @@
 import SwiftUI
 
-/// The light wave the popover's dots share: lit dots
-/// brighten and dim between 100% and 48%, in a wave that travels left to right, period 2π × 0.65 s ≈ 4.1 s.
-enum DotWave {
-    /// Radians per point across the popover: the mockup's 0.32 per chart column of about 6.3 pt.
-    static let phasePerPoint = 0.05
-    static let secondsPerRadian = 0.65
+/// The fronts of a strip's three rows of dots, each on its own spring, kicked by slow drops and settling again, so the
+/// rows never line up exactly.
+@MainActor final class PaceFronts {
+    static let rows = 3
+    /// The springs run at this share of real time, like the chart's ripple.
+    static let slow = 0.6
+    /// Kicks per second of spring time.
+    static let dropRate = 0.5
+    /// A front never sways further than this from the used %, in columns.
+    static let maxSway = 0.7
 
-    /// 0.48...1, the share of a lit dot's light at `x` points from the chart's left edge.
-    static func factor(t: Double, x: Double) -> Double {
-        0.74 + 0.26 * sin(t / secondsPerRadian - x * phasePerPoint)
+    /// Each strip draws its own drops: a new seed per strip.
+    private static var nextSeed: UInt64 = 11
+    private var water = Water(cols: rows, k: 18, c: 60, d: 3.2)
+    private var stepper = FixedStepper()
+    private var drip: Double
+    private var seed: UInt64
+
+    init() {
+        seed = Self.nextSeed
+        Self.nextSeed = Self.nextSeed % 2_147_483_000 + 7919
+        drip = 0
+        drip = random() * 0.8
+    }
+
+    /// Each row's sway at `t`, in columns, within ±`maxSway`; all 0 when still.
+    func sway(at t: Double, still: Bool) -> [Double] {
+        if still {
+            water = Water(cols: Self.rows, k: water.k, c: water.c, d: water.d)
+            stepper.advance(to: t) { _ in }
+            return Array(repeating: 0, count: Self.rows)
+        }
+        stepper.advance(to: t, step)
+        return water.height.map { max(-Self.maxSway, min(Self.maxSway, $0)) }
+    }
+
+    private func step(_ dt: Double) {
+        let slowed = dt * Self.slow
+        drip += slowed * Self.dropRate
+        while drip > 1 {
+            drip -= 1
+            water.velocity[min(Self.rows - 1, Int(random() * Double(Self.rows)))] += (random() - 0.5) * 9
+        }
+        water.step(slowed, target: Array(repeating: 0, count: Self.rows))
+    }
+
+    /// Park–Miller, like the chart.
+    private func random() -> Double {
+        seed = (seed * 16807) % 2_147_483_647
+        return Double(seed) / 2_147_483_647
     }
 }
 
 /// One window of one account: three rows of the chart's dots, lit up to the used %, and the even-pace line where the
-/// window's time has gone by. Lit dots past the line are red when the account fills before reset.
+/// window's time has gone by. Lit dots past the line are red when the account fills before reset. Each row's front
+/// sways on a spring (`PaceFronts`); the dot at the front is partly lit, and the lit dots behind it move with it,
+/// less the further back they are.
 struct PaceStrip: View {
     let percent: Int
     /// 0...1; nil hides the line.
@@ -22,8 +64,9 @@ struct PaceStrip: View {
     let hot: Bool
     /// Accounts not in use: their lit dots at 60%.
     var dim = false
+    @State private var fronts = PaceFronts()
 
-    static let rows = 3
+    static let rows = PaceFronts.rows
     static let dot: CGFloat = 2.3
     static let pitchX: CGFloat = 3
     static let pitchY: CGFloat = 4
@@ -33,32 +76,47 @@ struct PaceStrip: View {
     static let lineInk = Palette.ink.opacity(0.72)
     static var dotsHeight: CGFloat { dot + CGFloat(rows - 1) * pitchY }
     static var height: CGFloat { dotsHeight + 2 * lineOut }
+    /// A lit dot never moves further than this from its grid place, in points.
+    static let maxShift = 0.5
+    /// Columns behind the front over which a dot's movement fades by e.
+    static let shiftReach = 3.0
 
     static func columns(width: CGFloat) -> Int { max(6, Int((width - dot) / pitchX) + 1) }
 
-    /// Lit columns, the line's column (no dots there) and the first column ahead of even pace.
-    static func layout(percent: Int, elapsed: Double?, cols: Int) -> (lit: Int, line: Int?, ahead: Double) {
-        let lit = Int((Double(min(max(percent, 0), 100)) / 100 * Double(cols)).rounded())
-        guard let elapsed else { return (lit, nil, .infinity) }
-        return (lit, min(cols - 1, Int((elapsed * Double(cols - 1)).rounded())), elapsed * Double(cols))
+    /// The fill in columns, the line's column (no dots there) and the first column ahead of even pace.
+    static func layout(percent: Int, elapsed: Double?, cols: Int) -> (fill: Double, line: Int?, ahead: Double) {
+        let fill = Double(min(max(percent, 0), 100)) / 100 * Double(cols)
+        guard let elapsed else { return (fill, nil, .infinity) }
+        return (fill, min(cols - 1, Int((elapsed * Double(cols - 1)).rounded())), elapsed * Double(cols))
+    }
+
+    /// 0...1, how lit column `c` is when the row's front sits at `fill + sway` columns. A nearly empty strip does not sway.
+    static func cover(column c: Int, fill: Double, sway: Double) -> Double {
+        clamp01((fill > 0.2 ? fill + sway : fill) - Double(c))
+    }
+
+    /// Points a lit dot moves right (negative: left) when its row's front sways by `sway` columns.
+    static func shift(column c: Int, fill: Double, sway: Double) -> Double {
+        guard fill > 0.2, Double(c) < fill + sway else { return 0 }
+        return sway / PaceFronts.maxSway * maxShift * exp(-max(0, fill - 1 - Double(c)) / shiftReach)
     }
 
     var body: some View {
         ChartTimeline { t, still in
+            let sway = fronts.sway(at: t, still: still)
             Canvas { ctx, size in
                 let cols = Self.columns(width: size.width)
                 let gapX = cols > 1 ? (size.width - Self.dot) / CGFloat(cols - 1) : 0
-                let (lit, line, ahead) = Self.layout(percent: percent, elapsed: elapsed, cols: cols)
-                let top = Self.lineOut
-                for c in 0..<cols where c != line {
-                    let x = CGFloat(c) * gapX
-                    let on = c < lit
-                    let red = on && hot && Double(c) >= ahead
-                    let wave = on && !still ? DotWave.factor(t: t, x: Double(x)) : 1
-                    let alpha = on ? (dim && !red ? 0.6 : 1) * wave : 0.07
-                    for r in 0..<Self.rows {
-                        let rect = CGRect(x: x, y: top + CGFloat(r) * Self.pitchY, width: Self.dot, height: Self.dot)
-                        ctx.fill(Path(ellipseIn: rect), with: .color((red ? Palette.red : Palette.ink).opacity(alpha)))
+                let (fill, line, ahead) = Self.layout(percent: percent, elapsed: elapsed, cols: cols)
+                for r in 0..<Self.rows {
+                    let y = Self.lineOut + CGFloat(r) * Self.pitchY
+                    for c in 0..<cols where c != line {
+                        let cover = Self.cover(column: c, fill: fill, sway: sway[r])
+                        let red = cover > 0 && hot && Double(c) >= ahead
+                        let lit = (dim && !red ? 0.6 : 1) * cover
+                        let x = CGFloat(c) * gapX + CGFloat(Self.shift(column: c, fill: fill, sway: sway[r]))
+                        let rect = CGRect(x: x, y: y, width: Self.dot, height: Self.dot)
+                        ctx.fill(Path(ellipseIn: rect), with: .color((red ? Palette.red : Palette.ink).opacity(0.07 + lit * 0.93)))
                     }
                 }
                 if let line {

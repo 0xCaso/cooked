@@ -3,7 +3,7 @@ import SwiftUI
 extension EnvironmentValues {
     /// Time zero of every chart. Set once by the root; it never changes, so it re-renders nothing.
     @Entry var chartEpoch: Date = .distantPast
-    /// Reduce Motion (or --reduce-motion), and snapshots: no wave, no growth, no easing.
+    /// Reduce Motion (or --reduce-motion), and snapshots: no drops, no growth, no easing.
     @Entry var chartsStill: Bool = false
 }
 
@@ -69,8 +69,6 @@ struct LiquidMatrix: View {
     let radius: CGFloat
     var rimCols = 0
     var thresholdRow: Int?
-    /// The popover's light wave (`DotWave`) at this time; nil for none.
-    var waveTime: Double?
 
     // The mockup's hex palette: a warm pearl body, a whiter core where the surface is; coral over the threshold.
     static let tones = 8
@@ -96,17 +94,16 @@ struct LiquidMatrix: View {
                 let floor: Float = r == thresholdRow && c % 2 == 0 ? 0.22 : 0.06
                 let s = LiquidShade.shade(field, at: i, floor: floor, rimCols: rimCols)
                 guard s.alpha > 0.004 else { continue }
-                let center = CGPoint(x: (CGFloat(c) + 0.5) * pitch, y: (CGFloat(r) + 0.5) * pitch)
+                let center = CGPoint(x: (CGFloat(c) + 0.5) * pitch, y: (CGFloat(r) + 0.5) * pitch - CGFloat(field.lift[i]))
                 let rr = radius * CGFloat(s.radiusScale)
                 let tone = Int((s.fresh * Float(Self.tones)).rounded())
-                let wave = waveTime.map { s.alpha > 0.15 ? DotWave.factor(t: $0, x: Double(center.x)) : 1 } ?? 1
                 var dot = ctx
-                dot.opacity = Double(s.alpha) * wave
+                dot.opacity = Double(s.alpha)
                 dot.fill(Path(ellipseIn: CGRect(x: center.x - rr, y: center.y - rr, width: 2 * rr, height: 2 * rr)),
                          with: .color((s.hot ? Self.coral : Self.pearl)[tone]))
                 if s.glow > 0.01 {
                     var layer = ctx
-                    layer.opacity = Double(s.glow) * wave
+                    layer.opacity = Double(s.glow)
                     layer.draw(s.hot ? redSprite : inkSprite,
                                in: CGRect(x: center.x - spriteSide / 2, y: center.y - spriteSide / 2, width: spriteSide, height: spriteSide))
                 }
@@ -143,8 +140,7 @@ struct TideHistogramChart: View {
     var body: some View {
         ChartTimeline { t, still in
             let field = tide.frame(source.history(at: t, still: still), at: t, still: still)
-            LiquidMatrix(field: field, pitch: 348 / CGFloat(TideHistogram.cols), radius: 1.2,
-                         thresholdRow: tide.thresholdRow, waveTime: still ? nil : t)
+            LiquidMatrix(field: field, pitch: CGFloat(TideHistogram.pitch), radius: 1.2, thresholdRow: tide.thresholdRow)
         }
     }
 }

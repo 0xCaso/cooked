@@ -102,7 +102,7 @@ struct TideTests {
         }
         print("idle ripple: biggest \(biggest) rows, moving in \(moved) of 1801 frames")
         #expect(biggest < 0.6)
-        #expect(moved > 1500) // alive, not a drop now and then
+        #expect(moved > 1200) // alive, not a drop now and then (slow drops: about 3 frames in 4)
     }
 
     /// A column just under the threshold row is never lifted into it by a ripple.
@@ -115,6 +115,40 @@ struct TideTests {
             _ = tide.frame(history, at: Double(frame) / 60, still: false)
             for (shown, h) in zip(tide.shownHeights, tide.heights) { #expect(shown <= max(h, line - 1) + 1e-9) }
         }
+    }
+
+    /// Dot motion task 1: the chart's body is brighter (34–70%), the island's tank keeps 20–52%.
+    @Test func chartBodyIsBrighterThanTheTank() {
+        let history = MinuteHistory(values: Array(repeating: 16000, count: 60), top: 64000, threshold: 40000)
+        let f = TideHistogram().frame(history, at: 0, still: true)
+        // 12 rows of liquid in column 40: the dot 3 rows under the meniscus (row 12)
+        #expect(f.level[15 * 84 + 40] >= 0.5)
+        #expect(abs(LiquidBody.tank.light(depth: 3.5) - (0.2 + 0.32 * exp(-3.5 / 4))) < 1e-12)
+        #expect(LiquidBody.chart.light(depth: 0) == 0)
+        #expect(LiquidBody.chart.light(depth: 100) > 0.34)
+    }
+
+    /// Dot motion task 2: body dots rise and sink with the ripple above them, at most 0.5 pt, less with depth.
+    @Test func bodyDotsFollowTheRippleByAtMostHalfAPoint() {
+        let history = MinuteHistory(values: Array(repeating: 16000, count: 60), top: 64000, threshold: 40000)
+        let tide = TideHistogram()
+        var biggest: Float = 0, deepMoved: Float = 0
+        for frame in 0...(60 * 20) {
+            let f = tide.frame(history, at: Double(frame) / 60, still: false)
+            biggest = max(biggest, f.lift.map(abs).max()!)
+            for c in 0..<84 {
+                let shallow = abs(f.lift[13 * 84 + c]), deep = abs(f.lift[23 * 84 + c])
+                #expect(deep <= shallow + 1e-6)
+                deepMoved = max(deepMoved, deep)
+                #expect(f.lift[0 * 84 + c] == 0) // dry dots stay put
+            }
+        }
+        print("body lift: biggest \(biggest) pt, deepest row \(deepMoved) pt")
+        #expect(biggest <= 0.5 + 1e-6)
+        #expect(biggest > 0.15)
+        #expect(deepMoved > 0) // the ripple reaches the bottom row too
+        let still = tide.frame(history, at: 20.1, still: true)
+        #expect(still.lift.allSatisfy { $0 == 0 })
     }
 
     @Test func stillHistogramHasNoRipples() {
