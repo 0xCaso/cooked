@@ -196,12 +196,23 @@ final class TideIsland {
 final class TideHistogram {
     static let cols = 84, rows = 24
     static let pitch = 348.0 / Double(cols)
-    /// The ripple layer runs at this share of real time: 40% slower than the island.
-    static let slow = 0.6
-    /// Drops per second of ripple time, whatever the data.
-    static let dropRate = 1.6
-    /// The ripples never move a column further than this, in rows.
-    static let maxRipple = 0.6
+    /// How the ripple layer moves: `calm` for the long ranges, `lively` for 10 minutes.
+    struct Motion {
+        /// The ripple layer runs at this share of real time.
+        let slow: Double
+        /// Drops per second of ripple time at a 0...1 level (the rate's share of the tank, as in the island).
+        let dropRate: (base: Double, perLevel: Double)
+        /// How hard a drop hits: `base` plus `perLevel` times the level, or times a random share when not `followsLevel`.
+        let kick: (base: Double, perLevel: Double)
+        let followsLevel: Bool
+        /// The ripples never move a column further than this, in rows.
+        let maxRipple: Double
+
+        /// 40% slower than the island, 1.6 drops a second whatever the data.
+        static let calm = Motion(slow: 0.6, dropRate: (1.6, 0), kick: (8, 6), followsLevel: false, maxRipple: 0.6)
+        /// The island's drops: more and harder as tokens flow in (`TideIsland`).
+        static let lively = Motion(slow: 1, dropRate: (2, 22), kick: (14, 18), followsLevel: true, maxRipple: 1.2)
+    }
     /// A body dot never moves further than this from its grid place, in points.
     static let maxLift = 0.5
     /// Rows under the surface over which a body dot's movement fades by e.
@@ -213,6 +224,9 @@ final class TideHistogram {
     private var target: [Double] = []
     private var primed = false
     private var drip = 0.0
+    private var motion = Motion.calm
+    /// 0...1, the last minutes' rate as a share of the tank.
+    private var level = 0.0
     private var seed: UInt64 = 5
     private(set) var thresholdRow = 0
     private(set) var field = LiquidField(cols: cols, rows: rows)
@@ -221,7 +235,11 @@ final class TideHistogram {
 
     /// Coral above the threshold row in every column whose real value is over it, past minutes included: the
     /// chart shows when usage went over, not only whether it is over now. The island's tank keeps the `urgent` rule.
-    func frame(_ history: MinuteHistory, at t: Double, still: Bool) -> LiquidField {
+    func frame(_ history: MinuteHistory, at t: Double, still: Bool, motion: Motion = .calm) -> LiquidField {
+        self.motion = motion
+        // the last minutes' rate as the island's level: the busier, the more drops
+        let recent = history.values.suffix(3)
+        level = TideIsland.level(rate: recent.reduce(0, +) / Double(max(1, recent.count)), threshold: history.threshold)
         target = TideScale.targets(history.values, cols: Self.cols, rows: Self.rows, top: history.top)
         thresholdRow = TideScale.thresholdRow(rows: Self.rows, threshold: history.threshold, top: history.top)
         if still || !primed {
@@ -237,10 +255,10 @@ final class TideHistogram {
         var shown = water
         for c in 0..<Self.cols {
             let h = water.height[c]
-            let r = min(Self.maxRipple, max(-Self.maxRipple, ripple.height[c]))
+            let r = min(motion.maxRipple, max(-motion.maxRipple, ripple.height[c]))
             // a ripple never lifts a column into the threshold row, and never below the floor
             shown.height[c] = max(0, r > 0 ? min(h + r, max(h, line - 1)) : h + r)
-            shown.velocity[c] += ripple.velocity[c] * Self.slow * 0.1
+            shown.velocity[c] += ripple.velocity[c] * motion.slow * 0.1
         }
         shownHeights = shown.height
         field.pour(shown, hotRow: thresholdRow, urgent: true, still: still, reaches: target.map { $0 > line }, body: .chart)
@@ -248,7 +266,7 @@ final class TideHistogram {
             let moved = shown.height[c] - water.height[c]
             for r in 0..<Self.rows {
                 let depth = shown.height[c] - (Double(Self.rows - 1 - r) + 0.5)
-                field.lift[r * Self.cols + c] = Float(Self.lift(moved: moved, depth: depth))
+                field.lift[r * Self.cols + c] = Float(Self.lift(moved: moved, depth: depth, maxRipple: motion.maxRipple))
             }
         }
         return field
@@ -256,18 +274,19 @@ final class TideHistogram {
 
     /// Points a dot `depth` rows under the surface rises (negative: sinks) when its column's surface moved by `moved`
     /// rows: the whole ripple's share of 0.5 pt, fading with depth; dry dots stay put.
-    static func lift(moved: Double, depth: Double) -> Double {
+    static func lift(moved: Double, depth: Double, maxRipple: Double) -> Double {
         guard depth > 0 else { return 0 }
         return max(-1, min(1, moved / maxRipple)) * maxLift * exp(-depth / liftDepth)
     }
 
     private func step(_ dt: Double) {
         water.step(dt, target: target)
-        let slowed = dt * Self.slow
-        drip += slowed * Self.dropRate
+        let slowed = dt * motion.slow
+        drip += slowed * (motion.dropRate.base + motion.dropRate.perLevel * level)
         while drip > 1 {
             drip -= 1
-            ripple.velocity[min(Self.cols - 1, Int(random() * Double(Self.cols)))] -= 8 + 6 * random()
+            let hit = motion.kick.base + motion.kick.perLevel * (motion.followsLevel ? level : random())
+            ripple.velocity[min(Self.cols - 1, Int(random() * Double(Self.cols)))] -= hit
         }
         ripple.step(slowed, target: Array(repeating: 0, count: Self.cols))
     }

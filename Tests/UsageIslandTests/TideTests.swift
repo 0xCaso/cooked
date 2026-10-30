@@ -151,6 +151,30 @@ struct TideTests {
         #expect(still.lift.allSatisfy { $0 == 0 })
     }
 
+    /// 10m moves like the island: more ripple than the long ranges, more with the rate, still bounded and never into
+    /// the threshold row.
+    @Test func tenMinutesRipplesLikeTheIsland() {
+        let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
+        let line = Double(24 - row)
+        func run(_ rate: Double, _ motion: TideHistogram.Motion) -> Double {
+            let history = MinuteHistory(values: Array(repeating: rate, count: 10), top: 64000, threshold: 40000)
+            let tide = TideHistogram()
+            var total = 0.0
+            for frame in 0...(60 * 20) {
+                _ = tide.frame(history, at: Double(frame) / 60, still: false, motion: motion)
+                let moved = zip(tide.shownHeights, tide.heights).map { abs($0 - $1) }
+                #expect(moved.max()! <= 1.2 + 1e-9)
+                for (shown, h) in zip(tide.shownHeights, tide.heights) { #expect(shown <= max(h, line - 1) + 1e-9) }
+                total += moved.reduce(0, +)
+            }
+            return total
+        }
+        let calm = run(2000, .calm), quiet = run(2000, .lively), busy = run(30000, .lively)
+        print("ripple totals: calm \(calm), lively quiet \(quiet), lively busy \(busy)")
+        #expect(quiet > calm * 2)
+        #expect(busy > quiet)
+    }
+
     @Test func stillHistogramHasNoRipples() {
         let flat = MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000)
         let tide = TideHistogram()

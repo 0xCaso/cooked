@@ -140,7 +140,8 @@ struct TideHistogramChart: View {
 
     var body: some View {
         ChartTimeline { t, still in
-            let field = tide.frame(source.history(at: t, still: still).window(range.minutes), at: t, still: still)
+            let field = tide.frame(source.history(at: t, still: still).window(range.minutes), at: t, still: still,
+                                   motion: range == .tenMinutes ? .lively : .calm)
             LiquidMatrix(field: field, pitch: CGFloat(TideHistogram.pitch), radius: 1.2, thresholdRow: tide.thresholdRow)
         }
     }
