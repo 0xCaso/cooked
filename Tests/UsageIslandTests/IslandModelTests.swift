@@ -58,8 +58,9 @@ struct IslandModelTests {
     @Test func panelSizeHoldsOpenPeak() {
         let size = IslandLayout.panelSize
         #expect(size.width == CGFloat(404 + 2 * 24))
-        // island 108 + gap 8 + popover with 3 sources, 5 rows of pills (38 pt pitch, as in the mockup) + margins 48
-        #expect((CGFloat(820)...CGFloat(890)).contains(size.height), "panel height \(size.height)")
+        // island 108 + gap 8 + popover with 3 sources, the column labels and 5 rows of two-line pills (about 47 pt
+        // pitch) + margins 48. Under 945 pt: a 14" MacBook's 982 pt screen less its menu bar.
+        #expect((CGFloat(900)...CGFloat(945)).contains(size.height), "panel height \(size.height)")
     }
 }
 

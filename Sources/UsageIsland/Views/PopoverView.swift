@@ -44,25 +44,17 @@ struct PopoverView: View {
                                 glassID: "popover", namespace: namespace))
     }
 
-    /// The section label, with the two windows as column headings over the pills, and the key to their line.
+    /// Only the section label: the two windows are named over their columns inside the card.
     private var accountsHeader: some View {
-        HStack(spacing: Self.rowSpacing) {
-            Text("Usage").frame(width: Self.nameColumn, alignment: .leading)
-            Text("5 hours").frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 0) {
-                Text("week")
-                Spacer(minLength: 0)
-                EvenPaceKey()
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .lineLimit(1)
-        .textStyle(.label)
-        .foregroundStyle(sectionInk)
+        Text("Usage")
+            .lineLimit(1)
+            .textStyle(.label)
+            .foregroundStyle(sectionInk)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    static let nameColumn: CGFloat = 60
-    /// Row: name 60 + two pills of 144 + 2 gaps of 8 = 364, the card's inner width.
+    /// The week pill's width; the 5-hour pill, with the account name, takes the rest of the card's 364 pt.
+    static let weekColumn: CGFloat = 128
     static let rowSpacing: CGFloat = 8
 
     private func rateCard(_ s: UsageSnapshot) -> some View {
@@ -103,39 +95,51 @@ struct PopoverView: View {
     }
 
     private func accountsCard(_ s: UsageSnapshot) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
+            HStack(spacing: Self.rowSpacing) {
+                Text("5 hours").frame(maxWidth: .infinity, alignment: .leading)
+                Text("week").frame(width: Self.weekColumn, alignment: .leading)
+            }
+            .padding(.leading, 9)
+            .textStyle(.label)
+            .foregroundStyle(Palette.ink3)
+            .accessibilityHidden(true)
             ForEach(s.rows) { a in accountRow(a, urgent: s.isUrgent && a.id == s.activeID) }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 11)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
         .cardSurface()
     }
 
-    /// Name, then a pill per window. The 5h pill turns red, "full at" in place of the reset, when the window fills
-    /// before it resets; a blocked account is red up to its reset; the account that makes the island urgent is red too.
+    /// A pill per window, counted as what is left (like T3 Code). The 5-hour pill opens with the account name and turns
+    /// red, "full HH:MM" before the reset, when the window fills before it resets; a blocked account is red up to its
+    /// reset; the account that makes the island urgent is red too.
     private func accountRow(_ a: Account, urgent: Bool) -> some View {
         let fills = urgent || a.isBlocked || a.fullAt != nil
         return HStack(spacing: Self.rowSpacing) {
-            Text(a.short).textStyle(a.isLive ? .emphasis : .body)
-                .foregroundStyle(a.isLive ? Palette.ink : Palette.ink2)
-                .lineLimit(1)
-                .frame(width: Self.nameColumn, alignment: .leading)
-            AccountPill(percent: a.fiveHourPercent, elapsed: a.isBlocked ? 1 : a.fiveHourElapsed,
-                        trailing: a.isBlocked || a.fullAt == nil ? a.fiveHourReset : a.fullAt!,
-                        hot: fills, live: a.isLive)
-            AccountPill(percent: a.weekPercent, elapsed: a.weekElapsed, trailing: a.weekReset ?? "",
-                        hot: false, live: false)
+            UsagePill(name: a.short, left: a.isBlocked ? 0 : Self.left(a.fiveHourPercent),
+                      timeLeft: a.fiveHourElapsed.map { 1 - $0 }, hot: fills, live: a.isLive) {
+                PillTimes(full: a.isBlocked ? nil : a.fullAt, reset: a.fiveHourReset, red: a.isBlocked)
+            }
+            .frame(maxWidth: .infinity)
+            UsagePill(left: a.weekPercent.map(Self.left), timeLeft: a.weekElapsed.map { 1 - $0 }, hot: false, live: false) {
+                PillTimes(reset: a.weekReset ?? "")
+            }
+            .frame(width: Self.weekColumn)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText(a))
     }
 
+    static func left(_ used: Int) -> Int { 100 - min(max(used, 0), 100) }
+
     private func accessibilityText(_ a: Account) -> String {
-        var parts = ["\(a.short): 5 hours \(a.fiveHourPercent)%"]
+        var parts = ["\(a.short): 5 hours \(Self.left(a.fiveHourPercent))% left"]
         if a.isBlocked { parts.append("blocked until \(a.fiveHourReset)") }
         else if let full = a.fullAt { parts.append("full at \(full), before the reset at \(a.fiveHourReset)") }
         else { parts.append("resets \(a.fiveHourReset)") }
-        if let w = a.weekPercent { parts.append("week \(w)%" + (a.weekReset.map { ", resets \($0)" } ?? "")) }
+        if let w = a.weekPercent { parts.append("week \(Self.left(w))% left" + (a.weekReset.map { ", resets \($0)" } ?? "")) }
         return parts.joined(separator: ", ")
     }
 }

@@ -53,14 +53,15 @@ import SwiftUI
     }
 }
 
-/// One window of one account: three rows of the chart's dots, lit up to the used %, and the even-pace line where the
-/// window's time has gone by. Lit dots past the line are red when the account fills before reset. Each row's front
-/// sways on a spring (`PaceFronts`); the dot at the front is partly lit, and the lit dots behind it move with it,
-/// less the further back they are.
+/// One window of one account, counted like T3 Code's Usage page: three rows of the chart's dots lit for the % left,
+/// and a line at the share of time left to the reset. Left of the line, the dark dots are the overspend (less left than
+/// time left): red when the account fills before reset. Each row's front sways on a spring (`PaceFronts`); the dot at
+/// the front is partly lit, and the lit dots behind it move with it, less the further back they are.
 struct PaceStrip: View {
-    let percent: Int
-    /// 0...1; nil hides the line.
-    let elapsed: Double?
+    /// % left, 0...100.
+    let left: Int
+    /// Share of the window still to go, 0...1; nil hides the line.
+    let timeLeft: Double?
     let hot: Bool
     /// Accounts not in use: their lit dots at 60%.
     var dim = false
@@ -74,6 +75,8 @@ struct PaceStrip: View {
     static let lineOut: CGFloat = 2.5
     static let lineWidth: CGFloat = 1.6
     static let lineInk = Palette.ink.opacity(0.72)
+    /// The overspend's dark dots.
+    static let overspendAlpha = 0.32
     static var dotsHeight: CGFloat { dot + CGFloat(rows - 1) * pitchY }
     static var height: CGFloat { dotsHeight + 2 * lineOut }
     /// A lit dot never moves further than this from its grid place, in points.
@@ -83,11 +86,17 @@ struct PaceStrip: View {
 
     static func columns(width: CGFloat) -> Int { max(6, Int((width - dot) / pitchX) + 1) }
 
-    /// The fill in columns, the line's column (no dots there) and the first column ahead of even pace.
-    static func layout(percent: Int, elapsed: Double?, cols: Int) -> (fill: Double, line: Int?, ahead: Double) {
-        let fill = Double(min(max(percent, 0), 100)) / 100 * Double(cols)
-        guard let elapsed else { return (fill, nil, .infinity) }
-        return (fill, min(cols - 1, Int((elapsed * Double(cols - 1)).rounded())), elapsed * Double(cols))
+    /// The fill in columns and the line's column (no dots there).
+    static func layout(left: Int, timeLeft: Double?, cols: Int) -> (fill: Double, line: Int?) {
+        let fill = Double(min(max(left, 0), 100)) / 100 * Double(cols)
+        guard let timeLeft else { return (fill, nil) }
+        return (fill, min(cols - 1, Int((min(max(timeLeft, 0), 1) * Double(cols - 1)).rounded())))
+    }
+
+    /// True for a dark dot of a hot strip between the front and the line.
+    static func overspend(column c: Int, cover: Double, line: Int?, hot: Bool) -> Bool {
+        guard hot, let line else { return false }
+        return cover == 0 && c < line
     }
 
     /// 0...1, how lit column `c` is when the row's front sits at `fill + sway` columns. A nearly empty strip does not sway.
@@ -107,16 +116,17 @@ struct PaceStrip: View {
             Canvas { ctx, size in
                 let cols = Self.columns(width: size.width)
                 let gapX = cols > 1 ? (size.width - Self.dot) / CGFloat(cols - 1) : 0
-                let (fill, line, ahead) = Self.layout(percent: percent, elapsed: elapsed, cols: cols)
+                let (fill, line) = Self.layout(left: left, timeLeft: timeLeft, cols: cols)
                 for r in 0..<Self.rows {
                     let y = Self.lineOut + CGFloat(r) * Self.pitchY
                     for c in 0..<cols where c != line {
                         let cover = Self.cover(column: c, fill: fill, sway: sway[r])
-                        let red = cover > 0 && hot && Double(c) >= ahead
-                        let lit = (dim && !red ? 0.6 : 1) * cover
+                        let over = Self.overspend(column: c, cover: cover, line: line, hot: hot)
+                        let lit = (dim ? 0.6 : 1) * cover
                         let x = CGFloat(c) * gapX + CGFloat(Self.shift(column: c, fill: fill, sway: sway[r]))
                         let rect = CGRect(x: x, y: y, width: Self.dot, height: Self.dot)
-                        ctx.fill(Path(ellipseIn: rect), with: .color((red ? Palette.red : Palette.ink).opacity(0.07 + lit * 0.93)))
+                        let color = over ? Palette.red.opacity(Self.overspendAlpha) : Palette.ink.opacity(0.07 + lit * 0.93)
+                        ctx.fill(Path(ellipseIn: rect), with: .color(color))
                     }
                 }
                 if let line {
@@ -131,48 +141,60 @@ struct PaceStrip: View {
     }
 }
 
-/// A T3-style pill: the % on the left, the pace strip, the reset (or "full at" in red) on the right.
-struct AccountPill: View {
-    let percent: Int?
-    let elapsed: Double?
-    /// "14:30", "Mon", or the "full at" time when `hot`.
-    let trailing: String
+/// A window's pill: a top line with the account
+/// name (5-hour pill only), the % left and the times on the right; the strip under it, the pill's full width.
+struct UsagePill<Times: View>: View {
+    var name: String? = nil
+    /// % left; nil shows "—".
+    let left: Int?
+    let timeLeft: Double?
     let hot: Bool
     let live: Bool
+    @ViewBuilder var times: Times
 
-    static let height: CGFloat = 28
-    static let percentColumn: CGFloat = 30
-    /// "00:00" in Plex Mono 12 is 36 pt.
-    static let trailingColumn: CGFloat = 38
+    static var height: CGFloat { 5 + TextStyle.label.lineHeight + 1 + PaceStrip.height + 4 }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(percent.map { "\($0)%" } ?? "—").textStyle(.labelNumber)
-                .foregroundStyle(hot ? Palette.red : live ? Palette.ink : Palette.ink2)
-                .frame(width: Self.percentColumn, alignment: .trailing)
-            PaceStrip(percent: percent ?? 0, elapsed: percent == nil ? nil : elapsed, hot: hot, dim: !live)
-                .frame(maxWidth: .infinity)
-            Text(trailing).textStyle(.labelNumber)
-                .foregroundStyle(hot ? Palette.red : Palette.ink3)
-                .frame(width: Self.trailingColumn, alignment: .trailing)
+        VStack(spacing: 1) {
+            HStack(spacing: 8) {
+                if let name {
+                    Text(name).textStyle(live ? .emphasis : .body).foregroundStyle(live ? Palette.ink : Palette.ink2)
+                        .frame(height: TextStyle.label.lineHeight)
+                }
+                Text(left.map { "\($0)%" } ?? "—").textStyle(.labelNumber)
+                    .foregroundStyle(hot ? Palette.red : live ? Palette.ink : Palette.ink2)
+                Spacer(minLength: 4)
+                // the times never truncate: the name gives way first
+                times.fixedSize().layoutPriority(1)
+            }
+            .lineLimit(1)
+            PaceStrip(left: left ?? 0, timeLeft: left == nil ? nil : timeLeft, hot: hot, dim: !live)
         }
-        .lineLimit(1)
-        .padding(.horizontal, 8)
+        .padding(EdgeInsets(top: 5, leading: 9, bottom: 4, trailing: 9))
         .frame(height: Self.height)
-        .wellSurface(RoundedRectangle(cornerRadius: 9, style: .continuous), innerBlur: 2)
+        .wellSurface(RoundedRectangle(cornerRadius: 10, style: .continuous), innerBlur: 2)
     }
 }
 
-/// The "even pace" key in the Usage header: the same line as in the strips.
-struct EvenPaceKey: View {
+/// The times on a pill's top line: "full 13:42" in red then the reset, or "resets 14:30".
+struct PillTimes: View {
+    var full: String? = nil
+    let reset: String
+    var red = false
+
     var body: some View {
-        HStack(spacing: 5) {
-            RoundedRectangle(cornerRadius: PaceStrip.lineWidth / 2)
-                .fill(PaceStrip.lineInk)
-                .frame(width: PaceStrip.lineWidth, height: 12)
-            Text("even pace")
+        HStack(spacing: 8) {
+            if let full {
+                Text("\(Text("full "))\(Text(full).styled(.labelNumber))").styled(.label).foregroundStyle(Palette.red)
+                Text(reset).textStyle(.labelNumber).foregroundStyle(Palette.ink3)
+            } else if reset.isEmpty || reset == "—" {
+                Text("—").textStyle(.labelNumber).foregroundStyle(Palette.ink3)
+            } else {
+                Text("\(Text("resets "))\(Text(reset).styled(.labelNumber))").styled(.label)
+                    .foregroundStyle(red ? Palette.red : Palette.ink3)
+            }
         }
-        .accessibilityElement(children: .combine)
+        .frame(height: TextStyle.label.lineHeight)
     }
 }
 

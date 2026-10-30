@@ -22,8 +22,10 @@ enum Snapshots {
             ("hist-past-peak", AnyView(TideHistogramChart(source: HistogramClock(values: pastPeak, threshold: Double(calm.threshold), minuteLength: 60) { 0 }))),
             ("pills-peak", AnyView(VStack(spacing: 8) {
                 ForEach(peak.accounts) { a in
-                    AccountPill(percent: a.fiveHourPercent, elapsed: a.fiveHourElapsed, trailing: a.fullAt ?? a.fiveHourReset,
-                                hot: a.fullAt != nil, live: a.isLive).frame(width: 144)
+                    UsagePill(name: a.short, left: PopoverView.left(a.fiveHourPercent), timeLeft: a.fiveHourElapsed.map { 1 - $0 },
+                              hot: a.fullAt != nil, live: a.isLive) {
+                        PillTimes(full: a.fullAt, reset: a.fiveHourReset)
+                    }.frame(width: 220)
                 }
             })),
         ]

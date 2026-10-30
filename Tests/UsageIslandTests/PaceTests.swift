@@ -17,15 +17,27 @@ import Testing
         #expect(LiveSnapshot.weekday(monday, calendar) == "Mon")
     }
 
-    @Test func stripLightsTheUsedShareAndPutsTheLineAtEvenPace() {
-        // team on 30/10: 26% used, 17% of the window gone, 15 columns
-        let l = PaceStrip.layout(percent: 26, elapsed: 0.17, cols: 15)
+    @Test func stripLightsTheShareLeftAndPutsTheLineAtTimeLeft() {
+        // team on 30/10 at 13:08: 26% left, 27% of the window to go, 15 columns
+        let l = PaceStrip.layout(left: 26, timeLeft: 0.27, cols: 15)
         #expect(abs(l.fill - 3.9) < 0.001)
-        #expect(l.line == 2)
-        #expect(abs(l.ahead - 2.55) < 0.001)
-        #expect(PaceStrip.layout(percent: 140, elapsed: nil, cols: 15).fill == 15)
-        #expect(PaceStrip.layout(percent: 140, elapsed: nil, cols: 15).line == nil)
+        #expect(l.line == 4)
+        #expect(PaceStrip.layout(left: 140, timeLeft: nil, cols: 15).fill == 15)
+        #expect(PaceStrip.layout(left: 140, timeLeft: nil, cols: 15).line == nil)
         #expect(PaceStrip.columns(width: 46) == 15)
+        #expect(PopoverView.left(74) == 26)
+        #expect(PopoverView.left(140) == 0)
+    }
+
+    /// Usage times: the dark dots before the line are the overspend, red only on a hot strip.
+    @Test func overspendIsTheDarkDotsBeforeTheLine() {
+        // 10% left (1.5 columns), half the window to go: line at column 7
+        let l = PaceStrip.layout(left: 10, timeLeft: 0.5, cols: 15)
+        #expect(l.line == 7)
+        #expect(PaceStrip.overspend(column: 3, cover: 0, line: l.line, hot: true))
+        #expect(!PaceStrip.overspend(column: 3, cover: 0, line: l.line, hot: false))
+        #expect(!PaceStrip.overspend(column: 0, cover: 1, line: l.line, hot: true)) // lit
+        #expect(!PaceStrip.overspend(column: 9, cover: 0, line: l.line, hot: true)) // past the line
     }
 
     /// Dot motion task 3: each row's front sways on its spring, within ±0.7 column, and settles.
