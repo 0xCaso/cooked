@@ -197,7 +197,9 @@ final class TideHistogram {
     /// For tests: the column heights in rows as drawn, ripples included.
     private(set) var shownHeights: [Double] = Array(repeating: 0, count: cols)
 
-    func frame(_ history: MinuteHistory, at t: Double, urgent: Bool, still: Bool) -> LiquidField {
+    /// Coral above the threshold row in every column whose real value is over it, past minutes included: the
+    /// chart shows when usage went over, not only whether it is over now. The island's tank keeps the `urgent` rule.
+    func frame(_ history: MinuteHistory, at t: Double, still: Bool) -> LiquidField {
         target = TideScale.targets(history.values, cols: Self.cols, rows: Self.rows, top: history.top)
         thresholdRow = TideScale.thresholdRow(rows: Self.rows, threshold: history.threshold, top: history.top)
         if still || !primed {
@@ -219,7 +221,7 @@ final class TideHistogram {
             shown.velocity[c] += ripple.velocity[c] * 0.1
         }
         shownHeights = shown.height
-        field.pour(shown, hotRow: thresholdRow, urgent: urgent, still: still, reaches: target.map { $0 > line })
+        field.pour(shown, hotRow: thresholdRow, urgent: true, still: still, reaches: target.map { $0 > line })
         return field
     }
 

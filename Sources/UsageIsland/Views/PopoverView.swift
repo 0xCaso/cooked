@@ -37,7 +37,8 @@ struct PopoverView: View {
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
         }
-        .padding(8)
+        // The top label's text starts 16 pt below the edge: the last card ends as far from the bottom edge.
+        .padding(EdgeInsets(top: 8, leading: 8, bottom: 16, trailing: 8))
         .frame(width: IslandLayout.popoverWidth)
         .modifier(IslandSurface(shape: RoundedRectangle(cornerRadius: 24, style: .continuous), solidFill: Palette.bgDeep,
                                 glassID: "popover", namespace: namespace))
@@ -81,7 +82,7 @@ struct PopoverView: View {
             }
             .lineLimit(1)
             .padding(.bottom, 12)
-            TideHistogramChart(source: histogram, urgent: s.isUrgent)
+            TideHistogramChart(source: histogram)
                 .padding(.top, 8)
                 .padding(.bottom, 6)
                 .frame(maxWidth: .infinity)
@@ -154,14 +155,18 @@ struct PopoverView: View {
 }
 
 /// The sources, each a button. The hovered line lifts out of the card (mockup `.click .src:hover`): its own fill,
-/// a shadow, 1 pt up, and the hairlines on both sides fade.
+/// a shadow, 1 pt up, and the hairlines on both sides fade. The lines sit `gap` apart, with the hairline in the gap:
+/// the lifted fill and its shadow stay in that gap and never cover the line above or below.
 struct SourcesCard: View {
+    /// Between two lines: the lifted line rises 1 pt into it and its shadow ends 3 pt below it, both inside the gap.
+    static let gap: CGFloat = 4
+
     let sources: [TokenSource]
     @State var hovered: String?
     @Environment(\.self) private var env
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Self.gap) {
             ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
                 let lifted = hovered == source.id
                 let lineHidden = lifted || (i > 0 && hovered == sources[i - 1].id)
@@ -171,7 +176,7 @@ struct SourcesCard: View {
                     }
                     .overlay(alignment: .top) {
                         if i > 0 {
-                            Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -0.25)
+                            Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -(Self.gap + 0.5) / 2)
                                 .padding(.horizontal, 8)
                                 .opacity(lineHidden ? 0 : 1)
                         }
@@ -217,21 +222,23 @@ private struct SourceRow: View {
             }
             .lineLimit(1)
             .padding(.horizontal, 8)
-            .padding(.vertical, 7)
+            // 6 + 6 and the 4 pt gap keep the 52 pt pitch of the old 7 + 7 lines
+            .padding(.vertical, 6)
             .background {
+                // Short shadows: the mockup's 6 pt drop fell over the next line's text and past the card.
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color(white: 0x20 / 255.0))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
-                    .shadow(color: .black.opacity(0.45), radius: 7, y: 6)
-                    .shadow(color: .black.opacity(0.35), radius: 2, y: 2)
+                    .shadow(color: .black.opacity(0.45), radius: 2, y: 2)
+                    .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
                     .opacity(lifted ? 1 : 0)
             }
             .offset(y: lifted && !env.reducesMotion ? -1 : 0)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .pointerStyle(.link)
+        .pointingHand()
         .accessibilityLabel("\(source.project), \(TokenFormat.short(source.rate)) per minute, \(source.detail)")
         .accessibilityHint(source.threadID == nil ? "Opens T3 Code" : "Opens the thread in T3 Code")
     }

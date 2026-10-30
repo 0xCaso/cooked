@@ -29,10 +29,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.registerFontsOutsideTheBundle()
+        BackgroundCursor.enable()
         let panel = IslandPanel(model: model)
         panel.restorePosition()
         panel.orderFrontRegardless()
         self.panel = panel
+        // `--feed demoCalm|demoPeak|live`: start on that feed, to check a state on the real glass from the terminal.
+        let launchArgs = CommandLine.arguments
+        if let i = launchArgs.firstIndex(of: "--feed"), i + 1 < launchArgs.count, let feed = IslandModel.Feed(rawValue: launchArgs[i + 1]) {
+            model.select(feed)
+        }
         // `--open`: open the popover after a second, to check from the terminal that the app in use stays in front.
         if CommandLine.arguments.contains("--open") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [model] in model.open() }

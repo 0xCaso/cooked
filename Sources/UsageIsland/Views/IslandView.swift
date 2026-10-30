@@ -30,6 +30,7 @@ struct IslandView: View {
         }
         .clipShape(shape)
         .modifier(IslandSurface(shape: shape, solidFill: Palette.bgBase, urgent: snapshot.isUrgent,
+                                redHero: card,
                                 glassID: "island", namespace: namespace))
     }
 
@@ -39,9 +40,16 @@ struct IslandView: View {
                 .padding(.horizontal, 8)
                 .frame(height: 36)
                 .wellSurface(Capsule(), innerBlur: 2.5)
-            // Minimized peak: the capsule keeps the red percentage and ring.
+            // Minimized peak: the capsule keeps the red percentage and ring. Red 13 pt needs 4.5:1, which no glass
+            // reaches (#2d2d2d at best, 4.0:1): there it sits in a well, red on #1b1b1b is 5.1:1. Same layout.
             Text("\(s.active?.fiveHourPercent ?? 0)%").textStyle(.numberEmphasis)
                 .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
+                .background {
+                    if s.isUrgent {
+                        Color.clear.wellSurface(Capsule(), innerBlur: 2)
+                            .padding(.horizontal, -6).frame(height: 24)
+                    }
+                }
             Text(s.active?.short ?? "").textStyle(.body).foregroundStyle(Palette.ink2)
             Text("\(TokenFormat.short(Double(model.rateNow)))/min").textStyle(.number).foregroundStyle(rateInk)
                 .contentTransition(.numericText(value: Double(model.rateNow)))

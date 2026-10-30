@@ -67,7 +67,7 @@ struct PressableIsland: ViewModifier {
     func body(content: Content) -> some View {
         content
             .modifier(PressScale(pressed: pressed && !dragging, scale: Motion.Scale.island, anchor: .top))
-            .pointerStyle(.link)
+            .pointingHand()
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .global)
                     .updating($pressed) { _, state, _ in state = true }

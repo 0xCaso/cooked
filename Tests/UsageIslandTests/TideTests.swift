@@ -75,9 +75,9 @@ struct TideTests {
         minutes[30] = 64000
         let history = MinuteHistory(values: minutes, top: 64000, threshold: 40000)
         let flat = TideHistogram(), spike = TideHistogram()
-        _ = flat.frame(MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000), at: 0, urgent: false, still: false)
-        _ = spike.frame(MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000), at: 0, urgent: false, still: false)
-        for frame in 1...240 { _ = spike.frame(history, at: Double(frame) / 60, urgent: false, still: false) }
+        _ = flat.frame(MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000), at: 0, still: false)
+        _ = spike.frame(MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000), at: 0, still: false)
+        for frame in 1...240 { _ = spike.frame(history, at: Double(frame) / 60, still: false) }
         let target = TideScale.targets(minutes, cols: 84, rows: 24, top: 64000)
         let base = flat.heights[0]
         func wide(_ h: [Double]) -> Int {
@@ -94,7 +94,7 @@ struct TideTests {
         let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
         var biggest = 0.0, moved = 0
         for frame in 0...(60 * 30) {
-            let f = tide.frame(flat, at: Double(frame) / 60, urgent: false, still: false)
+            let f = tide.frame(flat, at: Double(frame) / 60, still: false)
             let offset = zip(tide.shownHeights, tide.heights).map { abs($0 - $1) }.max()!
             biggest = max(biggest, offset)
             if offset > 0.05 { moved += 1 }
@@ -112,7 +112,7 @@ struct TideTests {
         let history = MinuteHistory(values: Array(repeating: 37000, count: 60), top: 64000, threshold: 40000)
         let tide = TideHistogram()
         for frame in 0...(60 * 20) {
-            _ = tide.frame(history, at: Double(frame) / 60, urgent: true, still: false)
+            _ = tide.frame(history, at: Double(frame) / 60, still: false)
             for (shown, h) in zip(tide.shownHeights, tide.heights) { #expect(shown <= max(h, line - 1) + 1e-9) }
         }
     }
@@ -120,19 +120,30 @@ struct TideTests {
     @Test func stillHistogramHasNoRipples() {
         let flat = MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000)
         let tide = TideHistogram()
-        for frame in 0...600 { _ = tide.frame(flat, at: Double(frame) / 60, urgent: false, still: false) }
-        _ = tide.frame(flat, at: 10.1, urgent: false, still: true)
+        for frame in 0...600 { _ = tide.frame(flat, at: Double(frame) / 60, still: false) }
+        _ = tide.frame(flat, at: 10.1, still: true)
         #expect(tide.shownHeights == tide.heights)
         #expect(tide.heights == TideScale.targets(flat.values, cols: 84, rows: 24, top: 64000))
     }
 
-    @Test func histogramIsRedOnlyAboveTheThresholdWhenUrgent() {
+    @Test func histogramIsRedOnlyAboveTheThreshold() {
         let history = MinuteHistory(values: Array(repeating: 64000, count: 60), top: 64000, threshold: 40000)
-        let urgent = TideHistogram().frame(history, at: 0, urgent: true, still: true)
+        let f = TideHistogram().frame(history, at: 0, still: true)
         let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
-        #expect(urgent.hot[0])
-        #expect(!urgent.hot[row * 84])
-        #expect(!TideHistogram().frame(history, at: 0, urgent: false, still: true).hot.contains(true))
+        #expect(f.hot[0])
+        #expect(!f.hot[row * 84])
+    }
+
+    /// A past minute over the threshold is coral even when the rate now is calm; the calm minutes stay pearl.
+    @Test func pastMinutesOverTheThresholdAreCoral() {
+        var minutes = Array(repeating: 2000.0, count: 60)
+        for m in 20...29 { minutes[m] = 60000 }
+        let f = TideHistogram().frame(MinuteHistory(values: minutes, top: 64000, threshold: 40000), at: 0, still: true)
+        let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
+        let spikeCol = 25 * 84 / 60, calmCol = 70
+        #expect((0..<row).contains { f.hot[$0 * 84 + spikeCol] })
+        #expect(!(0..<24).contains { f.hot[$0 * 84 + calmCol] })
+        #expect(!(row..<24).contains { f.hot[$0 * 84 + spikeCol] })
     }
 
     /// A spring overshooting the threshold row is not a real value: it stays pearl.
@@ -140,14 +151,14 @@ struct TideTests {
         var minutes = Array(repeating: 2000.0, count: 60)
         for m in 26...34 { minutes[m] = 37000 } // just under the 40000 threshold
         let tide = TideHistogram()
-        _ = tide.frame(MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000), at: 0, urgent: true, still: false)
+        _ = tide.frame(MinuteHistory(values: Array(repeating: 2000, count: 60), top: 64000, threshold: 40000), at: 0, still: false)
         var sawOvershoot = false
         let row = TideScale.thresholdRow(rows: 24, threshold: 40000, top: 64000)
         for frame in 1...120 {
             // every few frames the spike moves one minute left, like minutes closing quickly
             let k = frame / 20
             let shifted = Array(minutes.dropFirst(k)) + Array(repeating: 2000, count: k)
-            let f = tide.frame(MinuteHistory(values: shifted, top: 64000, threshold: 40000), at: Double(frame) / 60, urgent: true, still: false)
+            let f = tide.frame(MinuteHistory(values: shifted, top: 64000, threshold: 40000), at: Double(frame) / 60, still: false)
             if tide.heights.contains(where: { $0 > Double(24 - row) }) { sawOvershoot = true }
             #expect(!f.hot.contains(true))
         }
@@ -156,7 +167,7 @@ struct TideTests {
 
     @Test func meniscusIsTheBrightestRow() {
         let history = MinuteHistory(values: Array(repeating: 16000, count: 60), top: 64000, threshold: 40000)
-        let f = TideHistogram().frame(history, at: 0, urgent: false, still: true)
+        let f = TideHistogram().frame(history, at: 0, still: true)
         let column = (0..<24).map { f.level[$0 * 84 + 40] } // 12 rows of liquid
         let brightest = column.indices.max { column[$0] < column[$1] }!
         #expect(brightest == 24 - 12)

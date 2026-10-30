@@ -23,6 +23,7 @@ swift test                # tests
 - Right-click the island: **Data** (Live, Demo: calm, Demo: peak), **Glass** (System, Clear, Darker), **Quit Cooked**.
 - Live data, every 5 s: the 5h and 7-day percentages, resets, forecast and p99 threshold come from the watcher's `~/.t3/usage-watch/status.json` (`usage-watch.py`, every 30 s). Tokens per minute come straight from T3 Code's `~/.t3/userdata/statev2.sqlite`, opened read-only, counted like the watcher (input − cached input + output). If status.json is missing or older than 5 minutes, the menu says why and the island keeps its last data.
 - `UsageIsland --snapshots <dir> --live` renders the island and the open popover from the live data to PNG.
+- `UsageIsland --feed demoCalm|demoPeak|live [--open]` starts on that feed (and opens the popover), to check a state on the real glass.
 
 `scripts/run.sh` quits the copy that is already open before it launches the new one. The app has no Dock icon: to quit it, right-click the island → "Quit Cooked", or run `pkill -x UsageIsland`.
 

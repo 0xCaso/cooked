@@ -8,14 +8,18 @@ enum Snapshots {
     static func write(to dir: URL) throws {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let calm = DemoData.calm, peak = DemoData.peak
+        var pastPeak = calm.series
+        for m in 26...35 { pastPeak[m] = 52000 + Double((m * 7) % 5) * 6000 }
         func clock(_ s: UsageSnapshot) -> HistogramClock {
             HistogramClock(values: s.series, threshold: Double(s.threshold), minuteLength: 60) { 0 }
         }
         let charts: [(String, AnyView)] = [
             ("wave-calm", AnyView(TideIslandChart(rate: Double(calm.rateNow), threshold: Double(calm.threshold), urgent: false))),
             ("wave-peak", AnyView(TideIslandChart(rate: Double(peak.rateNow), threshold: Double(peak.threshold), urgent: true))),
-            ("hist-calm", AnyView(TideHistogramChart(source: clock(calm), urgent: false))),
-            ("hist-peak", AnyView(TideHistogramChart(source: clock(peak), urgent: true))),
+            ("hist-calm", AnyView(TideHistogramChart(source: clock(calm)))),
+            ("hist-peak", AnyView(TideHistogramChart(source: clock(peak)))),
+            // Calm now, but ten minutes over the threshold half an hour ago: those columns are coral above the line.
+            ("hist-past-peak", AnyView(TideHistogramChart(source: HistogramClock(values: pastPeak, threshold: Double(calm.threshold), minuteLength: 60) { 0 }))),
             ("bars-peak", AnyView(VStack(spacing: 8) {
                 ForEach(peak.accounts) { a in AccountBarChart(percent: a.fiveHourPercent, hot: a.id == "work") }
             })),
@@ -41,9 +45,18 @@ enum Snapshots {
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))
         }
-        // "What burns tokens" with the first line hovered (lifted).
-        try render(SourcesCard(sources: peak.sources, hovered: peak.sources.first?.id).frame(width: 388).padding(24).background(desk),
-                   to: dir.appendingPathComponent("sources-hover.png"))
+        // "What burns tokens" with the first line hovered (lifted), then the middle one (neighbours on both sides).
+        for (name, index) in [("sources-hover", 0), ("sources-hover-middle", 1)] where peak.sources.indices.contains(index) {
+            try render(SourcesCard(sources: peak.sources, hovered: peak.sources[index].id).frame(width: 388).padding(24).background(desk),
+                       to: dir.appendingPathComponent("\(name).png"))
+        }
+        // A long thread title in a T3 thread, plain and hovered: the hint takes only its own width.
+        let long = [TokenSource(id: "l1", threadID: "t", project: "usage-island-polish",
+                                detail: "Fix five visual bugs in the popover and the island · work", rate: 52_000, agents: "1 agent")]
+        for (name, hovered) in [("sources-long", nil), ("sources-long-hover", "l1")] as [(String, String?)] {
+            try render(SourcesCard(sources: long, hovered: hovered).frame(width: 388).padding(24).background(desk),
+                       to: dir.appendingPathComponent("\(name).png"))
+        }
         // The peak card without an ETA: blocked, and urgent by % with no tokens.
         for (name, lead, time, detail) in [("blocked", "free at ", "20:20", "personal · cooked"),
                                            ("no-eta", "resets ", "20:20", "personal")] {

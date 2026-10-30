@@ -43,6 +43,8 @@ struct IslandSurface<S: InsettableShape>: ViewModifier {
     /// Opaque fill: #161616 for the island, #080808 for the popover.
     let solidFill: Color
     var urgent = false
+    /// The red 32 pt percentage sits right on this glass (the peak card): it needs a darker veil.
+    var redHero = false
     var glassID: String
     var namespace: Namespace.ID
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -62,7 +64,7 @@ struct IslandSurface<S: InsettableShape>: ViewModifier {
                 .overlay(shape.inset(by: -0.25).stroke(ring, lineWidth: 0.5))
         } else {
             content
-                .background { if glassStyle.veil > 0 { shape.fill(Palette.bgBase.opacity(glassStyle.veil)) } }
+                .background { if veil > 0 { shape.fill(Palette.bgBase.opacity(veil)) } }
                 .glassEffect(glassStyle.glass, in: shape)
                 .glassEffectID(glassID, in: namespace)
                 .overlay { if showsRing { shape.inset(by: -0.25).stroke(ring, lineWidth: 0.5) } }
@@ -70,10 +72,11 @@ struct IslandSurface<S: InsettableShape>: ViewModifier {
     }
 
     private var solid: Bool { reduceTransparency || solidSurfaces }
+    private var veil: Double { glassStyle.veil(redHero: redHero) }
 }
 
 /// The glass look. System and Clear are macOS's own Liquid Glass, so they follow System Settings
-/// (Appearance, Reduce Transparency). Darker adds the mockup's dark tint, for legibility over light windows.
+/// (Appearance, Reduce Transparency), under a dark veil that keeps the text legible. Darker adds the mockup's dark tint.
 enum GlassStyle: String, CaseIterable {
     case system, clear, darker
 
@@ -95,10 +98,18 @@ enum GlassStyle: String, CaseIterable {
         }
     }
 
-    /// A fixed dark layer over the glass. Liquid Glass sets its own brightness from what is under and around it:
-    /// alone over a white window the island turned mid-grey, next to the open popover it stayed dark. The veil
-    /// keeps both near the same dark grey.
-    var veil: Double { self == .darker ? 0.8 : 0 }
+    /// A fixed dark layer over the glass, so the text on it stays legible over a white window. Liquid Glass sets its
+    /// own brightness from what is under it: alone over white, System went #c1c1c1 and Clear #d8d8d8, and white text
+    /// on them fell to 1.2–1.6:1. Values measured on the real screen over white (the worst case):
+    /// the text veil brings 72% ink to 4.5:1 or more, the
+    /// `redHero` veil (the peak card, red 32 pt percentage) brings red to 3:1 or more. Darker already passes both.
+    func veil(redHero: Bool) -> Double {
+        switch self {
+        case .system: redHero ? 0.85 : 0.8
+        case .clear: redHero ? 0.92 : 0.85
+        case .darker: 0.8
+        }
+    }
 
     /// The mockup's thin white rim belongs to its tinted glass; the system glass draws its own edge.
     var drawsRim: Bool { self == .darker }
@@ -130,7 +141,7 @@ struct SecondaryButtonStyle: ButtonStyle {
                     if isFocused { Capsule().inset(by: -3).stroke(Palette.ink2, lineWidth: 2) }
                 }
                 .contentShape(Capsule())
-                .pointerStyle(.link)
+                .pointingHand()
                 .modifier(PressScale(pressed: configuration.isPressed))
         }
     }
@@ -166,7 +177,7 @@ struct PrimaryButtonStyle: ButtonStyle {
                     if isFocused { Capsule().inset(by: -3).stroke(Palette.ink2, lineWidth: 2) }
                 }
                 .contentShape(Capsule())
-                .pointerStyle(.link)
+                .pointingHand()
                 .modifier(PressScale(pressed: configuration.isPressed))
         }
     }
