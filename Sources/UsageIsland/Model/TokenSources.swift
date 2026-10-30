@@ -18,7 +18,8 @@ struct TokenSource: Identifiable, Equatable {
 }
 
 enum TokenSources {
-    static let limit = 3
+    /// The full list, when the card is open; it shows `SourcesCard.collapsed` lines until then.
+    static let limit = 8
     static let window: Double = 15
     /// Lines under this many tokens per minute are left out: a source of 0/min says nothing.
     static let minimumRate: Double = 1

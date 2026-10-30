@@ -55,6 +55,14 @@ enum Snapshots {
             try render(SourcesCard(sources: peak.sources, hovered: peak.sources[index].id).frame(width: 388).padding(24).background(desk),
                        to: dir.appendingPathComponent("\(name).png"))
         }
+        // Five sources: the first three and "2 more", then the list open.
+        let five = peak.sources + [TokenSource(id: "t4", project: "usage-island", detail: "Sync forks with upstream", account: "personal",
+                                               rate: 3000, agents: nil),
+                                   TokenSource(id: "t5", project: "trail-log", detail: "Plan the week", account: "side", rate: 1200, agents: nil)]
+        for (name, open) in [("sources-more", false), ("sources-more-open", true)] {
+            try render(SourcesCard(sources: five, expanded: open).frame(width: 388).padding(24).background(desk),
+                       to: dir.appendingPathComponent("\(name).png"))
+        }
         // A long thread title in a T3 thread, plain and hovered: the hint takes only its own width.
         let long = [TokenSource(id: "l1", threadID: "t", project: "usage-island-polish",
                                 detail: "Fix five visual bugs in the popover and the island", rate: 52_000, agents: "1 agent")]
@@ -84,6 +92,8 @@ enum Snapshots {
         try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-closed.png"))
         model.open()
         try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-open.png"))
+        try render(SourcesCard(sources: model.snapshot.sources, expanded: true).frame(width: 388).padding(24).background(desk),
+                   to: dir.appendingPathComponent("live-sources-open.png"))
     }
 
     /// Gives a surface the glass namespace it needs.

@@ -150,35 +150,69 @@ struct PopoverView: View {
 struct SourcesCard: View {
     /// Between two lines: the lifted line rises 1 pt into it and its shadow ends 3 pt below it, both inside the gap.
     static let gap: CGFloat = 4
+    /// Lines shown until "N more" opens the rest.
+    static let collapsed = 3
 
     let sources: [TokenSource]
     @State var hovered: String?
+    /// The full list is open. Lives with the popover: closing it folds the list again.
+    @State var expanded = false
     /// The source the peak card's "Open thread" opens: its rate in red.
     var hot: String? = nil
     @Environment(\.self) private var env
 
+    private var shown: [TokenSource] { expanded ? sources : Array(sources.prefix(Self.collapsed)) }
+    private var hidden: Int { sources.count - Self.collapsed }
+
     var body: some View {
         VStack(spacing: Self.gap) {
-            ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, source in
                 let lifted = hovered == source.id
-                let lineHidden = lifted || (i > 0 && hovered == sources[i - 1].id)
+                let lineHidden = lifted || (i > 0 && hovered == shown[i - 1].id)
                 SourceRow(source: source, lifted: lifted, hot: hot == source.id)
                     .onHover { inside in
                         if inside { hovered = source.id } else if hovered == source.id { hovered = nil }
                     }
                     .overlay(alignment: .top) {
-                        if i > 0 {
-                            Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -(Self.gap + 0.5) / 2)
-                                .padding(.horizontal, 8)
-                                .opacity(lineHidden ? 0 : 1)
-                        }
+                        if i > 0 { hairline.opacity(lineHidden ? 0 : 1) }
                     }
                     .zIndex(lifted ? 1 : 0)
+                    .transition(.opacity.combined(with: .offset(y: env.reducesMotion ? 0 : -4)))
+            }
+            if hidden > 0 {
+                MoreRow(title: expanded ? "Show less" : "\(hidden) more") { expanded.toggle() }
+                    .overlay(alignment: .top) { hairline.opacity(hovered == shown.last?.id ? 0 : 1) }
             }
         }
         .padding(4)
         .animation(Motion.animation(.spring(duration: 0.2, bounce: 0.15), reduceMotion: env.reducesMotion), value: hovered)
+        .animation(Motion.animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.22), reduceMotion: env.reducesMotion), value: expanded)
         .cardSurface()
+    }
+
+    private var hairline: some View {
+        Rectangle().fill(Palette.line).frame(height: 0.5).offset(y: -(Self.gap + 0.5) / 2).padding(.horizontal, 8)
+    }
+}
+
+/// "2 more" under the first lines, "Show less" once open: quieter than a source, brighter on hover.
+private struct MoreRow: View {
+    let title: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).textStyle(.label).foregroundStyle(hovering ? Palette.ink : Palette.ink3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHand()
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
     }
 }
 

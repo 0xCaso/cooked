@@ -595,7 +595,7 @@ extension TranscriptLogTests {
 struct TokenSourcesTests {
     let thread = TokenLog.Thread(id: "t1", title: "popover data", project: "usage-island")
 
-    @Test func namesSessionsByTheirT3ThreadAndKeepsTheTopThree() {
+    @Test func namesSessionsByTheirT3ThreadInRateOrder() {
         let sessions: [TranscriptLog.Session] = [
             .init(account: "claudeAgent_work", id: "s1", cwd: "/r/usage-island", tokens: 1_695_000, mainActive: true, activeSubagents: 3),
             .init(account: "claudeAgent_team", id: "s2", cwd: "/Users/m/.t3/scratch/2026-x", tokens: 60_000, mainActive: false, activeSubagents: 0),
@@ -612,8 +612,17 @@ struct TokenSourcesTests {
             .init(id: "t1", threadID: "t1", project: "usage-island", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
             .init(id: "s2", project: "t3 scratch", detail: "Claude Code session", account: "team", rate: 4000, agents: nil),
             .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI", account: "codex", rate: 2000, agents: nil),
+            .init(id: "s4", project: "atlas", detail: "Claude Code session", account: "personal", rate: 1000, agents: "2 sub"),
         ])
         #expect(TokenSources.make(sessions: [], threads: [:], recent: [], transcriptAccounts: []).isEmpty)
+    }
+
+    /// The card shows 3 and "N more"; the list behind it stops at 8 (2026-10-30-sources-expand).
+    @Test func keepsUpToEightSources() {
+        let sessions = (1...10).map { TranscriptLog.Session(account: "claudeAgent", id: "s\($0)", cwd: nil, tokens: Double($0) * 1500,
+                                                            mainActive: true, activeSubagents: 0) }
+        let out = TokenSources.make(sessions: sessions, threads: [:], recent: [], transcriptAccounts: [])
+        #expect(out.map(\.id) == ["s10", "s9", "s8", "s7", "s6", "s5", "s4", "s3"])
     }
 
     @Test func mergesSessionsOfOneThread() {
