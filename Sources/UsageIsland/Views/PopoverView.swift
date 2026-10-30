@@ -103,12 +103,12 @@ struct PopoverView: View {
     }
 
     private func sourcesCard(_ sources: [TokenSource]) -> some View {
-        SourcesCard(sources: sources, hovered: nil)
+        SourcesCard(sources: sources, hovered: nil, hot: model.snapshot.isUrgent ? IslandView.peakSource(model.snapshot)?.id : nil)
     }
 
     private func accountsCard(_ s: UsageSnapshot) -> some View {
         VStack(spacing: 10) {
-            ForEach(s.rows) { a in accountRow(a) }
+            ForEach(s.rows) { a in accountRow(a, urgent: s.isUrgent && a.id == s.activeID) }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 11)
@@ -116,9 +116,9 @@ struct PopoverView: View {
     }
 
     /// Name, then a pill per window. The 5h pill turns red, "full at" in place of the reset, when the window fills
-    /// before it resets; a blocked account is red up to its reset.
-    private func accountRow(_ a: Account) -> some View {
-        let fills = a.isBlocked || a.fullAt != nil
+    /// before it resets; a blocked account is red up to its reset; the account that makes the island urgent is red too.
+    private func accountRow(_ a: Account, urgent: Bool) -> some View {
+        let fills = urgent || a.isBlocked || a.fullAt != nil
         return HStack(spacing: Self.rowSpacing) {
             Text(a.short).textStyle(a.isLive ? .emphasis : .body)
                 .foregroundStyle(a.isLive ? Palette.ink : Palette.ink2)
@@ -153,6 +153,8 @@ struct SourcesCard: View {
 
     let sources: [TokenSource]
     @State var hovered: String?
+    /// The source the peak card's "Open thread" opens: its rate in red.
+    var hot: String? = nil
     @Environment(\.self) private var env
 
     var body: some View {
@@ -160,7 +162,7 @@ struct SourcesCard: View {
             ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
                 let lifted = hovered == source.id
                 let lineHidden = lifted || (i > 0 && hovered == sources[i - 1].id)
-                SourceRow(source: source, lifted: lifted)
+                SourceRow(source: source, lifted: lifted, hot: hot == source.id)
                     .onHover { inside in
                         if inside { hovered = source.id } else if hovered == source.id { hovered = nil }
                     }
@@ -185,6 +187,7 @@ struct SourcesCard: View {
 private struct SourceRow: View {
     let source: TokenSource
     let lifted: Bool
+    var hot = false
     @Environment(\.self) private var env
 
     var body: some View {
@@ -197,8 +200,8 @@ private struct SourceRow: View {
                     if lifted, let agents = source.agents {
                         Text(agents).textStyle(.body).foregroundStyle(Palette.ink3)
                     }
-                    Text("\(Text(TokenFormat.short(source.rate)).styled(.number))\(Text("/min").styled(.number).foregroundStyle(Palette.ink3))")
-                        .foregroundStyle(Palette.ink)
+                    Text("\(Text(TokenFormat.short(source.rate)).styled(.number))\(Text("/min").styled(.number).foregroundStyle(hot ? Palette.red : Palette.ink3))")
+                        .foregroundStyle(hot ? Palette.red : Palette.ink)
                         .layoutPriority(1)
                 }
                 HStack(spacing: 8) {

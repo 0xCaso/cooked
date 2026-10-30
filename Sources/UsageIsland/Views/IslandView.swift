@@ -95,8 +95,11 @@ struct IslandView: View {
     }
 
     /// nil brings T3 Code to the front.
-    static func peakThread(_ s: UsageSnapshot) -> String? {
+    static func peakThread(_ s: UsageSnapshot) -> String? { peakSource(s)?.threadID }
+
+    /// The top source of the account that makes the island urgent, else the top source.
+    static func peakSource(_ s: UsageSnapshot) -> TokenSource? {
         let account = s.active?.short
-        return (s.sources.first { $0.account == account } ?? s.sources.first)?.threadID
+        return s.sources.first { $0.account == account } ?? s.sources.first
     }
 }
