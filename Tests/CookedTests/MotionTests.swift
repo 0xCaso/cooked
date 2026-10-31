@@ -1,6 +1,6 @@
 import SwiftUI
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 struct MotionTests {
     @Test func reduceMotionDisablesAnimations() {

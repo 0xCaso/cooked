@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 @MainActor
 struct IslandModelTests {

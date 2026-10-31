@@ -2,7 +2,7 @@ import AppKit
 
 @main
 @MainActor
-enum UsageIslandApp {
+enum CookedApp {
     static func main() {
         let app = NSApplication.shared
         let args = CommandLine.arguments
@@ -26,6 +26,8 @@ enum UsageIslandApp {
             print("all accounts: alert \(status.totalThreshold15m ?? -1)")
             exit(0)
         }
+        // Before the model reads its settings.
+        LegacyDefaults.migrate()
         let delegate = AppDelegate()
         app.delegate = delegate
         // No Dock icon and no menu bar, also when run with `swift run` (the bundle sets LSUIElement too).

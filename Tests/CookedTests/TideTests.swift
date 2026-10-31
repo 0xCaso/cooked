@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 struct TideTests {
     @Test func stepperRunsFixedStepsWhateverTheFrameRate() {

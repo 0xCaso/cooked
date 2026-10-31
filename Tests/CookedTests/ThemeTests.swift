@@ -2,7 +2,7 @@ import CoreText
 import Foundation
 import SwiftUI
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 struct ThemeTests {
     static let fontsDir = URL(fileURLWithPath: #filePath)

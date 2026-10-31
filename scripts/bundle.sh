@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Builds build/UsageIsland.app (binary, Info.plist, fonts, icon), signed ad hoc.
+# Builds build/Cooked.app (binary, Info.plist, fonts, icon), signed ad hoc.
 # Usage: scripts/bundle.sh [debug|release]   (default: debug)
 set -euo pipefail
 
 config="${1:-debug}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
-app="$root/build/UsageIsland.app"
+app="$root/build/Cooked.app"
 
 cd "$root"
-swift build -c "$config" --product UsageIsland
-bin="$(swift build -c "$config" --show-bin-path)/UsageIsland"
+swift build -c "$config" --product Cooked
+bin="$(swift build -c "$config" --show-bin-path)/Cooked"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$bin" "$app/Contents/MacOS/UsageIsland"
+cp "$bin" "$app/Contents/MacOS/Cooked"
 cp "$root/Resources/Info.plist" "$app/Contents/Info.plist"
 cp -R "$root/Resources/Fonts" "$app/Contents/Resources/Fonts"
 # The macOS 26 layered icon: Assets.car for Tahoe, AppIcon.icns for older Finder views.

@@ -1,5 +1,5 @@
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 struct DotShadingTests {
     let floor: (Int) -> Float = { _ in 0.07 }

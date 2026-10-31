@@ -7,14 +7,16 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 dest="/Applications/Cooked.app"
 "$root/scripts/bundle.sh" release
 
+# UsageIsland: the executable before the rename to Cooked.
+pkill -x Cooked 2>/dev/null || true
 pkill -x UsageIsland 2>/dev/null || true
 # open fails (-600) if the old copy is still quitting
-while pgrep -x UsageIsland >/dev/null; do sleep 0.1; done
+while pgrep -x Cooked >/dev/null || pgrep -x UsageIsland >/dev/null; do sleep 0.1; done
 rm -rf "$dest"
 # The app was called Usage Island before it became Cooked.
 rm -rf "/Applications/Usage Island.app"
-cp -R "$root/build/UsageIsland.app" "$dest"
+cp -R "$root/build/Cooked.app" "$dest"
 # The copy in build/ would show up in Spotlight next to the installed one.
-rm -rf "$root/build/UsageIsland.app"
+rm -rf "$root/build/Cooked.app"
 open "$dest"
 echo "Installed: $dest"

@@ -1,11 +1,11 @@
 import Foundation
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 @MainActor
 struct GlassStyleTests {
     func freshDefaults() throws -> UserDefaults {
-        try #require(UserDefaults(suiteName: "usage-island-glass-\(UUID().uuidString)"))
+        try #require(UserDefaults(suiteName: "cooked-glass-\(UUID().uuidString)"))
     }
 
     @Test func defaultIsDarker() throws {

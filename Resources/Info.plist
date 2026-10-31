@@ -5,9 +5,9 @@
 	<key>ATSApplicationFontsPath</key>
 	<string>Fonts</string>
 	<key>CFBundleExecutable</key>
-	<string>UsageIsland</string>
+	<string>Cooked</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.0xcaso.UsageIsland</string>
+	<string>com.0xcaso.Cooked</string>
 	<key>CFBundleName</key>
 	<string>Cooked</string>
 	<key>CFBundleDisplayName</key>

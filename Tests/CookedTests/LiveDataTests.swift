@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 /// status.json of 29/10 15:25, as the watcher wrote it.
 let statusFixture = """
@@ -582,22 +582,22 @@ extension TranscriptLogTests {
         func call(_ id: String, _ at: String, _ tokens: Int, cwd: String) -> String {
             #"{"type":"assistant","timestamp":"\#(at)","cwd":"\#(cwd)","message":{"id":"\#(id)","usage":{"input_tokens":\#(tokens),"output_tokens":0}}}"#
         }
-        try (call("m1", "2026-10-29T14:24:00.000Z", 3000, cwd: "/r/usage-island") + "\n").write(to: main, atomically: true, encoding: .utf8)
+        try (call("m1", "2026-10-29T14:24:00.000Z", 3000, cwd: "/r/cooked") + "\n").write(to: main, atomically: true, encoding: .utf8)
         try (call("s1", "2026-10-29T14:25:00.000Z", 1500, cwd: "/tmp/wt") + "\n").write(to: sub, atomically: true, encoding: .utf8)
         let other = sub.deletingLastPathComponent().appendingPathComponent("agent-2.jsonl")
         try (call("s2", "2026-10-29T14:15:00.000Z", 1500, cwd: "/tmp/wt") + "\n").write(to: other, atomically: true, encoding: .utf8)
         let r = TranscriptLog(dirs: ["claudeAgent_work": TranscriptLog.dir(for: "claudeAgent_work", home: home)]).read(now: now)
-        #expect(r.sessions == [.init(account: "claudeAgent_work", id: "s", cwd: "/r/usage-island", tokens: 6000,
+        #expect(r.sessions == [.init(account: "claudeAgent_work", id: "s", cwd: "/r/cooked", tokens: 6000,
                                      mainActive: true, activeSubagents: 1)])
     }
 }
 
 struct TokenSourcesTests {
-    let thread = TokenLog.Thread(id: "t1", title: "popover data", project: "usage-island")
+    let thread = TokenLog.Thread(id: "t1", title: "popover data", project: "cooked")
 
     @Test func namesSessionsByTheirT3ThreadInRateOrder() {
         let sessions: [TranscriptLog.Session] = [
-            .init(account: "claudeAgent_work", id: "s1", cwd: "/r/usage-island", tokens: 1_695_000, mainActive: true, activeSubagents: 3),
+            .init(account: "claudeAgent_work", id: "s1", cwd: "/r/cooked", tokens: 1_695_000, mainActive: true, activeSubagents: 3),
             .init(account: "claudeAgent_team", id: "s2", cwd: "/Users/m/.t3/scratch/2026-x", tokens: 60_000, mainActive: false, activeSubagents: 0),
             .init(account: "claudeAgent", id: "s3", cwd: nil, tokens: 10, mainActive: true, activeSubagents: 0), // under 1/min
             .init(account: "claudeAgent", id: "s4", cwd: "/r/atlas", tokens: 15_000, mainActive: false, activeSubagents: 2),
@@ -609,7 +609,7 @@ struct TokenSourcesTests {
         let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], recent: recent,
                                     transcriptAccounts: ["claudeAgent_work", "claudeAgent_team", "claudeAgent"])
         #expect(out == [
-            .init(id: "t1", threadID: "t1", project: "usage-island", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
+            .init(id: "t1", threadID: "t1", project: "cooked", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
             .init(id: "s2", project: "t3 scratch", detail: "Claude Code session", account: "team", rate: 4000, agents: nil),
             .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI", account: "codex", rate: 2000, agents: nil),
             .init(id: "s4", project: "atlas", detail: "Claude Code session", account: "personal", rate: 1000, agents: "2 sub"),

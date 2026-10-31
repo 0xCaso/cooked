@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "UsageIsland",
+    name: "Cooked",
     platforms: [.macOS(.v26)],
     targets: [
-        .executableTarget(name: "UsageIsland"),
-        .testTarget(name: "UsageIslandTests", dependencies: ["UsageIsland"]),
+        .executableTarget(name: "Cooked"),
+        .testTarget(name: "CookedTests", dependencies: ["Cooked"]),
     ]
 )

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 /// Findings of the final review, each pinned by a test.
 @MainActor

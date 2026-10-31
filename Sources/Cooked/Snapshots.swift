@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `UsageIsland --snapshots <dir>`: renders parts of the island to PNG without a screen capture.
+/// `Cooked --snapshots <dir>`: renders parts of the island to PNG without a screen capture.
 /// Charts are drawn still (t = 0). Glass cannot render off screen, so surfaces are drawn opaque.
 @MainActor
 enum Snapshots {
@@ -56,7 +56,7 @@ enum Snapshots {
                        to: dir.appendingPathComponent("\(name).png"))
         }
         // Five sources: the first three and "2 more", then the list open.
-        let five = peak.sources + [TokenSource(id: "t4", project: "usage-island", detail: "Sync forks with upstream", account: "personal",
+        let five = peak.sources + [TokenSource(id: "t4", project: "cooked", detail: "Sync forks with upstream", account: "personal",
                                                rate: 3000, agents: nil),
                                    TokenSource(id: "t5", project: "trail-log", detail: "Plan the week", account: "side", rate: 1200, agents: nil)]
         for (name, open) in [("sources-more", false), ("sources-more-open", true)] {
@@ -64,7 +64,7 @@ enum Snapshots {
                        to: dir.appendingPathComponent("\(name).png"))
         }
         // A long thread title in a T3 thread, plain and hovered: the hint takes only its own width.
-        let long = [TokenSource(id: "l1", threadID: "t", project: "usage-island-polish",
+        let long = [TokenSource(id: "l1", threadID: "t", project: "cooked-polish",
                                 detail: "Fix five visual bugs in the popover and the island", rate: 52_000, agents: "1 agent")]
         for (name, hovered) in [("sources-long", nil), ("sources-long-hover", "l1")] as [(String, String?)] {
             try render(SourcesCard(sources: long, hovered: hovered).frame(width: 388).padding(24).background(desk),

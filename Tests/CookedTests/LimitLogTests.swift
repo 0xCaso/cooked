@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 /// The limits read from T3 Code's provider logs, in place of the watcher script.
 struct LimitLogTests {

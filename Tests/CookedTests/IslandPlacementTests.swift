@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 struct IslandPlacementTests {
     // A 1512×982 screen with a 33 pt menu bar.
@@ -89,7 +89,7 @@ struct IslandPlacementTests {
 
 struct PositionStoreTests {
     @Test func savesAndLoads() throws {
-        let defaults = try #require(UserDefaults(suiteName: "usage-island-tests-\(UUID().uuidString)"))
+        let defaults = try #require(UserDefaults(suiteName: "cooked-tests-\(UUID().uuidString)"))
         #expect(PositionStore.load(from: defaults) == nil)
         let p = SavedPosition(displayID: 2, topCenter: CGPoint(x: 1720, y: 1426))
         PositionStore.save(p, to: defaults)

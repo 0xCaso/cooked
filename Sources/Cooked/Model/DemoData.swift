@@ -64,7 +64,7 @@ enum DemoData {
             percent: 82, fullAt: "23:14", detail: "claude-work in 9 min",
             source: "184k/min from “Refactor usage page”"),
         sources: [
-            TokenSource(id: "t1", threadID: "t1", project: "usage-island", detail: "Refactor usage page", account: "work", rate: 113_000,
+            TokenSource(id: "t1", threadID: "t1", project: "cooked", detail: "Refactor usage page", account: "work", rate: 113_000,
                         agents: "1 agent + 3 sub"),
             TokenSource(id: "t2", project: "garden-notes", detail: "Draft the release notes", account: "work", rate: 18_000, agents: "1 agent"),
             TokenSource(id: "t3", project: "t3 scratch", detail: "Onboarding copy pass", account: "personal", rate: 4000, agents: nil),

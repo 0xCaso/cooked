@@ -1,5 +1,5 @@
 import Testing
-@testable import UsageIsland
+@testable import Cooked
 
 struct ContrastTests {
     let ink = Palette.inkRGB
