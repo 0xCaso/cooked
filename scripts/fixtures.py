@@ -25,7 +25,7 @@ KEEP = {
     "service_tier", "turn_id", "promptId",
 }
 TEXT = {"aiTitle": "Demo session title", "customTitle": "Renamed demo session", "thread_name": "Demo Codex thread",
-        "lastPrompt": "Fix the flaky login test"}
+        "lastPrompt": "Fix the flaky login test", "content": "Fix the flaky login test"}
 CWD = "/Users/me/Projects/demo"
 
 

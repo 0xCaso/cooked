@@ -32,7 +32,7 @@ enum TokenSources {
         var out = sessions.map { s in
             let thread = threads[s.id]
             return TokenSource(id: thread?.id ?? s.id, threadID: thread?.id, project: thread.map(project) ?? project(cwd: s.cwd),
-                               detail: thread?.title ?? "Claude Code session", account: short(s.account),
+                               detail: thread?.title ?? s.name ?? "Claude Code session", account: short(s.account),
                                rate: s.tokens / window, agents: agents(main: s.mainActive, subagents: s.activeSubagents))
         }
         out += recent.filter { !transcriptAccounts.contains($0.account) }.map { r in

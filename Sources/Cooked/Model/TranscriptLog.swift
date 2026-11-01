@@ -15,6 +15,20 @@ final class TranscriptLog: @unchecked Sendable {
         var messages: [String: (minute: Int, tokens: Double)] = [:]
         /// The working directory of the last call: the source's project.
         var cwd: String?
+        /// The last titles in the lines read so far.
+        var titles = Titles()
+    }
+
+    /// A session's names, from its own lines: the user's (`/rename`), Claude Code's, and the first prompt.
+    struct Titles: Equatable {
+        var custom: String?
+        var ai: String?
+        var firstPrompt: String?
+
+        /// `custom-title`, else `ai-title`, else the first prompt; `later` (newer lines) wins over `self`.
+        func name(after later: Titles) -> String? {
+            later.custom ?? custom ?? later.ai ?? ai ?? firstPrompt
+        }
     }
 
     /// One Claude session in the last 15 minutes: its own calls and its subagents' calls, which run in files of their own.
@@ -29,6 +43,8 @@ final class TranscriptLog: @unchecked Sendable {
         var mainActive: Bool
         /// Subagents with a call in the last 5 minutes.
         var activeSubagents: Int
+        /// The session's name: its title in Claude Code, else its first prompt.
+        var name: String? = nil
     }
 
     struct Reading {
@@ -50,6 +66,9 @@ final class TranscriptLog: @unchecked Sendable {
 
     private let lock = NSLock()
     private var files: [String: File] = [:]
+    /// Main transcript path → the titles in its first `headBytes`, read once: the first prompt, and titles the tail lacks.
+    private var heads: [String: Titles] = [:]
+    static let headBytes = 512 * 1024
 
     init(dirs: [String: String]) { self.dirs = dirs }
 
@@ -73,6 +92,7 @@ final class TranscriptLog: @unchecked Sendable {
         let since = now.addingTimeInterval(-Double(minutes + 1) * 60)
         var out = Reading()
         var sessions: [String: Session] = [:]
+        var mainPaths: [String: String] = [:]
         var seen = Set<String>()
         for (id, dir) in dirs {
             let root = URL(fileURLWithPath: dir + "/projects")
@@ -95,6 +115,7 @@ final class TranscriptLog: @unchecked Sendable {
                 }
                 if recent > 0 {
                     let (sid, isSub) = Self.session(of: url)
+                    mainPaths[sid] = isSub ? url.deletingLastPathComponent().deletingLastPathComponent().path + ".jsonl" : url.path
                     var s = sessions[sid] ?? Session(account: id, id: sid, cwd: nil, tokens: 0, mainActive: false, activeSubagents: 0)
                     s.tokens += recent
                     if isSub { s.activeSubagents += active ? 1 : 0 } else { s.mainActive = active }
@@ -108,6 +129,12 @@ final class TranscriptLog: @unchecked Sendable {
             out.minutes[id] = account
         }
         files = files.filter { seen.contains($0.key) }
+        for (sid, path) in mainPaths {
+            let head = heads[path] ?? Self.headTitles(of: URL(fileURLWithPath: path))
+            heads[path] = head
+            sessions[sid]?.name = head.name(after: files[path]?.titles ?? Titles())
+        }
+        heads = heads.filter { mainPaths.values.contains($0.key) }
         out.sessions = sessions.values.sorted { ($0.tokens, $0.id) > ($1.tokens, $1.id) }
         return out
     }
@@ -142,9 +169,12 @@ final class TranscriptLog: @unchecked Sendable {
         guard end > file.offset, (try? handle.seek(toOffset: file.offset)) != nil,
               let data = try? handle.readToEnd(), let last = data.lastIndex(of: UInt8(ascii: "\n")) else { return }
         for line in data[data.startIndex...last].split(separator: UInt8(ascii: "\n")) {
-            if let call = parse(Data(line)) {
+            let line = Data(line)
+            if let call = parse(line) {
                 file.messages[call.id] = (call.minute, call.tokens)
                 if let cwd = call.cwd { file.cwd = cwd }
+            } else {
+                title(line, into: &file.titles)
             }
         }
         file.offset += UInt64(last - data.startIndex + 1)
@@ -165,6 +195,63 @@ final class TranscriptLog: @unchecked Sendable {
         let requestId: String?
         let cwd: String?
         let message: Message?
+    }
+
+    private struct TitleLine: Decodable {
+        struct Message: Decodable {
+            enum Content: Decodable {
+                case text(String), blocks([Block])
+                struct Block: Decodable { let type: String?; let text: String? }
+                init(from decoder: Decoder) throws {
+                    let c = try decoder.singleValueContainer()
+                    if let s = try? c.decode(String.self) { self = .text(s) } else { self = .blocks(try c.decode([Block].self)) }
+                }
+            }
+            let content: Content?
+        }
+        let type: String?
+        let customTitle: String?
+        let aiTitle: String?
+        let isMeta: Bool?
+        let message: Message?
+    }
+
+    /// Takes a title or the first prompt from a line that is not a call.
+    static func title(_ line: Data, into titles: inout Titles) {
+        let needsPrompt = titles.firstPrompt == nil
+        guard line.range(of: Data(#""custom-title""#.utf8)) != nil || line.range(of: Data(#""ai-title""#.utf8)) != nil
+                || (needsPrompt && line.range(of: Data(#""type":"user""#.utf8)) != nil),
+              let l = try? JSONDecoder().decode(TitleLine.self, from: line) else { return }
+        switch l.type {
+        case "custom-title": titles.custom = clean(l.customTitle) ?? titles.custom
+        case "ai-title": titles.ai = clean(l.aiTitle) ?? titles.ai
+        case "user" where needsPrompt && l.isMeta != true:
+            let text: String? = switch l.message?.content {
+            case .text(let s): s
+            case .blocks(let blocks): blocks.first { $0.type == "text" }?.text
+            case nil: nil
+            }
+            // command output and injected context start with a tag; tool results have no text block
+            if let text, !text.hasPrefix("<") { titles.firstPrompt = clean(text) }
+        default: break
+        }
+    }
+
+    /// The first non-empty line, at most 80 characters.
+    static func clean(_ s: String?) -> String? {
+        guard let line = s?.split(whereSeparator: \.isNewline).lazy
+            .map({ $0.trimmingCharacters(in: .whitespaces) }).first(where: { !$0.isEmpty }) else { return nil }
+        return line.count > 80 ? String(line.prefix(79)) + "…" : line
+    }
+
+    /// The titles in the first `headBytes` of a transcript.
+    static func headTitles(of url: URL) -> Titles {
+        var titles = Titles()
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return titles }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: headBytes) else { return titles }
+        for line in data.split(separator: UInt8(ascii: "\n")) { title(Data(line), into: &titles) }
+        return titles
     }
 
     /// One transcript line → the call, or nil when it is not an assistant call.
