@@ -6,6 +6,6 @@ let package = Package(
     platforms: [.macOS(.v26)],
     targets: [
         .executableTarget(name: "Cooked"),
-        .testTarget(name: "CookedTests", dependencies: ["Cooked"]),
+        .testTarget(name: "CookedTests", dependencies: ["Cooked"], exclude: ["Fixtures"]), // read via #filePath
     ]
 )
