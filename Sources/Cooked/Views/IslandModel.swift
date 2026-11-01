@@ -25,6 +25,8 @@ final class IslandModel {
     private(set) var feed: Feed
     /// Why live data is missing, shown in the menu. nil while live data arrives.
     private(set) var liveProblem: UsageSource.Problem?
+    /// 0...1 while the first launch reads 14 days of history; nil when complete or in a demo.
+    private(set) var historyProgress: Double?
     @ObservationIgnored private var liveHistogram: LiveHistogram?
     @ObservationIgnored private var calmRateIndex = 0
     /// Time zero of every chart. Lives as long as the model, so clicks and demo switches don't restart the wave.
@@ -74,6 +76,7 @@ final class IslandModel {
         case .demoCalm, .demoPeak:
             liveHistogram = nil
             liveProblem = nil
+            historyProgress = nil
             snapshot = new == .demoPeak ? DemoData.peak : DemoData.calm
             calmRateIndex = 0
             rateNow = snapshot.rateNow
@@ -89,6 +92,7 @@ final class IslandModel {
             liveProblem = problem
         case .success(let reading):
             liveProblem = nil
+            if historyProgress != reading.history { historyProgress = reading.history }
             let s = reading.snapshot
             if snapshot != s { snapshot = s }
             rateNow = s.rateNow

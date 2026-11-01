@@ -86,7 +86,12 @@ enum Snapshots {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let model = IslandModel(feed: .live)
         let now = Date()
-        model.apply(UsageSource().read(now: now))
+        // the first launch fills 14 days of history over several readings
+        let source = UsageSource()
+        var result = source.read(now: now)
+        let deadline = Date().addingTimeInterval(120)
+        while case .success(let r) = result, r.history != nil, Date() < deadline { result = source.read(now: Date()) }
+        model.apply(result)
         if let problem = model.liveProblem { throw CocoaError(.fileReadUnknown, userInfo: [NSLocalizedDescriptionKey: problem.message]) }
         let desk = Color(red: 27 / 255, green: 28 / 255, blue: 31 / 255)
         try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-closed.png"))

@@ -9,10 +9,8 @@ final class TranscriptLog: @unchecked Sendable {
     /// Account id → config dir: `claudeAgent` is `~/.claude`, `claudeAgent_x_y` is `~/.claude-x-y`.
     let dirs: [String: String]
 
+    /// What a file's lines say besides tokens, since Cooked started.
     private struct File {
-        var offset: UInt64 = 0
-        /// Message id → (minute, new tokens). A message is written once per content block, with the same usage.
-        var messages: [String: (minute: Int, tokens: Double)] = [:]
         /// The working directory of the last call: the source's project.
         var cwd: String?
         /// The last titles in the lines read so far.
@@ -24,6 +22,8 @@ final class TranscriptLog: @unchecked Sendable {
         var custom: String?
         var ai: String?
         var firstPrompt: String?
+        /// The first working directory in the head: the folder of a session with no new call yet.
+        var cwd: String?
 
         /// `custom-title`, else `ai-title`, else the first prompt; `later` (newer lines) wins over `self`.
         func name(after later: Titles) -> String? {
@@ -70,11 +70,20 @@ final class TranscriptLog: @unchecked Sendable {
     private var heads: [String: Titles] = [:]
     static let headBytes = 512 * 1024
 
-    init(dirs: [String: String]) { self.dirs = dirs }
+    /// The minute cache, where the tokens go. A ledger the reader made itself is begun and ended by `read`.
+    let ledger: MinuteLedger
+    private let ownsLedger: Bool
+
+    init(dirs: [String: String], ledger: MinuteLedger? = nil) {
+        self.dirs = dirs
+        self.ledger = ledger ?? MinuteLedger()
+        ownsLedger = ledger == nil
+    }
 
     /// The connected Claude accounts' folders.
-    convenience init(accounts: [ConnectedAccount]) {
-        self.init(dirs: Dictionary(accounts.filter { $0.kind == .claude }.map { ($0.id, $0.path) }, uniquingKeysWith: { a, _ in a }))
+    convenience init(accounts: [ConnectedAccount], ledger: MinuteLedger? = nil) {
+        self.init(dirs: Dictionary(accounts.filter { $0.kind == .claude }.map { ($0.id, $0.path) }, uniquingKeysWith: { a, _ in a }),
+                  ledger: ledger)
     }
 
     static func dir(for id: String, home: String) -> String {
@@ -82,14 +91,16 @@ final class TranscriptLog: @unchecked Sendable {
         return home + "/.claude" + suffix
     }
 
-    /// Account id → minute → new tokens, for the `minutes` minutes up to `now`, and the sessions of the last 15
-    /// minutes. Accounts without a transcript directory are left out, so the caller keeps its other source for them.
+    /// Account id → minute → new tokens, for the `minutes` minutes up to `now` (from the minute cache), and the sessions
+    /// of the last 15 minutes. Accounts without a transcript directory are left out, so the caller keeps its other
+    /// source for them. Walks the files written in the last 14 days, newest first.
     func read(now: Date, minutes: Int = 60) -> Reading {
         lock.lock()
         defer { lock.unlock() }
+        if ownsLedger { ledger.begin() }
+        defer { if ownsLedger { ledger.end(now: now) } }
         let minuteNow = Int(now.timeIntervalSince1970) / 60
-        let first = minuteNow - minutes + 1
-        let since = now.addingTimeInterval(-Double(minutes + 1) * 60)
+        let since = MinuteLedger.since(now)
         var out = Reading()
         var sessions: [String: Session] = [:]
         var mainPaths: [String: String] = [:]
@@ -100,16 +111,30 @@ final class TranscriptLog: @unchecked Sendable {
             guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir), isDir.boolValue,
                   let walk = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey],
                                                             options: [.skipsHiddenFiles]) else { continue }
-            var account: [Int: Double] = [:]
+            var urls: [(url: URL, modified: Date)] = []
             for case let url as URL in walk where url.pathExtension == "jsonl" {
                 guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
                       modified >= since else { continue }
+                urls.append((url, modified))
+            }
+            for (url, _) in urls.sorted(by: { $0.modified > $1.modified }) {
                 seen.insert(url.path)
-                var file = files[url.path] ?? File(offset: Self.start(of: url, after: since))
-                Self.readNew(url, into: &file)
+                var file = files[url.path] ?? File()
+                let mark = ledger.read(url, now: now) { line, mark in
+                    if let call = Self.parse(line) {
+                        if let cwd = call.cwd { file.cwd = cwd }
+                        // a message is written once per content block, with the same usage
+                        guard mark.keys[call.id] == nil else { return }
+                        mark.keys[call.id] = call.minute
+                        mark.recent[call.minute, default: 0] += call.tokens
+                        ledger.add(id, minute: call.minute, tokens: call.tokens)
+                    } else {
+                        Self.title(line, into: &file.titles)
+                    }
+                }
+                files[url.path] = file
                 var recent = 0.0, active = false
-                for (minute, tokens) in file.messages.values where minute >= first && minute <= minuteNow {
-                    account[minute, default: 0] += tokens
+                for (minute, tokens) in mark.recent where minute <= minuteNow {
                     if minute > minuteNow - 15 { recent += tokens }
                     if minute > minuteNow - 5 { active = true }
                 }
@@ -123,16 +148,16 @@ final class TranscriptLog: @unchecked Sendable {
                     if !isSub || s.cwd == nil { s.cwd = file.cwd ?? s.cwd }
                     sessions[sid] = s
                 }
-                file.messages = file.messages.filter { $0.value.minute >= first }
-                files[url.path] = file
             }
-            out.minutes[id] = account
+            out.minutes[id] = ledger.minutes(id, from: minuteNow - minutes + 1, to: minuteNow)
         }
         files = files.filter { seen.contains($0.key) }
         for (sid, path) in mainPaths {
             let head = heads[path] ?? Self.headTitles(of: URL(fileURLWithPath: path))
             heads[path] = head
             sessions[sid]?.name = head.name(after: files[path]?.titles ?? Titles())
+            // the cwd of a session resumed after a restart, before its first new call
+            if sessions[sid]?.cwd == nil { sessions[sid]?.cwd = head.cwd }
         }
         heads = heads.filter { mainPaths.values.contains($0.key) }
         out.sessions = sessions.values.sorted { ($0.tokens, $0.id) > ($1.tokens, $1.id) }
@@ -158,26 +183,6 @@ final class TranscriptLog: @unchecked Sendable {
             }
         }
         return 0
-    }
-
-    /// Parses the complete lines written since `file.offset`.
-    private static func readNew(_ url: URL, into file: inout File) {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return }
-        defer { try? handle.close() }
-        guard let end = try? handle.seekToEnd() else { return }
-        if end < file.offset { file = File() } // rewritten
-        guard end > file.offset, (try? handle.seek(toOffset: file.offset)) != nil,
-              let data = try? handle.readToEnd(), let last = data.lastIndex(of: UInt8(ascii: "\n")) else { return }
-        for line in data[data.startIndex...last].split(separator: UInt8(ascii: "\n")) {
-            let line = Data(line)
-            if let call = parse(line) {
-                file.messages[call.id] = (call.minute, call.tokens)
-                if let cwd = call.cwd { file.cwd = cwd }
-            } else {
-                title(line, into: &file.titles)
-            }
-        }
-        file.offset += UInt64(last - data.startIndex + 1)
     }
 
     private struct Line: Decodable {
@@ -213,6 +218,7 @@ final class TranscriptLog: @unchecked Sendable {
         let customTitle: String?
         let aiTitle: String?
         let isMeta: Bool?
+        let cwd: String?
         let message: Message?
     }
 
@@ -226,6 +232,7 @@ final class TranscriptLog: @unchecked Sendable {
         case "custom-title": titles.custom = clean(l.customTitle) ?? titles.custom
         case "ai-title": titles.ai = clean(l.aiTitle) ?? titles.ai
         case "user" where needsPrompt && l.isMeta != true:
+            if titles.cwd == nil { titles.cwd = l.cwd }
             let text: String? = switch l.message?.content {
             case .text(let s): s
             case .blocks(let blocks): blocks.first { $0.type == "text" }?.text

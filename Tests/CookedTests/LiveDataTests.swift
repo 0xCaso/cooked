@@ -41,7 +41,7 @@ let testAccounts = [("claudeAgent_work", "work"), ("claudeAgent_team", "team"), 
 
 /// A source reading only the limit logs in `dir`.
 func source(_ dir: String) -> UsageSource {
-    var s = UsageSource(accounts: testAccounts)
+    var s = UsageSource(accounts: testAccounts, ledger: MinuteLedger())
     s.limits = LimitLog(dir: dir)
     s.databasePath = "/nonexistent"
     s.transcripts = nil

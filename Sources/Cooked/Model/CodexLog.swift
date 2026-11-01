@@ -32,57 +32,68 @@ final class CodexLog: @unchecked Sendable {
         var limits: Limits?
     }
 
-    private struct File {
-        var offset: UInt64 = 0
-        /// Event time (ISO string) → (minute, new tokens).
-        var calls: [String: (minute: Int, tokens: Double)] = [:]
-        /// The totals of the last `token_count`: Codex sometimes writes the same event twice.
-        var lastTotal: Usage?
-        var limits: Limits?
-    }
-
     private let lock = NSLock()
-    private var files: [String: File] = [:]
     /// Rollout path → (cwd, first prompt), from its first lines, read once.
     private var heads: [String: (cwd: String?, prompt: String?)] = [:]
     /// Thread names from `session_index.jsonl`, and the index's size when read.
     private var names: (size: UInt64, byID: [String: String]) = (0, [:])
     private var limits: Limits?
 
-    init(id: String = Accounts.codexID, home: String) {
+    /// The minute cache, where the tokens go. A ledger the reader made itself is begun and ended by `read`.
+    let ledger: MinuteLedger
+    private let ownsLedger: Bool
+
+    init(id: String = Accounts.codexID, home: String, ledger: MinuteLedger? = nil) {
         self.id = id
         self.home = home
+        self.ledger = ledger ?? MinuteLedger()
+        ownsLedger = ledger == nil
     }
 
     /// The connected Codex account, if any.
-    convenience init?(accounts: [ConnectedAccount]) {
+    convenience init?(accounts: [ConnectedAccount], ledger: MinuteLedger? = nil) {
         guard let codex = accounts.first(where: { $0.kind == .codex }) else { return nil }
-        self.init(id: codex.id, home: codex.path)
+        self.init(id: codex.id, home: codex.path, ledger: ledger)
     }
 
+    /// Minute → new tokens for the `minutes` minutes up to `now` (from the minute cache), the sessions of the last
+    /// 15 minutes and the newest limits. Walks the rollouts written in the last 14 days, newest first.
     func read(now: Date, minutes: Int = 60) -> Reading {
         lock.lock()
         defer { lock.unlock() }
+        if ownsLedger { ledger.begin() }
+        defer { if ownsLedger { ledger.end(now: now) } }
         let minuteNow = Int(now.timeIntervalSince1970) / 60
-        let first = minuteNow - minutes + 1
-        let since = now.addingTimeInterval(-Double(minutes + 1) * 60)
+        let since = MinuteLedger.since(now)
         var out = Reading()
         var seen = Set<String>()
         var sessions: [TranscriptLog.Session] = []
-        let root = URL(fileURLWithPath: home + "/sessions")
-        let walk = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey],
-                                                  options: [.skipsHiddenFiles])
+        var urls: [(url: URL, modified: Date)] = []
+        let walk = FileManager.default.enumerator(at: URL(fileURLWithPath: home + "/sessions"),
+                                                  includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles])
         while let url = walk?.nextObject() as? URL {
             guard url.pathExtension == "jsonl", url.lastPathComponent.hasPrefix("rollout-"),
                   let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
                   modified >= since else { continue }
+            urls.append((url, modified))
+        }
+        for (url, _) in urls.sorted(by: { $0.modified > $1.modified }) {
             seen.insert(url.path)
-            var file = files[url.path] ?? File(offset: TranscriptLog.start(of: url, after: since))
-            Self.readNew(url, into: &file)
-            if let l = file.limits, l.at > limits?.at ?? .distantPast { limits = l }
+            let mark = ledger.read(url, now: now) { line, mark in
+                guard let count = Self.parse(line) else { return }
+                if let l = count.limits, l.at > limits?.at ?? .distantPast { limits = l }
+                // the same totals again: a repeated event, not a new call
+                if let total = count.total.map(Self.key) {
+                    guard total != mark.last else { return }
+                    mark.last = total
+                }
+                let minute = Int(count.at.timeIntervalSince1970) / 60
+                guard count.tokens > 0 else { return }
+                mark.recent[minute, default: 0] += count.tokens
+                ledger.add(id, minute: minute, tokens: count.tokens)
+            }
             var recent = 0.0, active = false
-            for (minute, tokens) in file.calls.values where minute >= first && minute <= minuteNow {
-                out.minutes[minute, default: 0] += tokens
+            for (minute, tokens) in mark.recent where minute <= minuteNow {
                 if minute > minuteNow - 15 { recent += tokens }
                 if minute > minuteNow - 5 { active = true }
             }
@@ -93,14 +104,17 @@ final class CodexLog: @unchecked Sendable {
                 sessions.append(.init(account: id, id: sid, cwd: head.cwd, tokens: recent, mainActive: active, activeSubagents: 0,
                                       name: threadName(sid) ?? head.prompt))
             }
-            file.calls = file.calls.filter { $0.value.minute >= first }
-            files[url.path] = file
         }
-        files = files.filter { seen.contains($0.key) }
         heads = heads.filter { seen.contains($0.key) }
+        out.minutes = ledger.minutes(id, from: minuteNow - minutes + 1, to: minuteNow)
         out.sessions = sessions.sorted { ($0.tokens, $0.id) > ($1.tokens, $1.id) }
         out.limits = limits
         return out
+    }
+
+    /// A repeated event has the same totals.
+    static func key(_ u: Usage) -> String {
+        "\(u.input_tokens ?? 0)/\(u.cached_input_tokens ?? 0)/\(u.output_tokens ?? 0)/\(u.total_tokens ?? 0)"
     }
 
     /// `rollout-2026-10-20T09-05-37-01a15821-434f-....jsonl` → the thread id, the last 36 characters.
@@ -194,24 +208,6 @@ final class CodexLog: @unchecked Sendable {
             limits = l
         }
         return Count(at: at, stamp: stamp, tokens: p.info?.last_token_usage?.new ?? 0, total: p.info?.total_token_usage, limits: limits)
-    }
-
-    private static func readNew(_ url: URL, into file: inout File) {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return }
-        defer { try? handle.close() }
-        guard let end = try? handle.seekToEnd() else { return }
-        if end < file.offset { file = File() } // rewritten
-        guard end > file.offset, (try? handle.seek(toOffset: file.offset)) != nil,
-              let data = try? handle.readToEnd(), let last = data.lastIndex(of: UInt8(ascii: "\n")) else { return }
-        for line in data[data.startIndex...last].split(separator: UInt8(ascii: "\n")) {
-            guard let count = parse(Data(line)) else { continue }
-            if let limits = count.limits { file.limits = limits }
-            // the same totals again: a repeated event, not a new call
-            if let total = count.total, total == file.lastTotal { continue }
-            file.lastTotal = count.total
-            if count.tokens > 0 { file.calls[count.stamp] = (Int(count.at.timeIntervalSince1970) / 60, count.tokens) }
-        }
-        file.offset += UInt64(last - data.startIndex + 1)
     }
 
     /// The working folder (`session_meta`) and the first prompt (`user_message`), from the first 256 KB.

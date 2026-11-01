@@ -11,7 +11,8 @@ struct SessionNameTests {
 
     @Test func sampleNamesFromTheRealFormat() {
         let head = TranscriptLog.headTitles(of: Fixture.url("claude-session.jsonl"))
-        #expect(head == .init(custom: "Renamed demo session", ai: "Demo session title", firstPrompt: "Fix the flaky login test"))
+        #expect(head == .init(custom: "Renamed demo session", ai: "Demo session title", firstPrompt: "Fix the flaky login test",
+                             cwd: "/Users/me/Projects/demo"))
         #expect(head.name(after: .init()) == "Renamed demo session")
     }
 

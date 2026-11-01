@@ -66,7 +66,9 @@ struct PopoverView: View {
                     .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.chartRate)
                 Text("now").textStyle(.body).foregroundStyle(Palette.ink2)
                 Spacer(minLength: 0)
-                Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.chartThreshold))).styled(.labelNumber))/min")
+                // the first launch reads 14 days of sessions; the alert line needs them
+                (model.historyProgress.map { Text("\(Text("reading 14 days "))\(Text("\(Int($0 * 100))%").styled(.labelNumber))") }
+                    ?? Text("\(Text("alert at "))\(Text(TokenFormat.short(Double(s.chartThreshold))).styled(.labelNumber))/min"))
                     .styled(.label)
                     .frame(height: TextStyle.label.lineHeight)
                     .foregroundStyle(Palette.ink3)
