@@ -151,6 +151,25 @@ final class MinuteLedger: @unchecked Sendable {
         lock.withLock { (saved.minutes[account] ?? [:]).filter { $0.key >= first && $0.key <= last } }
     }
 
+    /// The new tokens of each 15-minute bucket with tokens, per account and every account summed: the alert
+    /// thresholds' 14 days.
+    func buckets15() -> LimitLog.Buckets {
+        lock.withLock {
+            var out = LimitLog.Buckets()
+            var total: [Int: Double] = [:]
+            for (id, minutes) in saved.minutes {
+                var own: [Int: Double] = [:]
+                for (minute, tokens) in minutes {
+                    own[minute / 15, default: 0] += tokens
+                    total[minute / 15, default: 0] += tokens
+                }
+                out.byAccount[id] = own.keys.sorted().map { own[$0]! }
+            }
+            out.total = total.keys.sorted().map { total[$0]! }
+            return out
+        }
+    }
+
     /// Where a reader starts a file it has no mark for: 14 days back.
     static func since(_ now: Date) -> Date { now.addingTimeInterval(-Double(keepMinutes) * 60) }
 }

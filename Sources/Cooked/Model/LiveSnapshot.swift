@@ -1,6 +1,6 @@
 import Foundation
 
-/// Builds what the island shows from the accounts' limits (`LimitLog`) and the per-minute tokens.
+/// Builds what the island shows from the accounts' limits (`LimitLog`) and the per-minute tokens (the minute cache).
 enum LiveSnapshot {
     /// The watcher's fallback p99 for 15 minutes, when status.json has none.
     static let fallbackThreshold15m = 500_000
@@ -22,7 +22,7 @@ enum LiveSnapshot {
 
     /// nil when no account has 5h data yet. `sources` name the peak card's thread, the one its button opens.
     /// `accounts` are the connected ones, in display order: the others are left out. Empty keeps every account, by id.
-    static func make(status: StatusFile, minutes: TokenLog.Minutes, now: Date, calendar: Calendar = .current,
+    static func make(status: StatusFile, minutes: [String: [Int: Double]], now: Date, calendar: Calendar = .current,
                      sources: [TokenSource] = [], accounts: [ConnectedAccount] = []) -> UsageSnapshot? {
         let connected = accounts
         let order = connected.map(\.id)
@@ -37,7 +37,7 @@ enum LiveSnapshot {
         func percent(_ id: String) -> Int { stale(id) ? 0 : entry(id).fiveHourPct ?? 0 }
         func threshold(_ id: String) -> Int { (entry(id).spikeThreshold15m ?? fallbackThreshold15m) / 15 }
         func series(_ id: String) -> [Double] {
-            let m = minutes.byAccount[id] ?? [:]
+            let m = minutes[id] ?? [:]
             return (0..<historyMinutes).map { m[minuteNow - historyMinutes + 1 + $0] ?? 0 }
         }
         /// Tokens per minute over the last 5 minutes: the 4 whole minutes and the part of this one gone by, so the
@@ -137,7 +137,7 @@ enum LiveSnapshot {
 
         // The popover's chart sums every account; the island
         // keeps the active account, since each account has its own limit.
-        let total = minutes.byAccount.keys.map(series).reduce(into: Array(repeating: 0.0, count: historyMinutes)) { sum, s in
+        let total = minutes.keys.map(series).reduce(into: Array(repeating: 0.0, count: historyMinutes)) { sum, s in
             for i in s.indices { sum[i] += s[i] }
         }
         var snapshot = UsageSnapshot(

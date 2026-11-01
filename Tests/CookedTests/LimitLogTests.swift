@@ -81,7 +81,7 @@ struct LimitLogTests {
         #expect(work.fiveHourResetsAt == "15:00")
         #expect(work.lastEventAt == "13:59")
         #expect(work.live == true)
-        #expect(work.spikeThreshold15m == 600_000)
+        #expect(work.spikeThreshold15m == LimitLog.claudeFallback15m)
     }
 
     @Test func oldFilesAreSkipped() throws {
@@ -128,7 +128,7 @@ struct LimitLogTests {
     @Test func thresholdWithLittleHistory() {
         let work = (1...100).map(Double.init) // p99 = 100
         let t = LimitLog.thresholds(buckets: ["claudeAgent_work": work, "claudeAgent_team": Array(repeating: 5, count: 10),
-                                              "codex": [1, 2]])
+                                              "codex": [1, 2]], ids: ["claudeAgent"])
         #expect(t["claudeAgent_work"] == 100)
         #expect(t["claudeAgent_team"] == 100)
         #expect(t["claudeAgent"] == 100)

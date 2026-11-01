@@ -39,11 +39,12 @@ let testAccounts = [("claudeAgent_work", "work"), ("claudeAgent_team", "team"), 
                     ("claudeAgent_side", "side"), ("codex", "codex")]
     .map { ConnectedAccount(id: $0.0, name: $0.1, path: "/h/" + $0.0) }
 
-/// A source reading only the limit logs in `dir`.
+/// A source reading only the T3 Code limit logs in `dir`.
 func source(_ dir: String) -> UsageSource {
     var s = UsageSource(accounts: testAccounts, ledger: MinuteLedger())
     s.limits = LimitLog(dir: dir)
-    s.databasePath = "/nonexistent"
+    s.t3Database = "/nonexistent"
+    s.bridgeDir = "/nonexistent"
     s.transcripts = nil
     s.codex = nil
     return s
@@ -90,8 +91,8 @@ struct LiveDataTests {
     }
 
     @Test func calmSnapshotFromTheFixture() throws {
-        var minutes = TokenLog.Minutes()
-        minutes.byAccount["claudeAgent_work"] = [minuteNow: 4189, minuteNow - 1: 27004, minuteNow - 59: 100, minuteNow - 60: 999]
+        var minutes: [String: [Int: Double]] = [:]
+        minutes["claudeAgent_work"] = [minuteNow: 4189, minuteNow - 1: 27004, minuteNow - 59: 100, minuteNow - 60: 999]
         let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         // only accounts with 5h data, work first
         #expect(s.accounts.map(\.short) == ["work", "personal"])
@@ -122,10 +123,10 @@ struct LiveDataTests {
 
     /// The popover's chart sums every account; the island keeps the active one (2026-10-30-aggregated-popover-chart).
     @Test func popoverChartSumsEveryAccount() throws {
-        var minutes = TokenLog.Minutes()
-        minutes.byAccount["claudeAgent_work"] = [minuteNow: 4000, minuteNow - 1: 20000]
-        minutes.byAccount["claudeAgent"] = [minuteNow: 1000, minuteNow - 2: 3000]
-        minutes.byAccount["codex"] = [minuteNow - 1: 500]
+        var minutes: [String: [Int: Double]] = [:]
+        minutes["claudeAgent_work"] = [minuteNow: 4000, minuteNow - 1: 20000]
+        minutes["claudeAgent"] = [minuteNow: 1000, minuteNow - 2: 3000]
+        minutes["codex"] = [minuteNow - 1: 500]
         var st = try status()
         st.totalThreshold15m = 900_000
         let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
@@ -174,13 +175,13 @@ struct LiveDataTests {
     }
 
     @Test func urgentOnASpikeMinute() throws {
-        var minutes = TokenLog.Minutes()
-        minutes.byAccount["claudeAgent"] = [minuteNow - 1: 425_706 / 15 + 1]
+        var minutes: [String: [Int: Double]] = [:]
+        minutes["claudeAgent"] = [minuteNow - 1: 425_706 / 15 + 1]
         let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.activeID == "claudeAgent")
         #expect(s.isUrgent)
         // an older spike does not count
-        minutes.byAccount["claudeAgent"] = [minuteNow - 2: 1_000_000]
+        minutes["claudeAgent"] = [minuteNow - 2: 1_000_000]
         #expect(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts)?.isUrgent == false)
     }
 
@@ -236,9 +237,9 @@ struct LiveDataTests {
     /// finished turns: on 30/10 13:44 the database had work ahead while team burned 5 times more.
     @Test func activeAccountIsTheOneTheMinutesShowBurning() throws {
         let st = try status { $0.accounts["claudeAgent"]?.tokensFresh?["15m"] = 1 }
-        var minutes = TokenLog.Minutes()
-        minutes.byAccount["claudeAgent"] = [minuteNow - 3: 500_000]
-        minutes.byAccount["claudeAgent_work"] = [minuteNow - 3: 100_000]
+        var minutes: [String: [Int: Double]] = [:]
+        minutes["claudeAgent"] = [minuteNow - 3: 500_000]
+        minutes["claudeAgent_work"] = [minuteNow - 3: 100_000]
         let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.activeID == "claudeAgent")
     }
@@ -390,79 +391,14 @@ struct TokenLogTests {
         return path
     }
 
-    @Test func groupsNewTokensByMinuteAndAccount() throws {
-        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
-        let path = try makeDatabase([
-            ("claudeAgent_work", "a", "2026-10-29T14:25:10.000Z", 1000, 200, 50), // 850
-            ("claudeAgent_work", "a", "2026-10-29T14:25:40.000Z", 100, 0, 50),    // 150
-            ("claudeAgent_work", "b", "2026-10-29T14:24:00.000Z", 5000, 0, 0),
-            ("claudeAgent", "c", "2026-10-29T14:22:00.000Z", 300, 0, 0),
-            ("claudeAgent", "c", "2026-10-29T13:20:00.000Z", 9999, 0, 0),         // over an hour ago
-        ])
-        let m = try TokenLog(path: path).read(now: now)
-        let minute = Int(now.timeIntervalSince1970) / 60
-        #expect(m.byAccount["claudeAgent_work"] == [minute: 1000, minute - 1: 5000])
-        #expect(m.byAccount["claudeAgent"] == [minute - 3: 300])
-    }
-
-    @Test func spreadsAFinishedTurnOverTheMinutesItRan() throws {
-        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
-        let minute = Int(now.timeIntervalSince1970) / 60
-        // 3000 tokens over 14:22:30 → 14:25:30: half a minute, two whole minutes, half a minute
-        let path = try makeDatabase([("claudeAgent_work", "a", "2026-10-29T14:25:30.000Z", 3000, 0, 0)],
-                                    started: [0: "2026-10-29T14:22:30.000Z"])
-        let m = try TokenLog(path: path).read(now: now)
-        #expect(m.byAccount["claudeAgent_work"] == [minute - 3: 500, minute - 2: 1000, minute - 1: 1000, minute: 500])
-    }
-
-    @Test func spreadKeepsTheTotal() {
-        let parts = TokenLog.spread(7000, from: 100, to: 1000)
-        #expect(abs(parts.values.reduce(0, +) - 7000) < 1e-6)
-        #expect(parts.keys.sorted() == Array(1...16))
-        #expect(TokenLog.spread(500, from: 120, to: 120) == [2: 500])
-        #expect(TokenLog.spread(0, from: 0, to: 600).isEmpty)
-    }
-
-    @Test func countsARunningTurnBetweenReadings() throws {
-        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
-        let minute = Int(now.timeIntervalSince1970) / 60
-        func usage(_ input: Int, _ cached: Int, _ output: Int, _ at: String) -> String {
-            #"{"tokenUsage":{"inputTokens":\#(input),"cachedInputTokens":\#(cached),"outputTokens":\#(output),"updatedAt":"\#(at)"}}"#
-        }
-        let running = RunningTurns()
-        // first reading: only the last call is known, 1000 new input + 200 output
-        let first = try makeDatabase([], running: [("claudeAgent_work", "2026-10-29T14:20:00.000Z", usage(150_000, 149_000, 200, "2026-10-29T14:24:10.000Z"))])
-        #expect(try TokenLog(path: first).read(now: now, running: running).byAccount["claudeAgent_work"] == [minute - 1: 1200])
-        // later: the context grew by 30000 over several calls, so they all count
-        let second = try makeDatabase([], running: [("claudeAgent_work", "2026-10-29T14:20:00.000Z", usage(180_000, 179_500, 300, "2026-10-29T14:25:20.000Z"))])
-        #expect(try TokenLog(path: second).read(now: now, running: running).byAccount["claudeAgent_work"] == [minute - 1: 1200, minute: 30300])
-        // the same reading again adds nothing
-        #expect(try TokenLog(path: second).read(now: now, running: running).byAccount["claudeAgent_work"] == [minute - 1: 1200, minute: 30300])
-        // a finished turn leaves the running set: its total comes from the finished query instead
-        let done = try makeDatabase([])
-        #expect(try TokenLog(path: done).read(now: now, running: running).byAccount["claudeAgent_work"] == nil)
-    }
-
-    @Test func recentThreadsAndSessionThreads() throws {
-        let now = ISO8601DateFormatter().date(from: "2026-10-29T14:25:51Z")!
-        let path = try makeDatabase([
-            ("codex", "a", "2026-10-29T14:25:10.000Z", 1000, 200, 50),        // 850
-            ("codex", "a", "2026-10-29T14:20:00.000Z", 150, 0, 0),            // 150
-            ("claudeAgent", "c", "2026-10-29T14:22:00.000Z", 300, 0, 0),
-            ("claudeAgent", "c", "2026-10-29T14:05:00.000Z", 9999, 0, 0),     // over 15 min ago
-        ])
-        let log = TokenLog(path: path)
-        let m = try log.read(now: now)
-        #expect(m.recentThreads == [
-            .init(account: "codex", thread: .init(id: "a", title: "Thread a", project: "garden-notes"), tokens: 1000),
-            .init(account: "claudeAgent", thread: .init(id: "c", title: "Thread c", project: nil), tokens: 300),
-        ])
-        let threads = try log.threads(sessions: ["session-c", "session-x", "it's"])
+    @Test func sessionThreads() throws {
+        let path = try makeDatabase([("claudeAgent", "c", "2026-10-29T14:22:00.000Z", 300, 0, 0)])
+        let threads = try TokenLog(path: path).threads(sessions: ["session-c", "session-x", "it's"])
         #expect(threads == ["session-c": .init(id: "c", title: "Thread c", project: nil)])
     }
 
     @Test func missingDatabaseThrows() {
-        #expect(throws: TokenLog.Failure.self) { try TokenLog(path: "/nonexistent/statev2.sqlite").read(now: Date()) }
+        #expect(throws: TokenLog.Failure.self) { try TokenLog(path: "/nonexistent/statev2.sqlite").threads(sessions: ["s"]) }
     }
 }
 
@@ -617,26 +553,20 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent", id: "s3", cwd: nil, tokens: 10, mainActive: true, activeSubagents: 0), // under 1/min
             .init(account: "claudeAgent", id: "s4", cwd: "/r/atlas", tokens: 15_000, mainActive: false, activeSubagents: 2),
         ]
-        let recent: [TokenLog.RecentThread] = [
-            .init(account: "codex", thread: .init(id: "t9", title: "Fix CI", project: nil), tokens: 30_000),
-            .init(account: "claudeAgent_work", thread: thread, tokens: 999_999), // has transcripts: counted from them
-        ]
-        let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], recent: recent,
-                                    transcriptAccounts: ["claudeAgent_work", "claudeAgent_team", "claudeAgent"], accounts: testAccounts)
+        let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], accounts: testAccounts)
         #expect(out == [
             .init(id: "t1", threadID: "t1", project: "cooked", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
             .init(id: "s2", project: "t3 scratch", detail: "Claude Code session", account: "team", rate: 4000, agents: nil),
-            .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI", account: "codex", rate: 2000, agents: nil),
             .init(id: "s4", project: "atlas", detail: "Claude Code session", account: "personal", rate: 1000, agents: "2 sub"),
         ])
-        #expect(TokenSources.make(sessions: [], threads: [:], recent: [], transcriptAccounts: [], accounts: testAccounts).isEmpty)
+        #expect(TokenSources.make(sessions: [], threads: [:], accounts: testAccounts).isEmpty)
     }
 
     /// The card shows 3 and "N more"; the list behind it stops at 8 (2026-10-30-sources-expand).
     @Test func keepsUpToEightSources() {
         let sessions = (1...10).map { TranscriptLog.Session(account: "claudeAgent", id: "s\($0)", cwd: nil, tokens: Double($0) * 1500,
                                                             mainActive: true, activeSubagents: 0) }
-        let out = TokenSources.make(sessions: sessions, threads: [:], recent: [], transcriptAccounts: [], accounts: testAccounts)
+        let out = TokenSources.make(sessions: sessions, threads: [:], accounts: testAccounts)
         #expect(out.map(\.id) == ["s10", "s9", "s8", "s7", "s6", "s5", "s4", "s3"])
     }
 
@@ -645,7 +575,7 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent_work", id: "a", cwd: nil, tokens: 15_000, mainActive: false, activeSubagents: 0),
             .init(account: "claudeAgent_work", id: "b", cwd: nil, tokens: 30_000, mainActive: true, activeSubagents: 0),
         ]
-        let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], recent: [], transcriptAccounts: [], accounts: testAccounts)
+        let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], accounts: testAccounts)
         #expect(out.map(\.rate) == [3000])
         #expect(out.first?.agents == "1 agent")
     }

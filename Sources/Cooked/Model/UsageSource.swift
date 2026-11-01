@@ -1,17 +1,19 @@
 import Foundation
 
-/// Where the live island reads from: T3 Code's provider logs (the limits), its database and the Claude transcripts.
+/// Where the live island reads from: the session files of the connected accounts (tokens per minute, sessions and the
+/// Codex percent), the status line bridge files (the Claude percent) and the minute cache (the alert thresholds).
+/// T3 Code adds thread titles when its database exists; until the bridge is connected, its logs give the Claude percent.
 struct UsageSource: Sendable {
-    /// The limits; keeps its read positions and samples across readings.
+    /// The percents; keeps their samples across readings.
     var limits = LimitLog()
-    var databasePath = TokenLog.defaultPath
-    /// Adds up the calls of running turns across readings.
-    let running = RunningTurns()
+    var bridgeDir = StatusLineBridge.defaultDir
+    /// T3 Code's database: thread titles only. No number depends on it.
+    var t3Database = TokenLog.defaultPath
     /// The connected accounts, in display order, with their names.
     var accounts: [ConnectedAccount]
-    /// The Claude accounts' minutes; nil reads only the database.
+    /// The Claude accounts' minutes and sessions.
     var transcripts: TranscriptLog?
-    /// The Codex account's minutes and sessions; nil reads them from the database.
+    /// The Codex account's minutes, sessions and percent.
     var codex: CodexLog?
 
     /// The minute cache both readers fill.
@@ -34,31 +36,28 @@ struct UsageSource: Sendable {
 
     enum Problem: Error, Equatable {
         case noAccounts
-        var message: String { "No limits in T3 Code's logs yet" }
+        var message: String { "No 5-hour percent from any account yet" }
     }
 
     func read(now: Date = Date()) -> Result<Reading, Problem> {
-        // Without the database the island still has the percentages; only the histogram stays empty.
-        let log = TokenLog(path: databasePath)
-        let status = limits.read(now: now, database: log)
-        var minutes = (try? log.read(now: now, minutes: LiveSnapshot.historyMinutes, running: running)) ?? TokenLog.Minutes()
-        // The transcripts have every call of the Claude accounts, subagents included: they replace the database there.
         ledger.begin()
         var calls = transcripts?.read(now: now, minutes: LiveSnapshot.historyMinutes) ?? TranscriptLog.Reading()
-        // The rollouts have every Codex call, from the CLI and the Codex app too: they replace the database there.
+        var samples = StatusLineBridge.samples(dir: bridgeDir)
         if let codex, FileManager.default.fileExists(atPath: codex.home + "/sessions") {
             let rollouts = codex.read(now: now, minutes: LiveSnapshot.historyMinutes)
             calls.minutes[codex.id] = rollouts.minutes
             calls.sessions += rollouts.sessions
+            if let sample = rollouts.limits?.sample { samples[codex.id] = sample }
         }
         ledger.end(now: now)
-        for (id, perMinute) in calls.minutes { minutes.byAccount[id] = perMinute }
-        let sources = TokenSources.make(
-            sessions: calls.sessions, threads: (try? log.threads(sessions: calls.sessions.map(\.id))) ?? [:],
-            recent: minutes.recentThreads, transcriptAccounts: Set(calls.minutes.keys), accounts: accounts)
-        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now, sources: sources, accounts: accounts) else {
+        let history = ledger.historyProgress
+        let database = FileManager.default.fileExists(atPath: t3Database) ? TokenLog(path: t3Database) : nil
+        let status = limits.read(now: now, samples: samples, buckets: ledger.buckets15, fresh: history != nil, database: database)
+        let sources = TokenSources.make(sessions: calls.sessions,
+                                        threads: (try? database?.threads(sessions: calls.sessions.map(\.id))) ?? [:], accounts: accounts)
+        guard let snapshot = LiveSnapshot.make(status: status, minutes: calls.minutes, now: now, sources: sources, accounts: accounts) else {
             return .failure(.noAccounts)
         }
-        return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60, history: ledger.historyProgress))
+        return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60, history: history))
     }
 }

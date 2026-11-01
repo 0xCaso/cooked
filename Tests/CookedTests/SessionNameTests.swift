@@ -74,7 +74,7 @@ struct SessionNameTests {
     @Test func sourceRowsShowTheSessionName() {
         let session = TranscriptLog.Session(account: "claudeAgent", id: "s", cwd: "/r/demo", tokens: 15_000,
                                             mainActive: true, activeSubagents: 0, name: "Docs pass")
-        let out = TokenSources.make(sessions: [session], threads: [:], recent: [], transcriptAccounts: [])
+        let out = TokenSources.make(sessions: [session], threads: [:])
         #expect(out.first?.detail == "Docs pass")
         #expect(out.first?.project == "demo")
     }

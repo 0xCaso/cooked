@@ -1,16 +1,19 @@
 import Foundation
 
-/// The accounts' limits, read from the rate-limit events T3 Code logs for every provider call
-/// (`~/.t3/userdata/logs/provider/events.<thread>.log`), read-only. Takes over from the watcher script
-///: the same fields its status.json had, built in the app.
-/// Keeps each file's read position, so a reading only parses the lines added since the last one.
+/// The accounts' 5 h and week percent, and the paces and alert thresholds built from them, in the form the watcher
+/// script's status.json had. The samples come from:
+/// - Claude: the status line bridge files (`StatusLineBridge`); until an account has one, T3 Code's provider logs
+///   (`~/.t3/userdata/logs/provider/events.<thread>.log`, read-only). The logs go away with the bridge (task 7).
+/// - Codex: the `rate_limits` of its rollouts (`CodexLog`).
+/// The alert thresholds are the p99 of the 15-minute buckets in the minute cache.
+/// Keeps each log file's read position and the samples of the last hour across readings.
 final class LimitLog: @unchecked Sendable {
-    let dir: String
+    /// T3 Code's provider logs; nil reads none.
+    let dir: String?
 
     static let defaultDir = NSHomeDirectory() + "/.t3/userdata/logs/provider"
-    static let claude = ["claudeAgent", "claudeAgent_work", "claudeAgent_team", "claudeAgent_side"]
-    static let fallbackThreshold15m = ["claudeAgent": 500_000, "claudeAgent_work": 600_000, "claudeAgent_team": 600_000,
-                                       "claudeAgent_side": 500_000, "codex": 350_000]
+    static let claudeFallback15m = 500_000
+    static let codexFallback15m = 350_000
     /// Files not written for this long hold no new events.
     static let fileMaxAge: TimeInterval = 6 * 3600
     /// A file seen for the first time is read from this far before its end.
@@ -26,7 +29,7 @@ final class LimitLog: @unchecked Sendable {
     static let coverage = 0.75
     /// An account needs this many 15-min buckets of history for its own p99.
     static let minimumBuckets = 30
-    static let thresholdsMaxAge: TimeInterval = 86400
+    static let thresholdsMaxAge: TimeInterval = 3600
 
     struct Sample: Equatable {
         /// Unix seconds.
@@ -39,20 +42,53 @@ final class LimitLog: @unchecked Sendable {
         let status: String
     }
 
+    /// 15-minute buckets of new tokens: each account's, and every account summed.
+    struct Buckets: Equatable {
+        var byAccount: [String: [Double]] = [:]
+        var total: [Double] = []
+    }
+
     private struct File { var offset: UInt64 }
 
     private let lock = NSLock()
     private var files: [String: File] = [:]
+    /// From the bridge and the rollouts.
     private var samples: [String: [Sample]] = [:]
+    /// From T3 Code's logs, used for a Claude account with no samples above.
+    private var logged: [String: [Sample]] = [:]
     private var thresholds: (at: Double, values: [String: Int], total: Int)?
 
-    init(dir: String = LimitLog.defaultDir) { self.dir = dir }
+    init(dir: String? = LimitLog.defaultDir) { self.dir = dir }
 
-    /// Reads the new events and builds every account's limits. `database` gives the account of a thread whose
-    /// events do not name it, and the 15-min buckets of the alert thresholds.
-    func read(now: Date, database: TokenLog?, calendar: Calendar = .current) -> StatusFile {
+    /// Adds this reading's samples, reads the new log events and builds every account's limits. `buckets` is called
+    /// when the thresholds are due (hourly, or every reading while `fresh`: the cache is still filling). `database`
+    /// gives the account of a T3 Code thread whose events do not name it.
+    func read(now: Date, samples new: [String: Sample] = [:], buckets: () -> Buckets = { Buckets() }, fresh: Bool = false,
+              database: TokenLog? = nil, calendar: Calendar = .current) -> StatusFile {
         lock.lock()
         defer { lock.unlock() }
+        for (id, sample) in new { samples[id, default: []].append(sample) }
+        if let dir { readLogs(dir, now: now, database: database) }
+        samples = samples.mapValues(Self.prune)
+        logged = logged.mapValues(Self.prune)
+
+        let t = now.timeIntervalSince1970
+        var all = logged.filter { Self.isClaude($0.key) }
+        for (id, s) in samples where !s.isEmpty { all[id] = s }
+        if fresh || thresholds.map({ t - $0.at >= Self.thresholdsMaxAge }) ?? true {
+            let b = buckets()
+            let values = Self.thresholds(buckets: b.byAccount, ids: Set(all.keys))
+            thresholds = (t, values, Self.totalThreshold(buckets: b.total, fallback: values.values.max() ?? Self.claudeFallback15m))
+        }
+        var accounts: [String: StatusFile.Entry] = [:]
+        for (id, s) in all where !s.isEmpty {
+            accounts[id] = Self.entry(id: id, samples: s, threshold: thresholds?.values[id], now: now, calendar: calendar)
+        }
+        return StatusFile(updatedAt: ISO8601DateFormatter().string(from: now), accounts: accounts,
+                          totalThreshold15m: thresholds?.total)
+    }
+
+    private func readLogs(_ dir: String, now: Date, database: TokenLog?) {
         var threadAccounts: [String: String]?
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
         var seen = Set<String>()
@@ -68,27 +104,14 @@ final class LimitLog: @unchecked Sendable {
                     if threadAccounts == nil { threadAccounts = (try? database?.threadAccounts()) ?? [:] }
                     return threadAccounts?[thread]
                 }()
-                if let id { samples[id, default: []].append(sample) }
+                if let id { logged[id, default: []].append(sample) }
             }
             files[path] = file
         }
         files = files.filter { seen.contains($0.key) }
-        samples = samples.mapValues(Self.prune)
-
-        let t = now.timeIntervalSince1970
-        if thresholds.map({ t - $0.at >= Self.thresholdsMaxAge }) ?? true {
-            let buckets = (try? database?.buckets15(since: now.addingTimeInterval(-14 * 86400))) ?? [:]
-            let values = Self.thresholds(buckets: buckets)
-            let total = (try? database?.totalBuckets15(since: now.addingTimeInterval(-14 * 86400))) ?? []
-            thresholds = (t, values, Self.totalThreshold(buckets: total, fallback: values.values.max() ?? 500_000))
-        }
-        var accounts: [String: StatusFile.Entry] = [:]
-        for (id, s) in samples where !s.isEmpty {
-            accounts[id] = Self.entry(id: id, samples: s, threshold: thresholds?.values[id], now: now, calendar: calendar)
-        }
-        return StatusFile(updatedAt: ISO8601DateFormatter().string(from: now), accounts: accounts,
-                          totalThreshold15m: thresholds?.total)
     }
+
+    static func isClaude(_ id: String) -> Bool { id.hasPrefix("claudeAgent") }
 
     /// Sorted, one per time, only the current 5 h window (the last sample's reset), the last hour before the last one.
     static func prune(_ s: [Sample]) -> [Sample] {
@@ -105,7 +128,7 @@ final class LimitLog: @unchecked Sendable {
         let reset = last.fiveReset
         let stale = reset.map { $0 <= t } ?? false
         var entry = StatusFile.Entry(
-            name: id, tokensFresh: nil, spikeThreshold15m: threshold ?? fallbackThreshold15m[id],
+            name: id, tokensFresh: nil, spikeThreshold15m: threshold ?? (isClaude(id) ? claudeFallback15m : codexFallback15m),
             fiveHourPct: Int((last.five * 100).rounded()), fiveHourResetsAt: reset.map { clock($0, now, calendar) },
             sevenDayPct: Int((last.week * 100).rounded()), sevenDayResetsAt: last.weekReset.map { clock($0, now, calendar) },
             limitStatus: last.status, lastEventAt: clock(last.at, now, calendar), live: live, projection: nil,
@@ -143,14 +166,15 @@ final class LimitLog: @unchecked Sendable {
     }
 
     /// p99 of each account's 15-min buckets. An account with little history takes the largest p99 of the other Claude
-    /// accounts (the same person's pace), else the fixed fallback: team sat at the fallback 600k on 30/10.
-    static func thresholds(buckets: [String: [Double]]) -> [String: Int] {
+    /// accounts (the same person's pace), else a fixed fallback: team sat at the fallback on 30/10.
+    static func thresholds(buckets: [String: [Double]], ids: Set<String> = []) -> [String: Int] {
         var own: [String: Int] = [:]
         for (id, values) in buckets { own[id] = p99(values) }
+        let claude = Set(buckets.keys).union(ids).filter(isClaude)
         var out: [String: Int] = [:]
-        for id in Set(fallbackThreshold15m.keys).union(buckets.keys) {
-            let others = claude.contains(id) ? claude.filter { $0 != id }.compactMap { own[$0] }.max() : nil
-            out[id] = own[id] ?? others ?? fallbackThreshold15m[id] ?? 500_000
+        for id in Set(buckets.keys).union(ids) {
+            let others = isClaude(id) ? claude.filter { $0 != id }.compactMap { own[$0] }.max() : nil
+            out[id] = own[id] ?? others ?? (isClaude(id) ? claudeFallback15m : codexFallback15m)
         }
         return out
     }

@@ -1,19 +1,12 @@
 import Foundation
 import SQLite3
 
-/// New tokens per minute and account, read from T3 Code's own database, read-only.
-/// "New" counts the way the watcher does: input − cached input + output, per completed turn.
+/// T3 Code's own database, read-only: the T3 Code extra. It names the sessions T3 Code started by their thread, and
+/// gives the account of a thread for T3 Code's limit logs. No number of the island comes from it.
 struct TokenLog {
     let path: String
 
     static let defaultPath = NSHomeDirectory() + "/.t3/userdata/statev2.sqlite"
-
-    struct Minutes: Equatable {
-        /// Account id → minute (Unix seconds / 60) → new tokens.
-        var byAccount: [String: [Int: Double]] = [:]
-        /// Threads with turns finished in the last 15 minutes, for the accounts without transcripts (Codex).
-        var recentThreads: [RecentThread] = []
-    }
 
     /// A T3 Code thread and its project, as the app names them.
     struct Thread: Equatable {
@@ -21,12 +14,6 @@ struct TokenLog {
         let title: String
         /// The project's title; nil for "No project" (T3's scratch folder).
         let project: String?
-    }
-
-    struct RecentThread: Equatable {
-        let account: String
-        let thread: Thread
-        let tokens: Double
     }
 
     private static let threadColumns = """
@@ -70,36 +57,6 @@ struct TokenLog {
         return out
     }
 
-    /// Account id → new tokens of each 15-minute bucket with finished turns since `since`: the alert thresholds' history.
-    func buckets15(since: Date) throws -> [String: [Double]] {
-        let db = try open()
-        defer { sqlite3_close(db) }
-        let sql = """
-            SELECT COALESCE(pth.provider_instance_id, pth.provider),
-              CAST(strftime('%s', pt.completed_at) AS INTEGER) / 900, SUM(\(Self.fresh))
-            \(Self.from) WHERE pt.completed_at >= ? GROUP BY 1, 2
-            """
-        var out: [String: [Double]] = [:]
-        try query(db, sql, since: since.timeIntervalSince1970) { row in
-            if let id = row.text(0) { out[id, default: []].append(Double(row.int(2))) }
-        }
-        return out
-    }
-
-    /// New tokens of each 15-minute bucket with finished turns since `since`, every account together: the popover's
-    /// summed alert threshold.
-    func totalBuckets15(since: Date) throws -> [Double] {
-        let db = try open()
-        defer { sqlite3_close(db) }
-        let sql = """
-            SELECT CAST(strftime('%s', pt.completed_at) AS INTEGER) / 900, SUM(\(Self.fresh))
-            \(Self.from) WHERE pt.completed_at >= ? GROUP BY 1
-            """
-        var out: [Double] = []
-        try query(db, sql, since: since.timeIntervalSince1970) { row in out.append(Double(row.int(1))) }
-        return out
-    }
-
     private func open() throws -> OpaquePointer? {
         var db: OpaquePointer?
         guard sqlite3_open_v2("file:\(path)?mode=ro", &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
@@ -110,89 +67,7 @@ struct TokenLog {
         return db
     }
 
-    private static let fresh = """
-        COALESCE(json_extract(pt.payload_json,'$.turnTokenUsage.inputTokens'),0)
-        - COALESCE(json_extract(pt.payload_json,'$.turnTokenUsage.cachedInputTokens'),0)
-        + COALESCE(json_extract(pt.payload_json,'$.turnTokenUsage.outputTokens'),0)
-        """
-    private static let from = """
-        FROM orchestration_v2_projection_provider_turns pt
-        LEFT JOIN orchestration_v2_projection_provider_threads pth USING(provider_thread_id)
-        """
-
-    /// The last `minutes` minutes up to `now`. Throws when the database cannot be opened.
-    /// A finished turn's tokens are spread evenly over the minutes it ran, because T3 Code only writes them when
-    /// the turn ends. Turns still running come from `running`, which adds up their calls between readings.
-    func read(now: Date, minutes: Int = 60, running: RunningTurns? = nil) throws -> Minutes {
-        let db = try open()
-        defer { sqlite3_close(db) }
-
-        let minuteNow = Int(now.timeIntervalSince1970) / 60
-        let windowStart = Double((minuteNow - minutes + 1) * 60)
-        var out = Minutes()
-        let finished = """
-            SELECT COALESCE(pth.provider_instance_id, pth.provider),
-              CAST(strftime('%s', COALESCE(pt.started_at, pt.completed_at)) AS INTEGER),
-              CAST(strftime('%s', pt.completed_at) AS INTEGER), \(Self.fresh)
-            \(Self.from) WHERE pt.completed_at >= ?
-            """
-        try query(db, finished, since: windowStart) { row in
-            guard let id = row.text(0) else { return }
-            for (minute, tokens) in Self.spread(Double(row.int(3)), from: Double(row.int(1)), to: Double(row.int(2)))
-            where minute >= minuteNow - minutes + 1 && minute <= minuteNow {
-                out.byAccount[id, default: [:]][minute, default: 0] += tokens
-            }
-        }
-        if let running {
-            var samples: [RunningTurns.Sample] = []
-            let live = """
-                SELECT pt.provider_turn_id, COALESCE(pth.provider_instance_id, pth.provider),
-                  COALESCE(json_extract(pt.payload_json,'$.tokenUsage.inputTokens'),0),
-                  COALESCE(json_extract(pt.payload_json,'$.tokenUsage.cachedInputTokens'),0),
-                  COALESCE(json_extract(pt.payload_json,'$.tokenUsage.outputTokens'),0),
-                  json_extract(pt.payload_json,'$.tokenUsage.updatedAt')
-                \(Self.from) WHERE pt.completed_at IS NULL AND pt.started_at >= ?
-                """
-            try query(db, live, since: now.timeIntervalSince1970 - 6 * 3600) { row in
-                guard let turn = row.text(0), let id = row.text(1), let stamp = row.text(5),
-                      let at = Self.iso.date(from: stamp) else { return }
-                samples.append(.init(turn: turn, account: id, input: Double(row.int(2)), cached: Double(row.int(3)),
-                                     output: Double(row.int(4)), at: at))
-            }
-            for (id, perMinute) in running.record(samples) {
-                for (minute, tokens) in perMinute where minute >= minuteNow - minutes + 1 && minute <= minuteNow {
-                    out.byAccount[id, default: [:]][minute, default: 0] += tokens
-                }
-            }
-        }
-        let recent = """
-            SELECT COALESCE(pth.provider_instance_id, pth.provider), \(Self.threadColumns), SUM(\(Self.fresh)) AS n
-            \(Self.from) \(Self.threadJoin(on: "pt.thread_id"))
-            WHERE pt.completed_at >= ? AND t.thread_id IS NOT NULL GROUP BY 1, t.thread_id HAVING n > 0 ORDER BY n DESC
-            """
-        try query(db, recent, since: now.timeIntervalSince1970 - 900) { row in
-            guard let account = row.text(0), let id = row.text(1), let title = row.text(2) else { return }
-            out.recentThreads.append(RecentThread(account: account, thread: Thread(id: id, title: title, project: row.text(3)),
-                                                  tokens: Double(row.int(4))))
-        }
-        return out
-    }
-
     enum Failure: Error { case open(String), query(String) }
-
-    /// `tokens` spread evenly over the seconds from `start` to `end`, per minute (Unix seconds / 60).
-    static func spread(_ tokens: Double, from start: Double, to end: Double) -> [Int: Double] {
-        guard tokens > 0 else { return [:] }
-        guard end > start else { return [Int(end) / 60: tokens] }
-        var out: [Int: Double] = [:]
-        var t = start
-        while t < end {
-            let next = min(end, (t / 60).rounded(.down) * 60 + 60)
-            out[Int(t) / 60, default: 0] += tokens * (next - t) / (end - start)
-            t = next
-        }
-        return out
-    }
 
     private struct Row {
         let stmt: OpaquePointer

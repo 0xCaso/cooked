@@ -24,21 +24,15 @@ enum TokenSources {
     /// Lines under this many tokens per minute are left out: a source of 0/min says nothing.
     static let minimumRate: Double = 1
 
-    /// The top sources: Claude sessions from their transcripts, and the database's threads for the other accounts.
+    /// The top sources: the sessions of the session files, named by their T3 Code thread when they have one.
     static func make(sessions: [TranscriptLog.Session], threads: [String: TokenLog.Thread],
-                     recent: [TokenLog.RecentThread], transcriptAccounts: Set<String>,
                      accounts: [ConnectedAccount] = []) -> [TokenSource] {
         func short(_ id: String) -> String { LiveSnapshot.short(id: id, accounts: accounts) }
-        var out = sessions.map { s in
+        let out = sessions.map { s in
             let thread = threads[s.id]
             return TokenSource(id: thread?.id ?? s.id, threadID: thread?.id, project: thread.map(project) ?? project(cwd: s.cwd),
                                detail: thread?.title ?? s.name ?? (s.account == Accounts.codexID ? "Codex session" : "Claude Code session"), account: short(s.account),
                                rate: s.tokens / window, agents: agents(main: s.mainActive, subagents: s.activeSubagents))
-        }
-        out += recent.filter { !transcriptAccounts.contains($0.account) }.map { r in
-            // finished turns only: the database has no running count, so one agent per thread
-            TokenSource(id: r.thread.id, threadID: r.thread.id, project: project(r.thread), detail: r.thread.title, account: short(r.account),
-                        rate: r.tokens / window, agents: nil)
         }
         // one T3 thread can hold several sessions (a resumed or handed-off conversation): one line
         var merged: [String: TokenSource] = [:]

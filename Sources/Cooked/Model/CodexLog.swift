@@ -22,6 +22,14 @@ final class CodexLog: @unchecked Sendable {
         var week: Window?
         /// When Codex wrote them.
         let at: Date
+
+        /// As a limit sample; nil without a 5 h window (a free plan).
+        var sample: LimitLog.Sample? {
+            guard let fiveHour else { return nil }
+            return .init(at: at.timeIntervalSince1970, five: fiveHour.usedPercent / 100,
+                         fiveReset: fiveHour.resetsAt?.timeIntervalSince1970, week: (week?.usedPercent ?? 0) / 100,
+                         weekReset: week?.resetsAt?.timeIntervalSince1970, status: fiveHour.usedPercent >= 100 ? "rejected" : "allowed")
+        }
     }
 
     struct Reading {
@@ -105,11 +113,22 @@ final class CodexLog: @unchecked Sendable {
                                       name: threadName(sid) ?? head.prompt))
             }
         }
+        // after a restart the files continue from their marks: the newest rollout's last limits
+        if limits == nil, let newest = urls.max(by: { $0.modified < $1.modified }) { limits = Self.lastLimits(of: newest.url) }
         heads = heads.filter { seen.contains($0.key) }
         out.minutes = ledger.minutes(id, from: minuteNow - minutes + 1, to: minuteNow)
         out.sessions = sessions.sorted { ($0.tokens, $0.id) > ($1.tokens, $1.id) }
         out.limits = limits
         return out
+    }
+
+    /// The newest limits in the last 256 KB of a rollout.
+    static func lastLimits(of url: URL) -> Limits? {
+        guard let handle = try? FileHandle(forReadingFrom: url), let end = try? handle.seekToEnd() else { return nil }
+        defer { try? handle.close() }
+        let from = end > 256 * 1024 ? end - 256 * 1024 : 0
+        guard (try? handle.seek(toOffset: from)) != nil, let data = try? handle.readToEnd() else { return nil }
+        return data.split(separator: UInt8(ascii: "\n")).reversed().lazy.compactMap { parse(Data($0))?.limits }.first
     }
 
     /// A repeated event has the same totals.
