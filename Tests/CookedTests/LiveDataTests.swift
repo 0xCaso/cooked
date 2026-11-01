@@ -45,6 +45,7 @@ func source(_ dir: String) -> UsageSource {
     s.limits = LimitLog(dir: dir)
     s.databasePath = "/nonexistent"
     s.transcripts = nil
+    s.codex = nil
     return s
 }
 

@@ -11,10 +11,13 @@ struct UsageSource: Sendable {
     var accounts: [ConnectedAccount]
     /// The Claude accounts' minutes; nil reads only the database.
     var transcripts: TranscriptLog?
+    /// The Codex account's minutes and sessions; nil reads them from the database.
+    var codex: CodexLog?
 
     init(accounts: [ConnectedAccount] = AccountStore.current()) {
         self.accounts = accounts
         transcripts = TranscriptLog(accounts: accounts)
+        codex = CodexLog(accounts: accounts)
     }
 
     struct Reading: Equatable {
@@ -34,7 +37,13 @@ struct UsageSource: Sendable {
         let status = limits.read(now: now, database: log)
         var minutes = (try? log.read(now: now, minutes: LiveSnapshot.historyMinutes, running: running)) ?? TokenLog.Minutes()
         // The transcripts have every call of the Claude accounts, subagents included: they replace the database there.
-        let calls = transcripts?.read(now: now, minutes: LiveSnapshot.historyMinutes) ?? TranscriptLog.Reading()
+        var calls = transcripts?.read(now: now, minutes: LiveSnapshot.historyMinutes) ?? TranscriptLog.Reading()
+        // The rollouts have every Codex call, from the CLI and the Codex app too: they replace the database there.
+        if let codex, FileManager.default.fileExists(atPath: codex.home + "/sessions") {
+            let rollouts = codex.read(now: now, minutes: LiveSnapshot.historyMinutes)
+            calls.minutes[codex.id] = rollouts.minutes
+            calls.sessions += rollouts.sessions
+        }
         for (id, perMinute) in calls.minutes { minutes.byAccount[id] = perMinute }
         let sources = TokenSources.make(
             sessions: calls.sessions, threads: (try? log.threads(sessions: calls.sessions.map(\.id))) ?? [:],
