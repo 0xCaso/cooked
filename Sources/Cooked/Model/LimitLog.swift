@@ -8,9 +8,6 @@ final class LimitLog: @unchecked Sendable {
     let dir: String
 
     static let defaultDir = NSHomeDirectory() + "/.t3/userdata/logs/provider"
-    static let names = ["claudeAgent": "Personal Claude", "claudeAgent_work": "claude-work",
-                        "claudeAgent_side": "claude-side", "claudeAgent_team": "claude-work-team",
-                        "codex": "Codex"]
     static let claude = ["claudeAgent", "claudeAgent_work", "claudeAgent_team", "claudeAgent_side"]
     static let fallbackThreshold15m = ["claudeAgent": 500_000, "claudeAgent_work": 600_000, "claudeAgent_team": 600_000,
                                        "claudeAgent_side": 500_000, "codex": 350_000]
@@ -108,7 +105,7 @@ final class LimitLog: @unchecked Sendable {
         let reset = last.fiveReset
         let stale = reset.map { $0 <= t } ?? false
         var entry = StatusFile.Entry(
-            name: names[id] ?? id, tokensFresh: nil, spikeThreshold15m: threshold ?? fallbackThreshold15m[id],
+            name: id, tokensFresh: nil, spikeThreshold15m: threshold ?? fallbackThreshold15m[id],
             fiveHourPct: Int((last.five * 100).rounded()), fiveHourResetsAt: reset.map { clock($0, now, calendar) },
             sevenDayPct: Int((last.week * 100).rounded()), sevenDayResetsAt: last.weekReset.map { clock($0, now, calendar) },
             limitStatus: last.status, lastEventAt: clock(last.at, now, calendar), live: live, projection: nil,

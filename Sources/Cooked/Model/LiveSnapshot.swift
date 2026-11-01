@@ -2,10 +2,6 @@ import Foundation
 
 /// Builds what the island shows from the accounts' limits (`LimitLog`) and the per-minute tokens.
 enum LiveSnapshot {
-    /// Display order, then any other account in id order.
-    static let order = ["claudeAgent_work", "claudeAgent_team", "claudeAgent", "claudeAgent_side", "codex"]
-    static let shortNames = ["claudeAgent_work": "work", "claudeAgent_team": "team", "claudeAgent": "personal",
-                             "claudeAgent_side": "side", "codex": "codex"]
     /// The watcher's fallback p99 for 15 minutes, when status.json has none.
     static let fallbackThreshold15m = 500_000
     /// The chart keeps a day, for its longest range (`ChartRange.day`).
@@ -19,15 +15,19 @@ enum LiveSnapshot {
     /// An account with no event for this long is hidden from the popover.
     static let unusedAfter: TimeInterval = 5 * 3600
 
-    static func short(id: String, name: String) -> String {
-        shortNames[id] ?? name.lowercased().replacingOccurrences(of: "claude-", with: "")
+    /// The account's name in the store; the id for an account not in it.
+    static func short(id: String, accounts: [ConnectedAccount]) -> String {
+        accounts.first { $0.id == id }?.name ?? id
     }
 
     /// nil when no account has 5h data yet. `sources` name the peak card's thread, the one its button opens.
+    /// `accounts` are the connected ones, in display order: the others are left out. Empty keeps every account, by id.
     static func make(status: StatusFile, minutes: TokenLog.Minutes, now: Date, calendar: Calendar = .current,
-                     sources: [TokenSource] = []) -> UsageSnapshot? {
+                     sources: [TokenSource] = [], accounts: [ConnectedAccount] = []) -> UsageSnapshot? {
+        let connected = accounts
+        let order = connected.map(\.id)
         let ids = status.accounts.keys
-            .filter { status.accounts[$0]?.fiveHourPct != nil }
+            .filter { status.accounts[$0]?.fiveHourPct != nil && (order.isEmpty || order.contains($0)) }
             .sorted { (order.firstIndex(of: $0) ?? 99, $0) < (order.firstIndex(of: $1) ?? 99, $1) }
         guard !ids.isEmpty else { return nil }
         let minuteNow = Int(now.timeIntervalSince1970) / 60
@@ -90,7 +90,7 @@ enum LiveSnapshot {
         }
 
         var accounts = ids.map { id in
-            Account(id: id, short: short(id: id, name: entry(id).name), fiveHourPercent: percent(id),
+            Account(id: id, short: short(id: id, accounts: connected), fiveHourPercent: percent(id),
                     fiveHourReset: stale(id) ? "—" : clockPart(entry(id).fiveHourResetsAt) ?? "—",
                     isLive: entry(id).live ?? false, fullAt: fullAt(id), weekPercent: weekPercent(id),
                     isBlocked: blocked(id), isUnused: unused(id),
@@ -114,7 +114,7 @@ enum LiveSnapshot {
         if let i = accounts.firstIndex(where: { $0.id == activeID }) { accounts[i].isUnused = false }
 
         let urgency = urgentID.map { id -> Urgency in
-            let name = self.short(id: id, name: entry(id).name)
+            let name = self.short(id: id, accounts: connected)
             let reset = clockPart(entry(id).fiveHourResetsAt) ?? "—"
             // Without an ETA the headline says when the window frees up, never "full at —". Short: the card cuts at ~17 characters.
             let (lead, time, when): (String, String, String?) =

@@ -34,6 +34,20 @@ let statusFixture = """
 }
 """
 
+/// The connected accounts of the tests, with the names and order the island had before the account store.
+let testAccounts = [("claudeAgent_work", "work"), ("claudeAgent_team", "team"), ("claudeAgent", "personal"),
+                    ("claudeAgent_side", "side"), ("codex", "codex")]
+    .map { ConnectedAccount(id: $0.0, name: $0.1, path: "/h/" + $0.0) }
+
+/// A source reading only the limit logs in `dir`.
+func source(_ dir: String) -> UsageSource {
+    var s = UsageSource(accounts: testAccounts)
+    s.limits = LimitLog(dir: dir)
+    s.databasePath = "/nonexistent"
+    s.transcripts = nil
+    return s
+}
+
 struct LiveDataTests {
     let calendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -77,7 +91,7 @@ struct LiveDataTests {
     @Test func calmSnapshotFromTheFixture() throws {
         var minutes = TokenLog.Minutes()
         minutes.byAccount["claudeAgent_work"] = [minuteNow: 4189, minuteNow - 1: 27004, minuteNow - 59: 100, minuteNow - 60: 999]
-        let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         // only accounts with 5h data, work first
         #expect(s.accounts.map(\.short) == ["work", "personal"])
         var work = s.accounts[0]
@@ -113,7 +127,7 @@ struct LiveDataTests {
         minutes.byAccount["codex"] = [minuteNow - 1: 500]
         var st = try status()
         st.totalThreshold15m = 900_000
-        let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.activeID == "claudeAgent_work")
         #expect(s.series.last == 5000)
         #expect(s.series[1438] == 20500)
@@ -125,12 +139,12 @@ struct LiveDataTests {
         #expect(s.chartThreshold == 60_000)
         // without a summed p99, the largest account threshold
         st.totalThreshold15m = nil
-        #expect(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar)?.chartThreshold == 617_094 / 15)
+        #expect(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar, accounts: testAccounts)?.chartThreshold == 617_094 / 15)
     }
 
     @Test func urgentWhenFiveHourReachesNinety() throws {
         let st = try status { $0.accounts["claudeAgent"]?.fiveHourPct = 91 }
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         let u = try #require(s.urgency)
         #expect(s.activeID == "claudeAgent")
         #expect(u.percent == 91)
@@ -149,7 +163,7 @@ struct LiveDataTests {
                                    rate: 300_000, agents: nil),
                        TokenSource(id: "w", threadID: "tw", project: "p", detail: "Refactor usage page", account: "work",
                                    rate: 184_000, agents: nil)]
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: sources))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: sources, accounts: testAccounts))
         let u = try #require(s.urgency)
         #expect(u.lead == "full at ")
         #expect(u.fullAt == "15:40")
@@ -161,19 +175,19 @@ struct LiveDataTests {
     @Test func urgentOnASpikeMinute() throws {
         var minutes = TokenLog.Minutes()
         minutes.byAccount["claudeAgent"] = [minuteNow - 1: 425_706 / 15 + 1]
-        let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.activeID == "claudeAgent")
         #expect(s.isUrgent)
         // an older spike does not count
         minutes.byAccount["claudeAgent"] = [minuteNow - 2: 1_000_000]
-        #expect(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar)?.isUrgent == false)
+        #expect(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts)?.isUrgent == false)
     }
 
     @Test func urgentWhenTheLimitIsHit() throws {
         let st = try status { $0.accounts["claudeAgent_work"]?.limitStatus = "rejected" }
-        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar)?.urgency != nil)
+        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.urgency != nil)
         let warn = try status { $0.accounts["claudeAgent_work"]?.limitStatus = "allowed_warning" }
-        #expect(LiveSnapshot.make(status: warn, minutes: .init(), now: now, calendar: calendar)?.urgency == nil)
+        #expect(LiveSnapshot.make(status: warn, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.urgency == nil)
     }
 
     @Test func staleAndIdleAccountsAreNeverUrgent() throws {
@@ -181,7 +195,7 @@ struct LiveDataTests {
             $0.accounts["claudeAgent"]?.fiveHourPct = 97
             $0.accounts["claudeAgent"]?.note = "5h window already reset, no new data"
         }
-        let s = try #require(LiveSnapshot.make(status: stale, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: stale, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.urgency == nil)
         #expect(s.accounts[1].fiveHourPercent == 0)
         #expect(s.accounts[1].fiveHourReset == "—")
@@ -189,12 +203,12 @@ struct LiveDataTests {
             $0.accounts["claudeAgent"]?.fiveHourPct = 97
             $0.accounts["claudeAgent"]?.live = false
         }
-        #expect(LiveSnapshot.make(status: idle, minutes: .init(), now: now, calendar: calendar)?.urgency == nil)
+        #expect(LiveSnapshot.make(status: idle, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.urgency == nil)
     }
 
     @Test func noFiveHourDataMeansNoSnapshot() throws {
         let st = try status { $0.accounts = $0.accounts.filter { $0.key == "codex" } }
-        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar) == nil)
+        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts) == nil)
     }
 
     @Test func fullAtComesFromTheProjection() throws {
@@ -202,19 +216,19 @@ struct LiveDataTests {
             $0.accounts["claudeAgent"]?.fiveHourPct = 103
             $0.accounts["claudeAgent_work"]?.projection = nil
         }
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         // no projection: not expected to fill up; at 100% and over: already full
         #expect(s.accounts.map(\.fullAt) == [nil, "now"])
-        let withProjection = try #require(LiveSnapshot.make(status: try status(), minutes: .init(), now: now, calendar: calendar))
+        let withProjection = try #require(LiveSnapshot.make(status: try status(), minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         #expect(withProjection.accounts[0].fullAt == "18:04")
     }
 
     /// A projection after the reset says nothing: the row leaves "full at" empty.
     @Test func fullAtOnlyBeforeTheReset() throws {
         let late = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "30 min", eta: "19:30") }
-        #expect(LiveSnapshot.make(status: late, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
+        #expect(LiveSnapshot.make(status: late, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.accounts[0].fullAt == nil)
         let atReset = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "30 min", eta: "19:00") }
-        #expect(LiveSnapshot.make(status: atReset, minutes: .init(), now: now, calendar: calendar)?.accounts[0].fullAt == nil)
+        #expect(LiveSnapshot.make(status: atReset, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.accounts[0].fullAt == nil)
     }
 
     /// The island follows the account the chart's minutes (the transcripts) show burning most, not the database's
@@ -224,7 +238,7 @@ struct LiveDataTests {
         var minutes = TokenLog.Minutes()
         minutes.byAccount["claudeAgent"] = [minuteNow - 3: 500_000]
         minutes.byAccount["claudeAgent_work"] = [minuteNow - 3: 100_000]
-        let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.activeID == "claudeAgent")
     }
 
@@ -240,7 +254,7 @@ struct LiveDataTests {
     /// An ETA already gone by says nothing: no "full 15:20" at 15:25, no "in 0 min" peak.
     @Test func etaInThePastIsDropped() throws {
         let st = try status { $0.accounts["claudeAgent_work"]?.projection = .init(window: "5 min", eta: "15:20") }
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.accounts[0].fullAt == nil)
         #expect(s.urgency == nil)
     }
@@ -252,7 +266,7 @@ struct LiveDataTests {
             $0.accounts["claudeAgent"]?.limitStatus = "rejected"
         }
         let slow = [TokenSource(id: "o", project: "p", detail: "Old thread", account: "personal", rate: 0.2, agents: nil)]
-        let u = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: slow)?.urgency)
+        let u = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, sources: slow, accounts: testAccounts)?.urgency)
         #expect(u.lead == "free at ")
         #expect(u.fullAt == "20:20")
         #expect(u.detail == "personal is cooked")
@@ -267,7 +281,7 @@ struct LiveDataTests {
             $0.accounts["claudeAgent"]?.live = false
             $0.accounts["claudeAgent"]?.lastEventAt = "13:42"
         }
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         let personal = s.accounts[1]
         #expect(personal.isBlocked)
         #expect(personal.fiveHourReset == "20:20")
@@ -280,7 +294,7 @@ struct LiveDataTests {
             $0.accounts["claudeAgent"]?.limitStatus = "rejected"
             $0.accounts["claudeAgent"]?.note = "5h window already reset, no new data"
         }
-        #expect(LiveSnapshot.make(status: stale, minutes: .init(), now: now, calendar: calendar)?.accounts[1].isBlocked == false)
+        #expect(LiveSnapshot.make(status: stale, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.accounts[1].isBlocked == false)
     }
 
     /// No event in the last 5 hours: the account is hidden from the popover.
@@ -294,25 +308,25 @@ struct LiveDataTests {
             $0.accounts["codex"]?.note = "5h window already reset, no new data"
             $0.accounts["claudeAgent"]?.lastEventAt = "10:26" // 4 h 59 min ago: still used today
         }
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.rows.map(\.short) == ["work", "personal"])
         #expect(s.unused.map(\.short) == ["codex"])
         #expect(s.unused[0].weekPercent == 6)
 
         let old = try status { $0.accounts["claudeAgent"]?.lastEventAt = "10:20" }
-        #expect(LiveSnapshot.make(status: old, minutes: .init(), now: now, calendar: calendar)?.unused.map(\.short) == ["personal"])
+        #expect(LiveSnapshot.make(status: old, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.unused.map(\.short) == ["personal"])
         // without a last event: not live and no tokens in the last 15 minutes
         let quiet = try status {
             $0.accounts["claudeAgent"]?.lastEventAt = nil
             $0.accounts["claudeAgent"]?.live = false
             $0.accounts["claudeAgent"]?.tokensFresh = ["15m": 0]
         }
-        #expect(LiveSnapshot.make(status: quiet, minutes: .init(), now: now, calendar: calendar)?.unused.map(\.short) == ["personal"])
+        #expect(LiveSnapshot.make(status: quiet, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.unused.map(\.short) == ["personal"])
         let busy = try status {
             $0.accounts["claudeAgent"]?.lastEventAt = nil
             $0.accounts["claudeAgent"]?.live = false
         }
-        #expect(LiveSnapshot.make(status: busy, minutes: .init(), now: now, calendar: calendar)?.unused.isEmpty == true)
+        #expect(LiveSnapshot.make(status: busy, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.unused.isEmpty == true)
     }
 
     /// The account the island shows always keeps its row.
@@ -320,20 +334,20 @@ struct LiveDataTests {
         let st = try status {
             for id in ["claudeAgent", "claudeAgent_work"] { $0.accounts[id]?.lastEventAt = "01/10 10:00" }
         }
-        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar))
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.rows.map(\.id) == [s.activeID])
     }
 
     /// A week that reset with no new data shows no week %.
     @Test func staleWeekHasNoPercent() throws {
         let st = try status { $0.accounts["claudeAgent"]?.sevenDayResetsAt = "16/10 16:00" }
-        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar)?.accounts[1].weekPercent == nil)
+        #expect(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts)?.accounts[1].weekPercent == nil)
     }
 
     @Test func shortNames() {
-        #expect(LiveSnapshot.short(id: "claudeAgent_work", name: "claude-work") == "work")
-        #expect(LiveSnapshot.short(id: "claudeAgent_team", name: "claude-work-team") == "team")
-        #expect(LiveSnapshot.short(id: "claudeAgent_new", name: "claude-new") == "new")
+        #expect(LiveSnapshot.short(id: "claudeAgent_work", accounts: testAccounts) == "work")
+        #expect(LiveSnapshot.short(id: "claudeAgent_team", accounts: testAccounts) == "team")
+        #expect(LiveSnapshot.short(id: "claudeAgent_new", accounts: testAccounts) == "claudeAgent_new") // not in the store
     }
 }
 
@@ -525,7 +539,7 @@ struct UsageSourceTests {
         let now = Date()
         let dir = try LimitLogTests.logDir([LimitLogTests.claudeLine(at: now.addingTimeInterval(-60), account: "claudeAgent_work",
                                                                     five: 0.48, fiveReset: now.addingTimeInterval(3600))])
-        let reading = try UsageSource(limits: LimitLog(dir: dir), databasePath: "/nonexistent", transcripts: nil).read(now: now).get()
+        let reading = try source(dir).read(now: now).get()
         #expect(reading.snapshot.accounts.map(\.short) == ["work"])
         #expect(reading.snapshot.accounts[0].fiveHourPercent == 48)
         #expect(reading.snapshot.series == Array(repeating: 0, count: 1440)) // no database: empty histogram
@@ -533,7 +547,7 @@ struct UsageSourceTests {
 
     @Test func reportsNoAccounts() throws {
         let dir = try LimitLogTests.logDir([])
-        #expect(UsageSource(limits: LimitLog(dir: dir), databasePath: "/nonexistent", transcripts: nil).read() == .failure(.noAccounts))
+        #expect(source(dir).read() == .failure(.noAccounts))
     }
 }
 
@@ -607,21 +621,21 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent_work", thread: thread, tokens: 999_999), // has transcripts: counted from them
         ]
         let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], recent: recent,
-                                    transcriptAccounts: ["claudeAgent_work", "claudeAgent_team", "claudeAgent"])
+                                    transcriptAccounts: ["claudeAgent_work", "claudeAgent_team", "claudeAgent"], accounts: testAccounts)
         #expect(out == [
             .init(id: "t1", threadID: "t1", project: "cooked", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
             .init(id: "s2", project: "t3 scratch", detail: "Claude Code session", account: "team", rate: 4000, agents: nil),
             .init(id: "t9", threadID: "t9", project: "t3 scratch", detail: "Fix CI", account: "codex", rate: 2000, agents: nil),
             .init(id: "s4", project: "atlas", detail: "Claude Code session", account: "personal", rate: 1000, agents: "2 sub"),
         ])
-        #expect(TokenSources.make(sessions: [], threads: [:], recent: [], transcriptAccounts: []).isEmpty)
+        #expect(TokenSources.make(sessions: [], threads: [:], recent: [], transcriptAccounts: [], accounts: testAccounts).isEmpty)
     }
 
     /// The card shows 3 and "N more"; the list behind it stops at 8 (2026-10-30-sources-expand).
     @Test func keepsUpToEightSources() {
         let sessions = (1...10).map { TranscriptLog.Session(account: "claudeAgent", id: "s\($0)", cwd: nil, tokens: Double($0) * 1500,
                                                             mainActive: true, activeSubagents: 0) }
-        let out = TokenSources.make(sessions: sessions, threads: [:], recent: [], transcriptAccounts: [])
+        let out = TokenSources.make(sessions: sessions, threads: [:], recent: [], transcriptAccounts: [], accounts: testAccounts)
         #expect(out.map(\.id) == ["s10", "s9", "s8", "s7", "s6", "s5", "s4", "s3"])
     }
 
@@ -630,7 +644,7 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent_work", id: "a", cwd: nil, tokens: 15_000, mainActive: false, activeSubagents: 0),
             .init(account: "claudeAgent_work", id: "b", cwd: nil, tokens: 30_000, mainActive: true, activeSubagents: 0),
         ]
-        let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], recent: [], transcriptAccounts: [])
+        let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], recent: [], transcriptAccounts: [], accounts: testAccounts)
         #expect(out.map(\.rate) == [3000])
         #expect(out.first?.agents == "1 agent")
     }

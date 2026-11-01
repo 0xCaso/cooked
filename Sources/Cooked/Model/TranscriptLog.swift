@@ -53,9 +53,9 @@ final class TranscriptLog: @unchecked Sendable {
 
     init(dirs: [String: String]) { self.dirs = dirs }
 
-    static func standard(home: String = NSHomeDirectory()) -> TranscriptLog {
-        let ids = ["claudeAgent", "claudeAgent_work", "claudeAgent_team", "claudeAgent_side"]
-        return TranscriptLog(dirs: Dictionary(uniqueKeysWithValues: ids.map { ($0, dir(for: $0, home: home)) }))
+    /// The connected Claude accounts' folders.
+    convenience init(accounts: [ConnectedAccount]) {
+        self.init(dirs: Dictionary(accounts.filter { $0.kind == .claude }.map { ($0.id, $0.path) }, uniquingKeysWith: { a, _ in a }))
     }
 
     static func dir(for id: String, home: String) -> String {

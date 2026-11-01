@@ -26,7 +26,9 @@ enum TokenSources {
 
     /// The top sources: Claude sessions from their transcripts, and the database's threads for the other accounts.
     static func make(sessions: [TranscriptLog.Session], threads: [String: TokenLog.Thread],
-                     recent: [TokenLog.RecentThread], transcriptAccounts: Set<String>) -> [TokenSource] {
+                     recent: [TokenLog.RecentThread], transcriptAccounts: Set<String>,
+                     accounts: [ConnectedAccount] = []) -> [TokenSource] {
+        func short(_ id: String) -> String { LiveSnapshot.short(id: id, accounts: accounts) }
         var out = sessions.map { s in
             let thread = threads[s.id]
             return TokenSource(id: thread?.id ?? s.id, threadID: thread?.id, project: thread.map(project) ?? project(cwd: s.cwd),
@@ -59,8 +61,6 @@ enum TokenSources {
         case (false, _): "\(subagents) sub"
         }
     }
-
-    static func short(_ account: String) -> String { LiveSnapshot.short(id: account, name: account) }
 
     static func project(_ thread: TokenLog.Thread) -> String { thread.project ?? "t3 scratch" }
 

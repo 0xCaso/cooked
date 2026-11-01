@@ -7,8 +7,15 @@ struct UsageSource: Sendable {
     var databasePath = TokenLog.defaultPath
     /// Adds up the calls of running turns across readings.
     let running = RunningTurns()
+    /// The connected accounts, in display order, with their names.
+    var accounts: [ConnectedAccount]
     /// The Claude accounts' minutes; nil reads only the database.
-    var transcripts: TranscriptLog? = .standard()
+    var transcripts: TranscriptLog?
+
+    init(accounts: [ConnectedAccount] = AccountStore.current()) {
+        self.accounts = accounts
+        transcripts = TranscriptLog(accounts: accounts)
+    }
 
     struct Reading: Equatable {
         let snapshot: UsageSnapshot
@@ -31,8 +38,8 @@ struct UsageSource: Sendable {
         for (id, perMinute) in calls.minutes { minutes.byAccount[id] = perMinute }
         let sources = TokenSources.make(
             sessions: calls.sessions, threads: (try? log.threads(sessions: calls.sessions.map(\.id))) ?? [:],
-            recent: minutes.recentThreads, transcriptAccounts: Set(calls.minutes.keys))
-        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now, sources: sources) else {
+            recent: minutes.recentThreads, transcriptAccounts: Set(calls.minutes.keys), accounts: accounts)
+        guard let snapshot = LiveSnapshot.make(status: status, minutes: minutes, now: now, sources: sources, accounts: accounts) else {
             return .failure(.noAccounts)
         }
         return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60))
