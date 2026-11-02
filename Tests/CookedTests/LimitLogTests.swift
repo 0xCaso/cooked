@@ -84,11 +84,39 @@ struct LimitLogTests {
         #expect(work.spikeThreshold15m == LimitLog.claudeFallback15m)
     }
 
+    /// The first reading looks back a week; later readings only at files written in the last 6 hours.
     @Test func oldFilesAreSkipped() throws {
         let dir = try Self.logDir([Self.claudeLine(at: now.addingTimeInterval(-60), account: "claudeAgent", five: 0.3,
                                                    fiveReset: now.addingTimeInterval(3600))])
-        try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-7 * 3600)], ofItemAtPath: dir + "/events.t1.log")
+        try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-8 * 86400)], ofItemAtPath: dir + "/events.t1.log")
         #expect(LimitLog(dir: dir).read(now: now, database: nil, calendar: calendar).accounts.isEmpty)
+        try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-7 * 3600)], ofItemAtPath: dir + "/events.t1.log")
+        let log = LimitLog(dir: dir)
+        #expect(log.read(now: now, database: nil, calendar: calendar).accounts["claudeAgent"]?.fiveHourPct == 30)
+        // a second reading does not read the old file again, and keeps the account
+        #expect(log.read(now: now, database: nil, calendar: calendar).accounts["claudeAgent"]?.fiveHourPct == 30)
+    }
+
+    /// An account with no new event keeps its last percent across launches: ~/.claude's 23% week, used 3 days ago.
+    @Test func lastKnownPercentSurvivesARestart() throws {
+        let store = FileManager.default.temporaryDirectory.appendingPathComponent("limits-\(UUID().uuidString).json")
+        let used = now.addingTimeInterval(-3 * 86400)
+        let weekReset = now.addingTimeInterval(4 * 86400)
+        let dir = try Self.logDir([Self.claudeLine(at: used, account: "claudeAgent", five: 0.4, fiveReset: used.addingTimeInterval(3600),
+                                                   week: 0.23, weekReset: weekReset)])
+        try FileManager.default.setAttributes([.modificationDate: used], ofItemAtPath: dir + "/events.t1.log")
+        let first = try #require(LimitLog(dir: dir, store: store).read(now: now, database: nil, calendar: calendar).accounts["claudeAgent"])
+        #expect(first.sevenDayPct == 23 && first.live == false)
+        #expect(first.note != nil) // its 5 h window has reset since
+        // relaunch with no log at all: the store keeps the account
+        let empty = try Self.logDir([])
+        let again = try #require(LimitLog(dir: empty, store: store).read(now: now, database: nil, calendar: calendar).accounts["claudeAgent"])
+        #expect(again == first)
+        // a newer sample replaces it
+        let newer = LimitLog.Sample(at: now.timeIntervalSince1970, five: 0.1, fiveReset: now.timeIntervalSince1970 + 3600, week: 0.25,
+                           weekReset: weekReset.timeIntervalSince1970, status: "allowed")
+        _ = LimitLog(dir: empty, store: store).read(now: now, samples: ["claudeAgent": newer], calendar: calendar)
+        #expect(LimitLog(dir: nil, store: store).read(now: now, calendar: calendar).accounts["claudeAgent"]?.sevenDayPct == 25)
     }
 
     /// Only the current 5 h window and the last hour.

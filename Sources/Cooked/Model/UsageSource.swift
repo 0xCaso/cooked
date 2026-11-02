@@ -5,7 +5,7 @@ import Foundation
 /// T3 Code adds thread titles when its database exists; until the bridge is connected, its logs give the Claude percent.
 struct UsageSource: Sendable {
     /// The percents; keeps their samples across readings.
-    var limits = LimitLog()
+    var limits = LimitLog(store: LimitLog.defaultStore)
     var bridgeDir = StatusLineBridge.defaultDir
     /// T3 Code's database: thread titles only. No number depends on it.
     var t3Database = TokenLog.defaultPath

@@ -16,6 +16,9 @@ final class LimitLog: @unchecked Sendable {
     static let codexFallback15m = 350_000
     /// Files not written for this long hold no new events.
     static let fileMaxAge: TimeInterval = 6 * 3600
+    /// The first reading after a launch looks back a week, the longest window: an account used days ago still has a
+    /// week percent.
+    static let firstReadMaxAge: TimeInterval = 7 * 86400
     /// A file seen for the first time is read from this far before its end.
     static let tail: UInt64 = 2 << 20
     /// Samples older than this before the last one are dropped: the paces look back 30 minutes at most.
@@ -31,7 +34,7 @@ final class LimitLog: @unchecked Sendable {
     static let minimumBuckets = 30
     static let thresholdsMaxAge: TimeInterval = 3600
 
-    struct Sample: Equatable {
+    struct Sample: Codable, Equatable {
         /// Unix seconds.
         let at: Double
         /// Share used, 0...1 (over 1 when blocked).
@@ -57,8 +60,23 @@ final class LimitLog: @unchecked Sendable {
     /// From T3 Code's logs, used for a Claude account with no samples above.
     private var logged: [String: [Sample]] = [:]
     private var thresholds: (at: Double, values: [String: Int], total: Int)?
+    /// The newest sample of each account, kept across launches in `store`: an account with no new event keeps its
+    /// last known percent (its 5 h reset or week reset already gone by shows as such, see `entry`).
+    private var last: [String: Sample] = [:]
+    let store: URL?
+    private var firstRead = true
 
-    init(dir: String? = LimitLog.defaultDir) { self.dir = dir }
+    /// `store` nil keeps the last samples in memory only (tests).
+    init(dir: String? = LimitLog.defaultDir, store: URL? = nil) {
+        self.dir = dir
+        self.store = store
+        if let store, let data = try? Data(contentsOf: store),
+           let saved = try? JSONDecoder().decode([String: Sample].self, from: data) { last = saved }
+    }
+
+    static var defaultStore: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Cooked/limits.json")
+    }
 
     /// Adds this reading's samples, reads the new log events and builds every account's limits. `buckets` is called
     /// when the thresholds are due (hourly, or every reading while `fresh`: the cache is still filling). `database`
@@ -75,6 +93,17 @@ final class LimitLog: @unchecked Sendable {
         let t = now.timeIntervalSince1970
         var all = logged.filter { Self.isClaude($0.key) }
         for (id, s) in samples where !s.isEmpty { all[id] = s }
+        var changed = false
+        for (id, s) in all {
+            guard let newest = s.last, newest.at > last[id]?.at ?? -.infinity else { continue }
+            last[id] = newest
+            changed = true
+        }
+        for (id, sample) in last where all[id] == nil { all[id] = [sample] }
+        if changed, let store, let data = try? JSONEncoder().encode(last) {
+            try? FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: store, options: .atomic)
+        }
         if fresh || thresholds.map({ t - $0.at >= Self.thresholdsMaxAge }) ?? true {
             let b = buckets()
             let values = Self.thresholds(buckets: b.byAccount, ids: Set(all.keys))
@@ -92,10 +121,12 @@ final class LimitLog: @unchecked Sendable {
         var threadAccounts: [String: String]?
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
         var seen = Set<String>()
+        let maxAge = firstRead ? Self.firstReadMaxAge : Self.fileMaxAge
+        firstRead = false
         for name in names where name.hasPrefix("events.") && name.hasSuffix(".log") {
             let path = dir + "/" + name
             guard let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
-                  now.timeIntervalSince(modified) < Self.fileMaxAge else { continue }
+                  now.timeIntervalSince(modified) < maxAge else { continue }
             seen.insert(path)
             let thread = String(name.dropFirst("events.".count).dropLast(".log".count))
             var file = files[path] ?? File(offset: Self.start(of: path))
