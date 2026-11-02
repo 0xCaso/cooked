@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Claude percent, from the files the status line bridge writes (task 7 connects it): for each account, the JSON
+/// The Claude percent, from the files the status line bridge writes (`StatusLineSetup` connects it): for each account, the JSON
 /// Claude Code last gave its status line, in `~/Library/Application Support/Cooked/bridge/<account id>.json`.
 /// Claude Code sends `rate_limits.five_hour` and `seven_day` (`used_percentage` 0...100, `resets_at` Unix seconds)
 /// after each response, for subscribers only. The file's change time is the sample's time.

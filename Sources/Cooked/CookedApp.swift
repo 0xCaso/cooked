@@ -29,6 +29,28 @@ enum CookedApp {
             print("all accounts: alert \(status.totalThreshold15m ?? -1)")
             exit(0)
         }
+        // `--statusline status|connect|disconnect`: the status line bridge of each connected Claude account's settings
+        // file, until the Settings window has the button.
+        if let i = args.firstIndex(of: "--statusline") {
+            let action = i + 1 < args.count ? args[i + 1] : "status"
+            let setup = StatusLineSetup()
+            var done = Set<String>()
+            for account in AccountStore.current() where account.kind == .claude {
+                let settings = account.path + "/settings.json"
+                let real = StatusLineSetup.real(settings)
+                if done.insert(real).inserted {
+                    do {
+                        switch action {
+                        case "connect": try setup.connect(settings: settings)
+                        case "disconnect": print(try setup.disconnect(settings: settings) ? "given back" : "not touched", real)
+                        default: break
+                        }
+                    } catch { print(real, error); exit(1) }
+                }
+                print(account.id, real, setup.state(settings: settings))
+            }
+            exit(0)
+        }
         // Before the model reads its settings.
         LegacyDefaults.migrate()
         let delegate = AppDelegate()
