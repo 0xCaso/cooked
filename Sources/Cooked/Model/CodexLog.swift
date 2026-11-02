@@ -23,6 +23,9 @@ final class CodexLog: @unchecked Sendable {
         /// When Codex wrote them.
         let at: Date
 
+        /// Has a window the island shows: a free plan's 30-day window alone does not count.
+        var shown: Bool { fiveHour != nil || week != nil }
+
         /// As a limit sample; nil without a 5 h window (a free plan).
         var sample: LimitLog.Sample? {
             guard let fiveHour else { return nil }
@@ -46,6 +49,8 @@ final class CodexLog: @unchecked Sendable {
     /// Thread names from `session_index.jsonl`, and the index's size when read.
     private var names: (size: UInt64, byID: [String: String]) = (0, [:])
     private var limits: Limits?
+    /// After a launch the rollouts' last lines were searched for the newest limits.
+    private var searched = false
 
     /// The minute cache, where the tokens go. A ledger the reader made itself is begun and ended by `read`.
     let ledger: MinuteLedger
@@ -89,7 +94,7 @@ final class CodexLog: @unchecked Sendable {
             seen.insert(url.path)
             let mark = ledger.read(url, now: now) { line, mark in
                 guard let count = Self.parse(line) else { return }
-                if let l = count.limits, l.at > limits?.at ?? .distantPast { limits = l }
+                if let l = count.limits, l.shown, l.at > limits?.at ?? .distantPast { limits = l }
                 // the same totals again: a repeated event, not a new call
                 if let total = count.total.map(Self.key) {
                     guard total != mark.last else { return }
@@ -113,8 +118,14 @@ final class CodexLog: @unchecked Sendable {
                                       name: threadName(sid) ?? head.prompt))
             }
         }
-        // after a restart the files continue from their marks: the newest rollout's last limits
-        if limits == nil, let newest = urls.max(by: { $0.modified < $1.modified }) { limits = Self.lastLimits(of: newest.url) }
+        // after a launch the files continue from their marks: the newest limits in their last lines, by the event's
+        // time (a file's change time says nothing: an old rollout can be rewritten)
+        if !searched {
+            searched = true
+            for (url, _) in urls {
+                if let l = Self.lastLimits(of: url), l.at > limits?.at ?? .distantPast { limits = l }
+            }
+        }
         heads = heads.filter { seen.contains($0.key) }
         out.minutes = ledger.minutes(id, from: minuteNow - minutes + 1, to: minuteNow)
         out.sessions = sessions.sorted { ($0.tokens, $0.id) > ($1.tokens, $1.id) }
@@ -122,13 +133,13 @@ final class CodexLog: @unchecked Sendable {
         return out
     }
 
-    /// The newest limits in the last 256 KB of a rollout.
+    /// The newest limits with a shown window in the last 256 KB of a rollout.
     static func lastLimits(of url: URL) -> Limits? {
         guard let handle = try? FileHandle(forReadingFrom: url), let end = try? handle.seekToEnd() else { return nil }
         defer { try? handle.close() }
         let from = end > 256 * 1024 ? end - 256 * 1024 : 0
         guard (try? handle.seek(toOffset: from)) != nil, let data = try? handle.readToEnd() else { return nil }
-        return data.split(separator: UInt8(ascii: "\n")).reversed().lazy.compactMap { parse(Data($0))?.limits }.first
+        return data.split(separator: UInt8(ascii: "\n")).reversed().lazy.compactMap { parse(Data($0))?.limits }.first { $0.shown }
     }
 
     /// A repeated event has the same totals.

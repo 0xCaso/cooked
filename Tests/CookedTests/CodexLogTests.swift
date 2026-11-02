@@ -89,3 +89,38 @@ struct CodexLogTests {
         #expect(CodexLog(home: home).read(now: now).limits?.fiveHour?.usedPercent == 35)
     }
 }
+
+extension CodexLogTests {
+    func tokenCount(at: Date, limits: String) -> String {
+        #"{"timestamp":"\#(iso.string(from: at))","type":"event_msg","payload":{"type":"token_count","info":null,"rate_limits":\#(limits)}}"#
+    }
+
+    /// 2/11: the newest file was a rollout from 20/8, rewritten by a codex:// link test, with a free plan's 30-day
+    /// window only; today's rollout had `rate_limits: null`. The limits come from the newest event with 5 h or week.
+    @Test func afterARestartTheNewestEventWinsNotTheNewestFile() throws {
+        let now = Date()
+        let home = try makeHome([])
+        let day = home + "/sessions/2026/11/01"
+        let plus = #"{"primary":{"used_percent":12.0,"window_minutes":300,"resets_at":\#(Int(now.timeIntervalSince1970) - 600)},"secondary":{"used_percent":40.0,"window_minutes":10080,"resets_at":\#(Int(now.timeIntervalSince1970) + 86400)}}"#
+        let free = #"{"primary":{"used_percent":48.0,"window_minutes":43200,"resets_at":1789813849},"secondary":null}"#
+        let files: [(String, String, TimeInterval)] = [
+            ("plus", tokenCount(at: now.addingTimeInterval(-2 * 86400), limits: plus), -3600),
+            ("free", tokenCount(at: now.addingTimeInterval(-70 * 86400), limits: free), -60),  // rewritten a minute ago
+            ("null", tokenCount(at: now.addingTimeInterval(-120), limits: "null"), -120),
+        ]
+        for (name, line, modified) in files {
+            let path = "\(day)/rollout-2026-11-01T10-00-00-\(name)-\(UUID().uuidString.lowercased()).jsonl"
+            try (line + "\n").write(toFile: path, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(modified)], ofItemAtPath: path)
+        }
+        let ledger = MinuteLedger()
+        #expect(CodexLog(home: home, ledger: ledger).read(now: now).limits?.week?.usedPercent == 40)
+        // a relaunch: the files continue from their marks, past those lines
+        let limits = try #require(CodexLog(home: home, ledger: ledger).read(now: now).limits)
+        #expect(limits.fiveHour?.usedPercent == 12 && limits.week?.usedPercent == 40)
+        // its 5 h window has reset: the week percent stays
+        let sample = try #require(limits.sample)
+        let entry = try #require(LimitLog(dir: nil).read(now: now, samples: ["codex": sample]).accounts["codex"])
+        #expect(entry.sevenDayPct == 40 && entry.note != nil)
+    }
+}
