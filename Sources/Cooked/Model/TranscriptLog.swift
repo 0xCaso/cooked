@@ -45,6 +45,8 @@ final class TranscriptLog: @unchecked Sendable {
         var activeSubagents: Int
         /// The session's name: its title in Claude Code, else its first prompt.
         var name: String? = nil
+        /// The newest minute with a call, subagents included: an ended session shows how long ago it stopped.
+        var lastMinute: Int? = nil
     }
 
     struct Reading {
@@ -135,9 +137,9 @@ final class TranscriptLog: @unchecked Sendable {
                     }
                 }
                 files[url.path] = file
-                var recent = 0.0, active = false
+                var recent = 0.0, active = false, last: Int?
                 for (minute, tokens) in mark.recent where minute <= minuteNow {
-                    if minute > minuteNow - 15 { recent += tokens }
+                    if minute > minuteNow - 15 { recent += tokens; last = max(last ?? minute, minute) }
                     if minute > minuteNow - 5 { active = true }
                 }
                 if recent > 0 {
@@ -145,6 +147,7 @@ final class TranscriptLog: @unchecked Sendable {
                     mainPaths[sid] = isSub ? url.deletingLastPathComponent().deletingLastPathComponent().path + ".jsonl" : url.path
                     var s = sessions[sid] ?? Session(account: id, id: sid, cwd: nil, tokens: 0, mainActive: false, activeSubagents: 0)
                     s.tokens += recent
+                    if let last { s.lastMinute = max(s.lastMinute ?? last, last) }
                     if isSub { s.activeSubagents += active ? 1 : 0 } else { s.mainActive = active }
                     // a subagent may run in another folder: the session's own cwd wins
                     if !isSub || s.cwd == nil { s.cwd = file.cwd ?? s.cwd }

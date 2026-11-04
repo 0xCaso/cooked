@@ -539,7 +539,8 @@ extension TranscriptLogTests {
         try (call("s2", "2026-10-29T14:15:00.000Z", 1500, cwd: "/tmp/wt") + "\n").write(to: other, atomically: true, encoding: .utf8)
         let r = TranscriptLog(dirs: ["claudeAgent_work": TranscriptLog.dir(for: "claudeAgent_work", home: home)]).read(now: now)
         #expect(r.sessions == [.init(account: "claudeAgent_work", id: "s", cwd: "/r/cooked", tokens: 6000,
-                                     mainActive: true, activeSubagents: 1)])
+                                     mainActive: true, activeSubagents: 1,
+                                     lastMinute: Int(ISO8601DateFormatter().date(from: "2026-10-29T14:25:00Z")!.timeIntervalSince1970) / 60)])
     }
 }
 
@@ -578,6 +579,27 @@ struct TokenSourcesTests {
         let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], accounts: testAccounts)
         #expect(out.map(\.rate) == [3000])
         #expect(out.first?.agents == "1 agent")
+    }
+
+    /// A thread with no call in the last 5 minutes goes under "Ended", newest first, after the live ones.
+    @Test func endedThreadsComeLastWithTheirMinutes() {
+        let now = Date(timeIntervalSince1970: 1_000 * 60)
+        let sessions: [TranscriptLog.Session] = [
+            .init(account: "claudeAgent", id: "big", cwd: "/r/a", tokens: 90_000, mainActive: false, activeSubagents: 0, lastMinute: 991),
+            .init(account: "claudeAgent", id: "live", cwd: "/r/b", tokens: 15_000, mainActive: true, activeSubagents: 0, lastMinute: 1_000),
+            .init(account: "claudeAgent", id: "recent", cwd: "/r/c", tokens: 30_000, mainActive: false, activeSubagents: 0, lastMinute: 994),
+            .init(account: "claudeAgent", id: "subs", cwd: "/r/d", tokens: 3_000, mainActive: false, activeSubagents: 1, lastMinute: 999),
+        ]
+        let out = TokenSources.make(sessions: sessions, threads: [:], accounts: testAccounts, now: now)
+        #expect(out.map(\.id) == ["live", "subs", "recent", "big"])
+        #expect(out.map(\.endedAgo) == [nil, nil, 6, 9])
+        // two sessions of one thread: ended only when both are, at the newer one's minute
+        let merged = TokenSources.make(sessions: [sessions[0], sessions[2]], threads: ["big": thread, "recent": thread],
+                                       accounts: testAccounts, now: now)
+        #expect(merged.map(\.endedAgo) == [6])
+        let one = TokenSources.make(sessions: [sessions[0], sessions[1]], threads: ["big": thread, "live": thread],
+                                    accounts: testAccounts, now: now)
+        #expect(one.map(\.endedAgo) == [nil])
     }
 
     @Test func agentLabels() {

@@ -105,9 +105,9 @@ final class CodexLog: @unchecked Sendable {
                 mark.recent[minute, default: 0] += count.tokens
                 ledger.add(id, minute: minute, tokens: count.tokens)
             }
-            var recent = 0.0, active = false
+            var recent = 0.0, active = false, last: Int?
             for (minute, tokens) in mark.recent where minute <= minuteNow {
-                if minute > minuteNow - 15 { recent += tokens }
+                if minute > minuteNow - 15 { recent += tokens; last = max(last ?? minute, minute) }
                 if minute > minuteNow - 5 { active = true }
             }
             if recent > 0 {
@@ -115,7 +115,7 @@ final class CodexLog: @unchecked Sendable {
                 heads[url.path] = head
                 let sid = Self.session(of: url)
                 sessions.append(.init(account: id, id: sid, cwd: head.cwd, tokens: recent, mainActive: active, activeSubagents: 0,
-                                      name: threadName(sid) ?? head.prompt))
+                                      name: threadName(sid) ?? head.prompt, lastMinute: last))
             }
         }
         // after a launch the files continue from their marks: the newest limits in their last lines, by the event's

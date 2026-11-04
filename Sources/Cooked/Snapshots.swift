@@ -63,6 +63,17 @@ enum Snapshots {
             try render(SourcesCard(sources: five, expanded: open).frame(width: 388).padding(24).background(desk),
                        to: dir.appendingPathComponent("\(name).png"))
         }
+        // Ended threads under "Ended": with two live lines, the ended one hovered, and with every thread ended.
+        let gym = TokenSource(id: "e1", threadID: "e1", project: "trail-app", detail: "Map tile cache fix", account: "team",
+                              rate: 8100, agents: nil, endedAgo: 9)
+        let regex = TokenSource(id: "e2", project: "t3 scratch", detail: "Regex for log lines", account: "personal",
+                                rate: 2400, agents: nil, endedAgo: 6)
+        let live = Array(peak.sources.prefix(2))
+        for (name, sources, hovered) in [("sources-ended", live + [gym], nil), ("sources-ended-hover", live + [gym], "e1"),
+                                         ("sources-all-ended", [regex, gym], nil)] as [(String, [TokenSource], String?)] {
+            try render(SourcesCard(sources: sources, hovered: hovered).frame(width: 388).padding(24).background(desk),
+                       to: dir.appendingPathComponent("\(name).png"))
+        }
         // A long thread title in a T3 thread, plain and hovered: the hint takes only its own width.
         let long = [TokenSource(id: "l1", threadID: "t", project: "cooked-polish",
                                 detail: "Fix five visual bugs in the popover and the island", rate: 52_000, agents: "1 agent")]

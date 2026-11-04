@@ -54,7 +54,8 @@ struct UsageSource: Sendable {
         let database = FileManager.default.fileExists(atPath: t3Database) ? TokenLog(path: t3Database) : nil
         let status = limits.read(now: now, samples: samples, buckets: ledger.buckets15, fresh: history != nil, database: database)
         let sources = TokenSources.make(sessions: calls.sessions,
-                                        threads: (try? database?.threads(sessions: calls.sessions.map(\.id))) ?? [:], accounts: accounts)
+                                        threads: (try? database?.threads(sessions: calls.sessions.map(\.id))) ?? [:], accounts: accounts,
+                                        now: now)
         guard let snapshot = LiveSnapshot.make(status: status, minutes: calls.minutes, now: now, sources: sources, accounts: accounts) else {
             return .failure(.noAccounts)
         }

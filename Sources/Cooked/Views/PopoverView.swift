@@ -183,13 +183,22 @@ struct SourcesCard: View {
         VStack(spacing: Self.gap) {
             ForEach(Array(shown.enumerated()), id: \.element.id) { i, source in
                 let lifted = hovered == source.id
-                let lineHidden = lifted || (i > 0 && hovered == shown[i - 1].id)
-                SourceRow(source: source, lifted: lifted, hot: hot == source.id)
-                    .onHover { inside in
-                        if inside { hovered = source.id } else if hovered == source.id { hovered = nil }
+                // the ended lines follow an "Ended" label: one hairline above it, none between them
+                let firstEnded = source.endedAgo != nil && (i == 0 || shown[i - 1].endedAgo == nil)
+                let lineHidden = (lifted && !firstEnded) || (i > 0 && hovered == shown[i - 1].id)
+                VStack(alignment: .leading, spacing: Self.gap) {
+                    if firstEnded {
+                        Text("Ended").textStyle(.label).foregroundStyle(Palette.ink3)
+                            .padding(EdgeInsets(top: 4, leading: 8, bottom: 0, trailing: 8))
+                            .accessibilityAddTraits(.isHeader)
                     }
+                    SourceRow(source: source, lifted: lifted, hot: hot == source.id)
+                        .onHover { inside in
+                            if inside { hovered = source.id } else if hovered == source.id { hovered = nil }
+                        }
+                }
                     .overlay(alignment: .top) {
-                        if i > 0 { hairline.opacity(lineHidden ? 0 : 1) }
+                        if i > 0 && (source.endedAgo == nil || firstEnded) { hairline.opacity(lineHidden ? 0 : 1) }
                     }
                     .zIndex(lifted ? 1 : 0)
                     .transition(.opacity.combined(with: .offset(y: env.reducesMotion ? 0 : -4)))
@@ -241,32 +250,13 @@ private struct SourceRow: View {
 
     var body: some View {
         Button { T3Code.open(thread: source.threadID) } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(source.project).textStyle(.emphasis).foregroundStyle(Palette.ink)
-                        .truncationMode(.middle)
-                    Spacer(minLength: 0)
-                    if lifted, let agents = source.agents {
-                        Text(agents).textStyle(.body).foregroundStyle(Palette.ink3)
-                    }
-                    Text("\(Text(TokenFormat.short(source.rate)).styled(.number))\(Text("/min").styled(.number).foregroundStyle(hot ? Palette.red : Palette.ink3))")
-                        .foregroundStyle(hot ? Palette.red : Palette.ink)
-                        .layoutPriority(1)
-                }
-                HStack(spacing: 8) {
-                    Text(source.detail).textStyle(.body).foregroundStyle(Palette.ink2)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 0)
-                    Text(lifted ? (source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗") : source.account)
-                        .textStyle(.body)
-                        .foregroundStyle(lifted ? Palette.ink : Palette.ink2)
-                        .layoutPriority(1)
-                }
+            Group {
+                if let ago = source.endedAgo { endedLine(ago) } else { liveLines }
             }
             .lineLimit(1)
             .padding(.horizontal, 8)
             // 6 + 6 and the 4 pt gap keep the 52 pt pitch of the old 7 + 7 lines
-            .padding(.vertical, 6)
+            .padding(.vertical, source.endedAgo == nil ? 6 : 5)
             .background {
                 // Short shadows: the mockup's 6 pt drop fell over the next line's text and past the card.
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -282,7 +272,56 @@ private struct SourceRow: View {
         }
         .buttonStyle(.plain)
         .pointingHand()
-        .accessibilityLabel("\(source.project), \(TokenFormat.short(source.rate)) per minute, \(source.detail), \(source.account)")
+        .accessibilityLabel(accessibilityText)
         .accessibilityHint(source.threadID == nil ? "Opens T3 Code" : "Opens the thread in T3 Code")
+    }
+
+    private var rate: Text {
+        Text("\(Text(TokenFormat.short(source.rate)).styled(.number))\(Text("/min").styled(.number).foregroundStyle(hot ? Palette.red : Palette.ink3))")
+    }
+
+    private var accessibilityText: String {
+        let parts = [source.project, source.detail, source.endedAgo.map { "ended \($0) minutes ago" },
+                     "\(TokenFormat.short(source.rate)) per minute", source.endedAgo == nil ? source.account : nil]
+        return parts.compactMap { $0 }.joined(separator: ", ")
+    }
+
+    /// An ended thread: one quiet line, "9 min ago" on the right; lifted, its rate over the last 15 minutes instead.
+    private func endedLine(_ ago: Int) -> some View {
+        HStack(spacing: 8) {
+            Text("\(Text(source.project).fontWeight(.medium))  \(Text(source.detail))").textStyle(.body).foregroundStyle(Palette.ink2)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+            Group {
+                if lifted { Text("\(rate)  ↗").foregroundStyle(Palette.ink) }
+                else { Text("\(Text("\(ago)").styled(.number)) min ago").textStyle(.body).foregroundStyle(Palette.ink3) }
+            }
+            .layoutPriority(1)
+        }
+    }
+
+    private var liveLines: some View {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text(source.project).textStyle(.emphasis).foregroundStyle(Palette.ink)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 0)
+                    if lifted, let agents = source.agents {
+                        Text(agents).textStyle(.body).foregroundStyle(Palette.ink3)
+                    }
+                    rate
+                        .foregroundStyle(hot ? Palette.red : Palette.ink)
+                        .layoutPriority(1)
+                }
+                HStack(spacing: 8) {
+                    Text(source.detail).textStyle(.body).foregroundStyle(Palette.ink2)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                    Text(lifted ? (source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗") : source.account)
+                        .textStyle(.body)
+                        .foregroundStyle(lifted ? Palette.ink : Palette.ink2)
+                        .layoutPriority(1)
+                }
+            }
     }
 }
