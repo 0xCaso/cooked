@@ -68,7 +68,7 @@ struct MinuteLedgerTests {
     @Test func theHistoryFillsOverSeveralReadingsNewestFirst() throws {
         let (dir, urls) = try makeDir(files: 4)
         for (i, url) in urls.enumerated() {
-            try append((0..<20).map { call("f\(i)m\($0)", ago: 60 * 24 * (i + 1) + $0, tokens: 1) }, to: url)
+            try append((0..<20).map { call("f\(i)m\($0)", ago: 60 * 24 * (i + 1) + 19 - $0, tokens: 1) }, to: url) // in time order, like a transcript
             // file 0 is the newest
             try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(Double(-i * 3600))], ofItemAtPath: url.path)
         }
@@ -127,5 +127,47 @@ struct MinuteLedgerTests {
         let seconds = Date().timeIntervalSince(start)
         #expect(loaded.minutes("e", from: minuteNow, to: minuteNow) == [minuteNow: 1234])
         #expect(seconds < 2, "loaded in \(seconds) s")
+    }
+    /// After `/compact`, Claude Code writes copies of the latest calls again, with the same id and time. Copies of
+    /// calls older than the 1-hour keys must not count again, in a later reading or after a restart.
+    @Test func compactCopiesOfOldCallsDoNotCountAgain() throws {
+        let (dir, urls) = try makeDir()
+        let url = cacheURL()
+        try append([call("m1", ago: 180, tokens: 100), call("m2", ago: 120, tokens: 200)], to: urls[0])
+        let before = MinuteLedger(url: url)
+        #expect(reading(TranscriptLog(dirs: ["a": dir], ledger: before)).values.reduce(0, +) == 300)
+        before.save(force: true)
+        // the compaction copies m1 and m2, then a new call
+        try append([call("m1", ago: 180, tokens: 100), call("m2", ago: 120, tokens: 200), call("m3", ago: 1, tokens: 7)], to: urls[0])
+        let after = MinuteLedger(url: url)
+        let log = TranscriptLog(dirs: ["a": dir], ledger: after)
+        let m = reading(log)
+        #expect(m == [minute(ago: 180): 100, minute(ago: 120): 200, minute(ago: 1): 7])
+        // a second compaction in the same running app
+        try append([call("m2", ago: 120, tokens: 200), call("m3", ago: 1, tokens: 7), call("m4", ago: 0, tokens: 5)], to: urls[0])
+        #expect(reading(log).values.reduce(0, +) == 312)
+    }
+
+    /// A cache from before this fix is dropped, so the 14 days are read again without the copies.
+    @Test func anOldCacheIsReadAgain() throws {
+        let url = cacheURL()
+        try Data(#"{"version":1,"minutes":{"a":{"100":5}},"marks":{},"historyDone":true}"#.utf8).write(to: url)
+        #expect(MinuteLedger(url: url).historyProgress != nil)
+    }
+    /// A file seen for the first time is read from 14 days back. A `/compact` copy with an older time, after newer
+    /// calls, must not move the start past those calls.
+    @Test func anOldCopyDoesNotMoveTheStartPastNewerCalls() throws {
+        let (_, urls) = try makeDir()
+        let days = MinuteLedger.keepMinutes
+        let old = (0..<40).map { call("o\($0)", ago: days + 200 - $0, tokens: 1) }
+        let inWindow = (0..<40).map { call("n\($0)", ago: days - 100 + 40 - $0, tokens: 1) }
+        let copy = call("o0", ago: days + 200, tokens: 1)
+        try append(old + inWindow + [copy] + [call("z", ago: 1, tokens: 1)], to: urls[0])
+        let firstNew = try Data(contentsOf: urls[0]).range(of: Data(#""id":"n0""#.utf8))!.lowerBound
+        // with some block sizes the copy is the first time in a block
+        for block in stride(from: 300, through: 3000, by: 7) {
+            let start = TranscriptLog.start(of: urls[0], after: MinuteLedger.since(now), block: UInt64(block))
+            #expect(start <= UInt64(firstNew), "block \(block)")
+        }
     }
 }

@@ -23,10 +23,16 @@ final class MinuteLedger: @unchecked Sendable {
         var keys: [String: Int] = [:]
         /// Codex: the totals of the last event, to skip a repeated one.
         var last: String?
+        /// Claude: the minute of the newest call counted in this file. After `/compact`, Claude Code writes copies of
+        /// the latest calls again, with the same id and time: a call older than this is such a copy.
+        var newest: Int?
     }
 
+    /// 2: the 14 days read again without the `/compact` copies that version 1 counted twice.
+    static let version = 2
+
     private struct Saved: Codable {
-        var version = 1
+        var version = MinuteLedger.version
         var minutes: [String: [Int: Double]] = [:]
         var marks: [String: Mark] = [:]
         var historyDone = false
@@ -50,7 +56,7 @@ final class MinuteLedger: @unchecked Sendable {
     init(url: URL? = nil, budget: Int = MinuteLedger.defaultBudget) {
         self.url = url
         self.budget = budget
-        if let url, let data = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(Saved.self, from: data), s.version == 1 {
+        if let url, let data = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(Saved.self, from: data), s.version == Self.version {
             saved = s
         }
     }
@@ -131,7 +137,8 @@ final class MinuteLedger: @unchecked Sendable {
             let hour = Int(now.timeIntervalSince1970) / 60 - 60
             var m = mark
             m.recent = m.recent.filter { $0.key > hour }
-            m.keys = m.keys.filter { $0.value > hour }
+            // the newest minute's keys stay: its copies are not older than `newest`
+            m.keys = m.keys.filter { $0.value > hour || $0.value >= m.newest ?? .max }
             if saved.marks[path] != m { saved.marks[path] = m; dirty = true }
             pending[path] = unread
             if !saved.historyDone { filled += read }

@@ -123,9 +123,11 @@ final class TranscriptLog: @unchecked Sendable {
                 let mark = ledger.read(url, now: now) { line, mark in
                     if let call = Self.parse(line) {
                         if let cwd = call.cwd { file.cwd = cwd }
-                        // a message is written once per content block, with the same usage
-                        guard mark.keys[call.id] == nil else { return }
+                        // a message is written once per content block, with the same usage; `/compact` copies
+                        // older calls again
+                        guard mark.keys[call.id] == nil, call.minute >= mark.newest ?? .min else { return }
                         mark.keys[call.id] = call.minute
+                        mark.newest = max(mark.newest ?? .min, call.minute)
                         mark.recent[call.minute, default: 0] += call.tokens
                         ledger.add(id, minute: call.minute, tokens: call.tokens)
                     } else {
@@ -165,7 +167,8 @@ final class TranscriptLog: @unchecked Sendable {
     }
 
     /// Where to start reading a file seen for the first time: transcripts grow to hundreds of MB, so step back from
-    /// the end in blocks until a block starts before `since`. Lines are in time order. Returns a line start.
+    /// the end in blocks until every time in a block is before `since`, and start at that block's last line.
+    /// Calls are in time order, but `/compact` copies older lines after newer ones. Returns a line start.
     static func start(of url: URL, after since: Date, block: UInt64 = 4 << 20) -> UInt64 {
         guard let handle = try? FileHandle(forReadingFrom: url), let end = try? handle.seekToEnd() else { return 0 }
         defer { try? handle.close() }
@@ -174,11 +177,17 @@ final class TranscriptLog: @unchecked Sendable {
         while start > 0 {
             start = start > block ? start - block : 0
             guard (try? handle.seek(toOffset: start)) != nil, let chunk = try? handle.read(upToCount: Int(block)) else { return 0 }
-            guard let hit = chunk.range(of: key), chunk.count >= hit.upperBound + 24,
-                  let at = iso.date(from: String(decoding: chunk[hit.upperBound..<hit.upperBound + 24], as: UTF8.self))
-            else { continue }
-            if at < since {
-                guard start > 0, let newline = chunk.firstIndex(of: UInt8(ascii: "\n")) else { return 0 }
+            var newest: Date?
+            var from = chunk.startIndex
+            while let hit = chunk.range(of: key, in: from..<chunk.endIndex) {
+                from = hit.upperBound
+                guard chunk.endIndex >= hit.upperBound + 24,
+                      let at = iso.date(from: String(decoding: chunk[hit.upperBound..<hit.upperBound + 24], as: UTF8.self))
+                else { continue }
+                newest = max(newest ?? at, at)
+            }
+            if let newest, newest < since {
+                guard let newline = chunk.lastIndex(of: UInt8(ascii: "\n")) else { return 0 }
                 return start + UInt64(newline - chunk.startIndex + 1)
             }
         }
