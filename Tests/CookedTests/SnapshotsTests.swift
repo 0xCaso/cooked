@@ -26,6 +26,10 @@ struct SnapshotsTests {
         #expect(pixelSize(dir.appendingPathComponent("island-peak.png"))?.width == CGFloat((404 + 48) * 2))
         #expect(pixelSize(dir.appendingPathComponent("popover-calm.png"))?.width == CGFloat((404 + 48) * 2))
         #expect(pixelSize(dir.appendingPathComponent("popover-peak.png")) != nil)
+        for name in ["setup-accounts", "setup-percent", "setup-login", "settings-percent-connected", "settings-percent-changed",
+                     "settings-remove"] {
+            #expect(pixelSize(dir.appendingPathComponent("\(name).png"))?.width == CGFloat((600 + 48) * 2), "\(name)")
+        }
     }
 
     @Test func glowSpriteIsCached() {

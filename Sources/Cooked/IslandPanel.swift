@@ -26,7 +26,7 @@ final class IslandPanel: NSPanel, IslandMover {
     init(model: IslandModel) {
         self.model = model
         let size = IslandLayout.panelSize
-        let content = NSHostingView(rootView: IslandRoot(model: model, source: UsageSource())
+        let content = NSHostingView(rootView: IslandRoot(model: model, makeSource: { UsageSource() })
             .frame(width: size.width, height: size.height, alignment: .top))
         content.sizingOptions = []
 

@@ -7,6 +7,7 @@ import SwiftUI
 enum Snapshots {
     static func write(to dir: URL) throws {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try writeSetup(to: dir)
         let calm = DemoData.calm, peak = DemoData.peak
         var pastPeak = calm.series
         for m in 26...35 { pastPeak[m] = 52000 + Double((m * 7) % 5) * 6000 }
@@ -90,6 +91,71 @@ enum Snapshots {
             try render(SurfaceShot { IslandView(model: IslandModel(snapshot: s), namespace: $0) }.padding(24).background(desk),
                        to: dir.appendingPathComponent("island-peak-\(name).png"))
         }
+    }
+
+    /// Setup's three steps and Settings' states, on a made-up home with four Claude folders (three share one
+    /// settings.json through links) and Codex.
+    static func writeSetup(to dir: URL) throws {
+        let files = FileManager.default
+        let home = files.temporaryDirectory.appendingPathComponent("cooked-setup-shots-\(UUID().uuidString)").path
+        defer { try? files.removeItem(atPath: home) }
+        let now = Date()
+        let folders: [(String, TimeInterval)] = [(".claude", -3 * 3600), (".claude-work", -4 * 86400), (".claude-team", -1800),
+                                                 (".claude-side", -20 * 86400)]
+        for (folder, ago) in folders {
+            try files.createDirectory(atPath: home + "/\(folder)/projects/p", withIntermediateDirectories: true)
+            try files.setAttributes([.modificationDate: now.addingTimeInterval(ago)], ofItemAtPath: home + "/\(folder)/projects/p")
+        }
+        try files.createDirectory(atPath: home + "/.codex/sessions/2026/11/04", withIntermediateDirectories: true)
+        try #"{"statusLine":{"type":"command","command":"bash ~/.claude/statusline.sh"}}"#
+            .write(toFile: home + "/.claude/settings.json", atomically: true, encoding: .utf8)
+        for folder in [".claude-work", ".claude-team", ".claude-side"] {
+            try files.createSymbolicLink(atPath: home + "/\(folder)/settings.json", withDestinationPath: home + "/.claude/settings.json")
+        }
+        let defaults = UserDefaults(suiteName: "cooked-setup-shots")!
+        defaults.removePersistentDomain(forName: "cooked-setup-shots")
+        let model = SetupModel(home: home, defaults: defaults, statusLine: StatusLineSetup(support: home + "/support"), login: ShotLogin())
+        let names = ["claudeAgent": "personal", "claudeAgent_work": "work", "claudeAgent_team": "team", "claudeAgent_side": "side"]
+        for i in model.rows.indices {
+            if let name = names[model.rows[i].id] { model.rows[i].name = name }
+            model.rows[i].ticked = model.rows[i].id != "claudeAgent_side"
+        }
+
+        let desk = Color(red: 27 / 255, green: 28 / 255, blue: 31 / 255)
+        func shot(_ title: String, _ view: some View, _ name: String) throws {
+            let window = VStack(spacing: 0) {
+                Text(title).textStyle(.body).foregroundStyle(Palette.ink2).frame(maxWidth: .infinity).frame(height: 40)
+                view
+            }
+            .background(Palette.bgDeep)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(24).background(desk)
+            try render(window, to: dir.appendingPathComponent("\(name).png"))
+        }
+        for step in SetupModel.Step.allCases {
+            model.step = step
+            try shot("Set up Cooked", SetupView(model: model), "setup-\(step)")
+        }
+        model.step = .percent
+        try shot("Set up Cooked", SetupView(model: model).environment(\.disclosuresOpen, true), "setup-percent-open")
+        try shot("Cooked Settings", SettingsView(model: model, tab: .accounts), "settings-accounts")
+        try shot("Cooked Settings", SettingsView(model: model, tab: .percent), "settings-percent-off")
+        model.connect()
+        try shot("Cooked Settings", SettingsView(model: model, tab: .percent), "settings-percent-connected")
+        try shot("Cooked Settings", SettingsView(model: model, tab: .percent).environment(\.disclosuresOpen, true),
+                 "settings-percent-connected-details")
+        try shot("Cooked Settings", SettingsView(model: model, tab: .general), "settings-general")
+        try shot("Cooked Settings", SettingsView(model: model, tab: .general, confirmingRemove: true), "settings-remove")
+        try #"{"statusLine":{"type":"command","command":"npx claude-hud"}}"#
+            .write(toFile: home + "/.claude/settings.json", atomically: true, encoding: .utf8)
+        model.refresh()
+        try shot("Cooked Settings", SettingsView(model: model, tab: .percent).environment(\.disclosuresOpen, true),
+                 "settings-percent-changed")
+    }
+
+    private final class ShotLogin: LoginItem {
+        var isEnabled = true
+        func set(_ on: Bool) throws { isEnabled = on }
     }
 
     /// `--snapshots <dir> --live`: the island and the open popover from the real status.json and database.

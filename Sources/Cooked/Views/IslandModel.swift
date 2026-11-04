@@ -44,6 +44,12 @@ final class IslandModel {
     @ObservationIgnored private let defaults: UserDefaults
     /// Moves the panel while the island is dragged (the panel itself).
     @ObservationIgnored weak var mover: IslandMover?
+    /// Goes up when Setup or Settings change the accounts: the live feed starts a new reader.
+    private(set) var accountsVersion = 0
+    /// Opens the Settings window (the app delegate sets it).
+    @ObservationIgnored var openSettings: () -> Void = {}
+
+    func accountsChanged() { accountsVersion += 1 }
 
     enum Feed: String, CaseIterable { case live, demoCalm, demoPeak
         var title: String {

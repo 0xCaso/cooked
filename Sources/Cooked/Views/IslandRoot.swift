@@ -7,8 +7,8 @@ import SwiftUI
 struct IslandRoot: View {
     let model: IslandModel
     var forceStill = false
-    /// Read every 5 s while the feed is live. nil in snapshots.
-    var source: UsageSource? = nil
+    /// Makes the reader read every 5 s while the feed is live, again when the accounts change. nil in snapshots.
+    var makeSource: (@MainActor () -> UsageSource)? = nil
     @Namespace private var glass
     @Environment(\.self) private var env
 
@@ -38,6 +38,7 @@ struct IslandRoot: View {
                             }
                             .pickerStyle(.menu)
                             Divider()
+                            Button("Settings…") { model.openSettings() }
                             Button("Quit Cooked") { NSApp.terminate(nil) }
                         }
                         .reportsHitRect(into: model, slot: 0)
@@ -64,8 +65,8 @@ struct IslandRoot: View {
                 model.tickRate()
             }
         }
-        .task(id: model.feed) {
-            guard model.feed == .live, let source else { return }
+        .task(id: LiveKey(feed: model.feed, accounts: model.accountsVersion)) {
+            guard model.feed == .live, let source = makeSource?() else { return }
             while !Task.isCancelled {
                 let reading = await Task.detached(priority: .utility) { source.read() }.value
                 model.apply(reading)
@@ -75,6 +76,11 @@ struct IslandRoot: View {
     }
 
     nonisolated static let space = "panel"
+
+    private struct LiveKey: Equatable {
+        let feed: IslandModel.Feed
+        let accounts: Int
+    }
 }
 
 private extension View {

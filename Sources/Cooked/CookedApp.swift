@@ -30,7 +30,7 @@ enum CookedApp {
             exit(0)
         }
         // `--statusline status|connect|disconnect`: the status line bridge of each connected Claude account's settings
-        // file, until the Settings window has the button.
+        // file, from the terminal (the Settings window has the same buttons).
         if let i = args.firstIndex(of: "--statusline") {
             let action = i + 1 < args.count ? args[i + 1] : "status"
             let setup = StatusLineSetup()
@@ -65,6 +65,7 @@ enum CookedApp {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: IslandPanel?
     let model = IslandModel(feed: .live)
+    private lazy var setup = SetupWindows { [model] in model.accountsChanged() }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.registerFontsOutsideTheBundle()
@@ -73,6 +74,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.restorePosition()
         panel.orderFrontRegardless()
         self.panel = panel
+        model.openSettings = { [weak self] in self?.setup.showSettings() }
+        // First launch, or `--setup`: the Setup window. `--settings`: the Settings window.
+        let arguments = CommandLine.arguments
+        if arguments.contains("--setup") || !SetupModel.isDone() { setup.showSetup() }
+        else if arguments.contains("--settings") { setup.showSettings() }
         // `--feed demoCalm|demoPeak|live`: start on that feed, to check a state on the real glass from the terminal.
         let launchArgs = CommandLine.arguments
         if let i = launchArgs.firstIndex(of: "--feed"), i + 1 < launchArgs.count, let feed = IslandModel.Feed(rawValue: launchArgs[i + 1]) {
