@@ -21,6 +21,24 @@ struct PopoverView: View {
                 .foregroundStyle(sectionInk)
                 .padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             rateCard(s)
+            // the full list of sources and many accounts can be taller than the screen: then they scroll
+            ViewThatFits(in: .vertical) {
+                lower(s)
+                ScrollView { lower(s) }
+                    .scrollIndicators(.automatic)
+                    .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+        // The top label's text starts 16 pt below the edge: the last card ends as far from the bottom edge.
+        .padding(EdgeInsets(top: 8, leading: 8, bottom: 16, trailing: 8))
+        .frame(width: IslandLayout.popoverWidth)
+        .modifier(IslandSurface(shape: RoundedRectangle(cornerRadius: 24, style: .continuous), solidFill: Palette.bgDeep,
+                                glassID: "popover", namespace: namespace))
+    }
+
+    /// What burns tokens and the accounts, under the rate card.
+    private func lower(_ s: UsageSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             if !s.sources.isEmpty {
                 HStack {
                     Text("What burns tokens")
@@ -37,11 +55,6 @@ struct PopoverView: View {
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
             accountsCard(s)
         }
-        // The top label's text starts 16 pt below the edge: the last card ends as far from the bottom edge.
-        .padding(EdgeInsets(top: 8, leading: 8, bottom: 16, trailing: 8))
-        .frame(width: IslandLayout.popoverWidth)
-        .modifier(IslandSurface(shape: RoundedRectangle(cornerRadius: 24, style: .continuous), solidFill: Palette.bgDeep,
-                                glassID: "popover", namespace: namespace))
     }
 
     /// Only the section label: the two windows are named over their columns inside the card.
@@ -93,7 +106,7 @@ struct PopoverView: View {
     }
 
     private func sourcesCard(_ sources: [TokenSource]) -> some View {
-        SourcesCard(sources: sources, hovered: nil, hot: model.snapshot.isUrgent ? IslandView.peakSource(model.snapshot)?.id : nil)
+        SourcesCard(sources: sources, hovered: nil, expanded: model.sourcesExpanded, hot: model.snapshot.isUrgent ? IslandView.peakSource(model.snapshot)?.id : nil)
     }
 
     private func accountsCard(_ s: UsageSnapshot) -> some View {

@@ -13,6 +13,8 @@ final class IslandModel {
     /// The peak card, unless the user shrank it.
     var showsPeakCard: Bool { snapshot.isUrgent && !peakMinimized }
     var isOpen = false
+    /// The "What burns tokens" list starts open: only to measure the panel.
+    var sourcesExpanded = false
     /// Tokens per minute right now. In the calm demo it rolls through `DemoData.calmRates`.
     var rateNow: Int
     /// The popover's "now": every account summed in live data, else `rateNow`.
@@ -154,15 +156,36 @@ enum IslandLayout {
     /// Transparent margin around the surfaces, so glass edges and shadows are not clipped.
     static let margin: CGFloat = 24
 
-    /// Big enough for the tallest state (open, peak, every account in use, three sources), measured once.
+    /// Big enough for the tallest state, measured once: open, peak, the full list of sources open, and every
+    /// connected account in use (at least the demo's five).
     static let panelSize: CGSize = {
-        let tallest = DemoData.peak
-        let model = IslandModel(snapshot: tallest)
+        let model = IslandModel(snapshot: tallest(accounts: AccountStore.current().count))
         model.isOpen = true
+        model.sourcesExpanded = true
         let view = NSHostingView(rootView: AnyView(IslandRoot(model: model, forceStill: true).environment(\.solidSurfaces, true)))
         let fit = view.fittingSize
-        return CGSize(width: popoverWidth + 2 * margin, height: ceil(fit.height))
+        return CGSize(width: popoverWidth + 2 * margin, height: min(ceil(fit.height), maxPanelHeight))
     }()
+
+    /// The main screen under the menu bar: a taller popover scrolls its lower part.
+    static var maxPanelHeight: CGFloat { (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height ?? 945 }
+
+    /// The demo peak with `TokenSources.limit` sources and at least `accounts` accounts in use.
+    static func tallest(accounts: Int) -> UsageSnapshot {
+        var s = DemoData.peak
+        let template = s.sources[s.sources.count - 1]
+        for i in s.sources.count..<max(s.sources.count, TokenSources.limit) {
+            s.sources.append(TokenSource(id: "measure-\(i)", project: template.project, detail: template.detail,
+                                         account: template.account, rate: template.rate, agents: template.agents))
+        }
+        let last = s.accounts[s.accounts.count - 1]
+        for i in s.accounts.count..<max(s.accounts.count, accounts) {
+            s.accounts.append(Account(id: "measure-\(i)", short: last.short, fiveHourPercent: last.fiveHourPercent,
+                                      fiveHourReset: last.fiveHourReset, isLive: last.isLive, weekPercent: last.weekPercent,
+                                      fiveHourElapsed: last.fiveHourElapsed, weekElapsed: last.weekElapsed, weekReset: last.weekReset))
+        }
+        return s
+    }
 }
 
 /// Clicks on the transparent part of the panel go to the window below.

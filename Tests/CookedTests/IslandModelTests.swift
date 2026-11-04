@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import Cooked
 
@@ -58,9 +59,9 @@ struct IslandModelTests {
     @Test func panelSizeHoldsOpenPeak() {
         let size = IslandLayout.panelSize
         #expect(size.width == CGFloat(404 + 2 * 24))
-        // island 108 + gap 8 + popover with 3 sources, the column labels and 5 rows of two-line pills (about 47 pt
-        // pitch) + margins 48. Under 945 pt: a 14" MacBook's 982 pt screen less its menu bar.
-        #expect((CGFloat(900)...CGFloat(945)).contains(size.height), "panel height \(size.height)")
+        // the full list of 8 sources open and 5 accounts need about 1240 pt: more than a 14" MacBook's screen, so the
+        // panel stops at the screen under the menu bar and the popover's lower part scrolls
+        #expect(size.height >= 900 && size.height <= max(IslandLayout.maxPanelHeight, 945), "panel height \(size.height)")
     }
 }
 
@@ -81,5 +82,27 @@ struct IslandHitTestTests {
 
     @Test func outsideThePanelPassesThrough() {
         #expect(!IslandHitTest.hits(CGPoint(x: 10, y: 10), rects: [island], panelFrame: panel))
+    }
+}
+
+/// The panel is measured with the full list of sources open and every connected account, so nothing is cut.
+@MainActor
+struct PanelSizeTests {
+    @Test func tallestHasTheFullListAndEveryAccount() {
+        let s = IslandLayout.tallest(accounts: 7)
+        #expect(s.sources.count == TokenSources.limit)
+        #expect(s.rows.count == 7)
+        #expect(IslandLayout.tallest(accounts: 2).rows.count == DemoData.peak.rows.count)
+    }
+
+    @Test func theOpenListMakesThePanelTaller() {
+        func height(_ expanded: Bool, accounts: Int) -> CGFloat {
+            let model = IslandModel(snapshot: IslandLayout.tallest(accounts: accounts))
+            model.isOpen = true
+            model.sourcesExpanded = expanded
+            return NSHostingView(rootView: AnyView(IslandRoot(model: model, forceStill: true).environment(\.solidSurfaces, true))).fittingSize.height
+        }
+        #expect(height(true, accounts: 5) > height(false, accounts: 5) + 100)
+        #expect(height(true, accounts: 7) > height(true, accounts: 5))
     }
 }

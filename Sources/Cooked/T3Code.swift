@@ -10,7 +10,11 @@ enum T3Code {
     static func link(thread: String, environmentFile: String = environmentFile) -> URL? {
         guard let env = try? String(contentsOfFile: environmentFile, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines), !env.isEmpty else { return nil }
-        return URL(string: "t3code://threads/\(env)/\(thread)")
+        // one path segment each: delegated threads' ids hold ":" and "%3A", which T3 Code decodes once
+        let segment = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        guard let envPart = env.addingPercentEncoding(withAllowedCharacters: segment),
+              let threadPart = thread.addingPercentEncoding(withAllowedCharacters: segment) else { return nil }
+        return URL(string: "t3code://threads/\(envPart)/\(threadPart)")
     }
 
     /// Opens the thread in the T3 Code that is running: Alpha, Nightly and custom builds share the bundle id and

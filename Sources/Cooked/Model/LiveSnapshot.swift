@@ -78,7 +78,8 @@ enum LiveSnapshot {
         }
         func weekReset(_ id: String) -> String? {
             guard weekPercent(id) != nil, let reset = weekResetDate(id) else { return nil }
-            return weekday(reset, calendar)
+            // today the day says nothing: the time does
+            return calendar.isDate(reset, inSameDayAs: now) ? clock(reset, calendar) : weekday(reset, calendar)
         }
         /// No event in the last 5 hours; without a last event, not live and no tokens in the last 15 minutes.
         func unused(_ id: String) -> Bool {

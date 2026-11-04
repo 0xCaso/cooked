@@ -599,5 +599,8 @@ struct T3CodeTests {
         #expect(T3Code.link(thread: "0c24a363", environmentFile: file.path)?.absoluteString
                 == "t3code://threads/6ee1c3a6-fb6a/0c24a363")
         #expect(T3Code.link(thread: "x", environmentFile: "/nonexistent") == nil)
+        // a delegated thread: its ":" and "%3A" reach T3 Code as written
+        #expect(T3Code.link(thread: "thread:delegated-task:command%3Amcp%3A37e7", environmentFile: file.path)?.absoluteString
+                == "t3code://threads/6ee1c3a6-fb6a/thread%3Adelegated-task%3Acommand%253Amcp%253A37e7")
     }
 }
