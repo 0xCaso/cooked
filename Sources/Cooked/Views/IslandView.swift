@@ -86,7 +86,7 @@ struct IslandView: View {
                 Button("Minimize") { model.peakMinimized = true }
                     .buttonStyle(SecondaryButtonStyle())
                 // The top source of the account that fills up, else the top source: what to check or stop.
-                Button("Open thread ↗") { T3Code.open(thread: Self.peakThread(s)) }
+                Button("Open thread ↗") { SessionOpener.open(Self.peakSource(s)?.target) }
                     .buttonStyle(PrimaryButtonStyle())
                     .pointingHand()
             }

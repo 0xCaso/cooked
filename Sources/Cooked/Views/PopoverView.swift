@@ -249,7 +249,7 @@ private struct SourceRow: View {
     @Environment(\.self) private var env
 
     var body: some View {
-        Button { T3Code.open(thread: source.threadID) } label: {
+        Button { SessionOpener.open(source.target) } label: {
             Group {
                 if let ago = source.endedAgo { endedLine(ago) } else { liveLines }
             }
@@ -273,7 +273,7 @@ private struct SourceRow: View {
         .buttonStyle(.plain)
         .pointingHand()
         .accessibilityLabel(accessibilityText)
-        .accessibilityHint(source.threadID == nil ? "Opens T3 Code" : "Opens the thread in T3 Code")
+        .accessibilityHint(SessionOpener.label(source.target).replacingOccurrences(of: " ↗", with: ""))
     }
 
     private var rate: Text {
@@ -317,7 +317,7 @@ private struct SourceRow: View {
                     Text(source.detail).textStyle(.body).foregroundStyle(Palette.ink2)
                         .truncationMode(.tail)
                     Spacer(minLength: 0)
-                    Text(lifted ? (source.threadID == nil ? "Open T3 Code ↗" : "Open in T3 Code ↗") : source.account)
+                    Text(lifted ? SessionOpener.label(source.target) : source.account)
                         .textStyle(.body)
                         .foregroundStyle(lifted ? Palette.ink : Palette.ink2)
                         .layoutPriority(1)

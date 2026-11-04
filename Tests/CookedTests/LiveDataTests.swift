@@ -554,7 +554,9 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent", id: "s3", cwd: nil, tokens: 10, mainActive: true, activeSubagents: 0), // under 1/min
             .init(account: "claudeAgent", id: "s4", cwd: "/r/atlas", tokens: 15_000, mainActive: false, activeSubagents: 2),
         ]
+        // where a click goes: OpenTargetTests
         let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], accounts: testAccounts)
+            .map { var s = $0; s.session = nil; return s }
         #expect(out == [
             .init(id: "t1", threadID: "t1", project: "cooked", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
             .init(id: "s2", project: "t3 scratch", detail: "Claude Code session", account: "team", rate: 4000, agents: nil),

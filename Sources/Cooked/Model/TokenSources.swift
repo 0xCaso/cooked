@@ -17,6 +17,53 @@ struct TokenSource: Identifiable, Equatable {
     let agents: String?
     /// Minutes since the last call, when nothing ran in the last 5 minutes: the line goes under "Ended".
     var endedAgo: Int? = nil
+    /// Where a click goes when the source has no T3 Code thread.
+    var session: OpenTarget? = nil
+
+    /// The T3 Code thread first, else the session itself.
+    var target: OpenTarget? { threadID.map { .t3Code(thread: $0) } ?? session }
+}
+
+/// Where a click on a row goes (release spec, section 1, Click on a row). A struct, not an enum with payloads: that
+/// enum, inside `TokenSource`, crashed the debug build on release (Swift 6, `outlined destroy of TokenSource`).
+struct OpenTarget: Equatable {
+    enum Place: Equatable { case t3Code, codex, claude }
+    let place: Place
+    /// The T3 Code thread, or the session id.
+    let id: String
+    var cwd: String? = nil
+    /// A Claude account's folder; nil for `~/.claude`, the only account the Claude app can open.
+    var configDir: String? = nil
+
+    static func t3Code(thread: String) -> OpenTarget { .init(place: .t3Code, id: thread) }
+    static func codex(session: String, cwd: String?) -> OpenTarget { .init(place: .codex, id: session, cwd: cwd) }
+    static func claude(session: String, cwd: String?, configDir: String?) -> OpenTarget {
+        .init(place: .claude, id: session, cwd: cwd, configDir: configDir)
+    }
+
+    /// The session behind a transcript: Codex, `~/.claude`, or another Claude account with its folder.
+    static func session(_ s: TranscriptLog.Session, accounts: [ConnectedAccount]) -> OpenTarget {
+        if s.account == Accounts.codexID { return .codex(session: s.id, cwd: s.cwd) }
+        let dir = s.account == Accounts.id(folder: ".claude") ? nil : accounts.first { $0.id == s.account }?.path
+        return .claude(session: s.id, cwd: s.cwd, configDir: dir)
+    }
+
+    /// The command that resumes the session in a Terminal.
+    var command: String {
+        switch place {
+        case .t3Code: "open " + Self.quote("t3code://threads/" + id)
+        case .codex: "codex resume " + Self.quote(id)
+        case .claude: (configDir.map { "CLAUDE_CONFIG_DIR=" + Self.quote($0) + " " } ?? "") + "claude --resume " + Self.quote(id)
+        }
+    }
+
+    /// The `.command` file: into the project folder, then the command.
+    var script: String {
+        "#!/bin/sh\n" + (cwd.map { "cd " + Self.quote($0) + " || exit 1\n" } ?? "") + command + "\n"
+    }
+
+    /// One shell word, in single quotes.
+    static func quote(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
 }
 
 enum TokenSources {
@@ -40,7 +87,7 @@ enum TokenSources {
             return TokenSource(id: thread?.id ?? s.id, threadID: thread?.id, project: thread.map(project) ?? project(cwd: s.cwd),
                                detail: thread?.title ?? s.name ?? (s.account == Accounts.codexID ? "Codex session" : "Claude Code session"), account: short(s.account),
                                rate: s.tokens / window, agents: agents(main: s.mainActive, subagents: s.activeSubagents),
-                               endedAgo: ended(s))
+                               endedAgo: ended(s), session: .session(s, accounts: accounts))
         }
         // one T3 thread can hold several sessions (a resumed or handed-off conversation): one line
         var merged: [String: TokenSource] = [:]
@@ -48,7 +95,7 @@ enum TokenSources {
             if let m = merged[s.id] {
                 merged[s.id] = TokenSource(id: s.id, threadID: m.threadID, project: m.project, detail: m.detail, account: m.account, rate: m.rate + s.rate,
                                            agents: m.agents ?? s.agents,
-                                           endedAgo: m.endedAgo.flatMap { a in s.endedAgo.map { min(a, $0) } })
+                                           endedAgo: m.endedAgo.flatMap { a in s.endedAgo.map { min(a, $0) } }, session: m.session)
             } else { merged[s.id] = s }
         }
         return merged.values.filter { $0.rate >= minimumRate }
