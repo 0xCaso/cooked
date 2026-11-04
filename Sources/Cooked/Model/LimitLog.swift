@@ -2,8 +2,9 @@ import Foundation
 
 /// The accounts' 5 h and week percent, and the paces and alert thresholds built from them, in the form the watcher
 /// script's status.json had. The samples come from:
-/// - Claude: the status line bridge files (`StatusLineBridge`); until an account has one, T3 Code's provider logs
-///   (`~/.t3/userdata/logs/provider/events.<thread>.log`, read-only). The logs go away with the bridge (task 7).
+/// - Claude: the status line bridge files (`StatusLineBridge`, terminal `claude` sessions) and T3 Code's provider logs
+///   (`~/.t3/userdata/logs/provider/events.<thread>.log`, read-only: the Agent SDK runs no status line, and logs each
+///   `rate_limit_event` when the percent changes). The newest sample of the two wins.
 /// - Codex: the `rate_limits` of its rollouts (`CodexLog`).
 /// The alert thresholds are the p99 of the 15-minute buckets in the minute cache.
 /// Keeps each log file's read position and the samples of the last hour across readings.
@@ -57,7 +58,7 @@ final class LimitLog: @unchecked Sendable {
     private var files: [String: File] = [:]
     /// From the bridge and the rollouts.
     private var samples: [String: [Sample]] = [:]
-    /// From T3 Code's logs, used for a Claude account with no samples above.
+    /// From T3 Code's logs, joined with the samples above for a Claude account.
     private var logged: [String: [Sample]] = [:]
     private var thresholds: (at: Double, values: [String: Int], total: Int)?
     /// The newest sample of each account, kept across launches in `store`: an account with no new event keeps its
@@ -91,8 +92,9 @@ final class LimitLog: @unchecked Sendable {
         logged = logged.mapValues(Self.prune)
 
         let t = now.timeIntervalSince1970
+        // A Claude account in the terminal and in T3 Code has both: one list, so the newest sample wins.
         var all = logged.filter { Self.isClaude($0.key) }
-        for (id, s) in samples where !s.isEmpty { all[id] = s }
+        for (id, s) in samples where !s.isEmpty { all[id] = Self.prune((all[id] ?? []) + s) }
         var changed = false
         for (id, s) in all {
             guard let newest = s.last, newest.at > last[id]?.at ?? -.infinity else { continue }

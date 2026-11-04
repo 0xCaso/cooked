@@ -119,6 +119,22 @@ struct LimitLogTests {
         #expect(LimitLog(dir: nil, store: store).read(now: now, calendar: calendar).accounts["claudeAgent"]?.sevenDayPct == 25)
     }
 
+    /// An account in the terminal (bridge) and in T3 Code (logs): the newest sample wins, whatever its source.
+    @Test func newestSampleWinsAcrossBridgeAndLogs() throws {
+        let reset = now.addingTimeInterval(3600)
+        let dir = try Self.logDir([Self.claudeLine(at: now.addingTimeInterval(-60), account: "claudeAgent", five: 0.40, fiveReset: reset)])
+        try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: dir + "/events.t1.log")
+        let log = LimitLog(dir: dir)
+        // the bridge sample is from 30 minutes ago, the T3 Code event from 1 minute ago
+        let bridge = sample(30, 0.20, reset: 3600)
+        let entry = try #require(log.read(now: now, samples: ["claudeAgent": bridge], database: nil, calendar: calendar).accounts["claudeAgent"])
+        #expect(entry.fiveHourPct == 40)
+        #expect(entry.lastEventAt == "13:59")
+        // a newer bridge sample wins again
+        let newer = sample(0, 0.45, reset: 3600)
+        #expect(log.read(now: now, samples: ["claudeAgent": newer], database: nil, calendar: calendar).accounts["claudeAgent"]?.fiveHourPct == 45)
+    }
+
     /// Only the current 5 h window and the last hour.
     @Test func pruneKeepsTheCurrentWindow() {
         let old = sample(30, 0.9, reset: -60)
