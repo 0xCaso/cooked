@@ -71,6 +71,27 @@ struct OneDataPathTests {
         #expect(restarted.read(now: now).limits?.fiveHour?.usedPercent == 12)
     }
 
+    /// Task 8: no T3 Code database, the rows keep the session's own name and open the session itself.
+    @Test func withoutT3CodeRowsUseTheSessionName() throws {
+        let home = try tempDir("codex")
+        let day = home + "/sessions/2026/11/05"
+        try FileManager.default.createDirectory(atPath: day, withIntermediateDirectories: true)
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let at = iso.string(from: now.addingTimeInterval(-30))
+        let id = UUID().uuidString.lowercased()
+        let line = #"{"timestamp":"\#(at)","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":3000,"cached_input_tokens":0,"output_tokens":10,"total_tokens":3010},"last_token_usage":{"input_tokens":3000,"cached_input_tokens":0,"output_tokens":10,"total_tokens":3010}},"rate_limits":{"primary":{"used_percent":5.0,"window_minutes":300,"resets_at":\#(Int(now.timeIntervalSince1970) + 3600)}}}}"#
+        try (line + "\n").write(toFile: day + "/rollout-2026-11-05T10-00-00-\(id).jsonl", atomically: true, encoding: .utf8)
+        try #"{"id":"\#(id)","thread_name":"Fix the login page"}"#.appending("\n")
+            .write(toFile: home + "/session_index.jsonl", atomically: true, encoding: .utf8)
+        var s = source(try LimitLogTests.logDir([]))   // t3Database: /nonexistent
+        s.codex = CodexLog(home: home, ledger: s.ledger)
+        let row = try #require(s.read(now: now).get().snapshot.sources.first)
+        #expect(row.detail == "Fix the login page")
+        #expect(row.threadID == nil)
+        #expect(row.target == .codex(session: id, cwd: nil))
+    }
+
     @Test func theAlertLinesComeFromTheCache() {
         let ledger = MinuteLedger()
         let minuteNow = Int(now.timeIntervalSince1970) / 60
