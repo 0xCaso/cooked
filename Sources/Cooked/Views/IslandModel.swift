@@ -35,6 +35,10 @@ final class IslandModel {
     var glassStyle: GlassStyle {
         didSet { defaults.set(glassStyle.rawValue, forKey: GlassStyle.defaultsKey) }
     }
+    /// Where Cooked shows when closed: the island under the menu bar, or an item in the menu bar. Kept across launches.
+    var displayMode: DisplayMode {
+        didSet { defaults.set(displayMode.rawValue, forKey: DisplayMode.defaultsKey) }
+    }
     /// How far back the popover's chart looks, kept across launches.
     var chartRange: ChartRange {
         didSet { defaults.set(chartRange.rawValue, forKey: ChartRange.defaultsKey) }
@@ -93,6 +97,7 @@ final class IslandModel {
         dismissed = Set(defaults.stringArray(forKey: Self.dismissedKey) ?? [])
         self.feed = feed ?? (snapshot.isUrgent ? .demoPeak : .demoCalm)
         glassStyle = defaults.string(forKey: GlassStyle.defaultsKey).flatMap(GlassStyle.init(rawValue:)) ?? .darker
+        displayMode = defaults.string(forKey: DisplayMode.defaultsKey).flatMap(DisplayMode.init(rawValue:)) ?? .island
         chartRange = defaults.string(forKey: ChartRange.defaultsKey).flatMap(ChartRange.init(rawValue:)) ?? .tenMinutes
         self.snapshot = snapshot
         rateNow = snapshot.rateNow
@@ -165,6 +170,18 @@ final class IslandModel {
         guard feed == .demoCalm else { return }
         calmRateIndex = (calmRateIndex + 1) % DemoData.calmRates.count
         rateNow = DemoData.calmRates[calmRateIndex]
+    }
+}
+
+/// Where Cooked shows when the popover is closed.
+enum DisplayMode: String, CaseIterable {
+    case island, menuBar
+    static let defaultsKey = "displayMode"
+    var title: String {
+        switch self {
+        case .island: "Island"
+        case .menuBar: "Menu bar"
+        }
     }
 }
 

@@ -50,8 +50,11 @@ print the same.
   the Claude 5-hour percent, and whether it opens at login.
 - The island sits under the menu bar. Click it to open or close the popover; Esc, a click elsewhere or any key closes
   it. Drag it to move it: the position is kept per screen.
-- Right-click the island: **Data** (Live, Demo: calm, Demo: peak), **Glass** (System, Clear, Darker), **Settings…**,
-  **Quit Cooked**. Opening Cooked again while it runs opens the popover.
+- Right-click the island: **Data** (Live, Demo: calm, Demo: peak), **Glass** (System, Clear, Darker), **Show in**,
+  **Settings…**, **Quit Cooked**. Opening Cooked again while it runs opens the popover.
+- Less room: Settings → General → **Show Cooked in** → **Menu bar** (or right-click → **Show in**). The island goes
+  away and an item in the menu bar shows the last 9 minutes as dots and the 5-hour percent. Click it for the popover,
+  right-click it for the same menu.
 - When a number is missing, the popover says why at the top, with its one fix.
 
 ## Where the numbers come from

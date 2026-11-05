@@ -45,6 +45,15 @@ enum Snapshots {
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))
         }
+        // Menu bar mode: the status item on a light and a dark menu bar.
+        for (name, snapshot) in [("calm", calm), ("peak", peak)] {
+            let model = IslandModel(snapshot: snapshot)
+            for (bar, scheme, fill) in [("light", ColorScheme.light, Color(white: 0.92)), ("dark", ColorScheme.dark, Color(white: 0.16))] {
+                try render(MenuBarLabel(model: model).frame(height: 24).padding(.horizontal, 12).padding(.vertical, 6)
+                               .background(fill).environment(\.colorScheme, scheme),
+                           to: dir.appendingPathComponent("menubar-\(name)-\(bar).png"))
+            }
+        }
         try writeNotices(to: dir, desk: desk, clock: clock)
         // "What burns tokens" with the first line hovered (lifted), then the middle one (neighbours on both sides).
         for (name, index) in [("sources-hover", 0), ("sources-hover-middle", 1)] where peak.sources.indices.contains(index) {
@@ -161,7 +170,7 @@ enum Snapshots {
         try shot("Cooked Settings", SettingsView(model: model, tab: .percent), "settings-percent-connected")
         try shot("Cooked Settings", SettingsView(model: model, tab: .percent).environment(\.disclosuresOpen, true),
                  "settings-percent-connected-details")
-        try shot("Cooked Settings", SettingsView(model: model, tab: .general), "settings-general")
+        try shot("Cooked Settings", SettingsView(model: model, tab: .general, displayMode: .constant(.menuBar)), "settings-general")
         try shot("Cooked Settings", SettingsView(model: model, tab: .general, confirmingRemove: true), "settings-remove")
         try #"{"statusLine":{"type":"command","command":"npx claude-hud"}}"#
             .write(toFile: home + "/.claude/settings.json", atomically: true, encoding: .utf8)

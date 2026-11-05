@@ -243,6 +243,8 @@ struct SettingsView: View {
 
     @Bindable var model: SetupModel
     @State var tab: Tab = .accounts
+    /// "Show Cooked in": the island or the menu bar. nil hides the row (snapshots).
+    var displayMode: Binding<DisplayMode>? = nil
     @State var confirmingRemove = false
     @State private var forward = true
     @Environment(\.self) private var env
@@ -317,6 +319,21 @@ struct SettingsView: View {
                 }
                 .padding(12)
                 .cardSurface()
+                if let displayMode {
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Show Cooked in").textStyle(.emphasis).foregroundStyle(Palette.ink)
+                            Text("The island under the menu bar, or a small item in the menu bar.")
+                                .textStyle(.label).foregroundStyle(Palette.ink3)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Segments(selection: displayMode, options: DisplayMode.allCases.map { ($0, $0.title) },
+                                 label: "Show Cooked in")
+                            .fixedSize()
+                    }
+                    .padding(12)
+                    .cardSurface()
+                }
                 HStack {
                     Button("Remove Cooked's changes…") { show(true) }.buttonStyle(GhostButtonStyle())
                     Spacer(minLength: 0)

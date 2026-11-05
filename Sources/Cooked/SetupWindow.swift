@@ -6,8 +6,11 @@ import SwiftUI
 final class SetupWindows {
     private var window: NSWindow?
     private let onAccountsChange: () -> Void
+    /// The island's model, for the "Show Cooked in" setting.
+    private weak var island: IslandModel?
 
-    init(onAccountsChange: @escaping () -> Void) {
+    init(island: IslandModel? = nil, onAccountsChange: @escaping () -> Void) {
+        self.island = island
         self.onAccountsChange = onAccountsChange
     }
 
@@ -17,7 +20,10 @@ final class SetupWindows {
     }
 
     func showSettings(tab: SettingsView.Tab = .accounts) {
-        present(title: "Cooked Settings", SettingsView(model: makeModel(), tab: tab))
+        let mode = island.map { island in
+            Binding(get: { island.displayMode }, set: { island.displayMode = $0 })
+        }
+        present(title: "Cooked Settings", SettingsView(model: makeModel(), tab: tab, displayMode: mode))
     }
 
     private func makeModel() -> SetupModel {

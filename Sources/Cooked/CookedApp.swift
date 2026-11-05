@@ -65,8 +65,9 @@ enum CookedApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: IslandPanel?
+    private var menuBarItem: MenuBarItem?
     let model = IslandModel(feed: .live)
-    private lazy var setup = SetupWindows { [model] in model.accountsChanged() }
+    private lazy var setup = SetupWindows(island: model) { [model] in model.accountsChanged() }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.registerFontsOutsideTheBundle()
@@ -75,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.restorePosition()
         panel.orderFrontRegardless()
         self.panel = panel
+        showDisplayMode()
         model.openSettings = { [weak self] tab in self?.setup.showSettings(tab: tab ?? .accounts) }
         model.openSetup = { [weak self] in self?.setup.showSetup() }
         // First launch, or `--setup`: the Setup window. `--settings`: the Settings window.
@@ -88,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // `--open`: open the popover after a second, to check from the terminal that the app in use stays in front.
         if CommandLine.arguments.contains("--open") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [model] in model.open() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.open() }
         }
         // `--toggle-every <s>`: opens and closes the popover on a timer, to record the transitions without clicking.
         let args = CommandLine.arguments
@@ -101,8 +103,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Opening the app again (Applications, Spotlight, Dock) while it runs opens the popover.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        model.open()
+        open()
         return false
+    }
+
+    /// Opens the popover: under the menu bar item in menu bar mode, under the island otherwise.
+    private func open() {
+        if let menuBarItem { menuBarItem.openPopover() } else { model.open() }
+    }
+
+    /// The status item in menu bar mode; the island back where it was left otherwise. Follows the setting at once.
+    private func showDisplayMode() {
+        model.close()
+        switch model.displayMode {
+        case .menuBar:
+            if menuBarItem == nil {
+                menuBarItem = MenuBarItem(model: model) { [weak self] item in self?.panel?.place(under: item) }
+            }
+        case .island:
+            menuBarItem?.remove()
+            menuBarItem = nil
+            panel?.restorePosition()
+        }
+        withObservationTracking { _ = model.displayMode } onChange: { [weak self] in
+            Task { @MainActor in self?.showDisplayMode() }
+        }
     }
 
     /// Registers Plex from the bundle, or from the repo under `swift run` (no bundle). The bundle also sets

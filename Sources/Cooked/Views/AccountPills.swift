@@ -210,18 +210,33 @@ struct PillTimes: View {
 /// segmented control, the chosen range lifted on a lighter key.
 struct RangeControl: View {
     @Binding var selection: ChartRange
+
+    var body: some View {
+        Segments(selection: $selection, options: ChartRange.allCases.map { ($0, $0.rawValue) },
+                 font: .custom(PlexFont.monoMedium, size: 11), height: 19, label: "Chart range")
+    }
+}
+
+/// A segmented control drawn in SwiftUI (the system one does not render in snapshots): the chosen option lifted
+/// on a lighter key. The chart's ranges and Settings use it.
+struct Segments<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(Value, String)]
+    var font: Font = TextStyle.label.font
+    var height: CGFloat = 24
+    let label: String
     @Environment(\.self) private var env
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(ChartRange.allCases) { range in
-                let on = range == selection
-                Button { selection = range } label: {
-                    Text(range.rawValue)
-                        .font(.custom(PlexFont.monoMedium, size: 11))
+            ForEach(options, id: \.0) { value, title in
+                let on = value == selection
+                Button { selection = value } label: {
+                    Text(title)
+                        .font(font)
                         .foregroundStyle(on ? Palette.ink : Palette.ink3)
-                        .padding(.horizontal, 6)
-                        .frame(height: 19)
+                        .padding(.horizontal, height > 20 ? 10 : 6)
+                        .frame(height: height)
                         .background {
                             if on {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -242,6 +257,6 @@ struct RangeControl: View {
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 0.5)))
         .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: selection)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Chart range")
+        .accessibilityLabel(label)
     }
 }

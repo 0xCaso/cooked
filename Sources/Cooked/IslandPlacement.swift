@@ -53,4 +53,17 @@ enum IslandPlacement {
     static func screen(containing point: CGPoint, in screens: [ScreenInfo]) -> ScreenInfo? {
         screens.first { $0.visibleFrame.contains(point) }
     }
+
+    /// Space between the bottom of the menu bar item and the top of the popover.
+    static let gapBelowItem: CGFloat = 6
+
+    /// Menu bar mode: the panel whose popover hangs under the status item `item`, centred on it and kept on screen.
+    static func underItem(_ item: CGRect, size: CGSize, visibleFrame: CGRect) -> CGRect {
+        let frame = CGRect(x: item.midX - size.width / 2, y: item.minY - gapBelowItem + overhang - size.height,
+                           width: size.width, height: size.height)
+        let area = visibleFrame.insetBy(dx: -overhang, dy: 0)
+        var f = frame
+        f.origin.x = min(max(f.minX, area.minX), area.maxX - f.width)
+        return f
+    }
 }

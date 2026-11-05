@@ -109,6 +109,13 @@ final class IslandPanel: NSPanel, IslandMover {
                  display: true)
     }
 
+    /// Menu bar mode: the popover hangs under the status item at `item` (screen coordinates).
+    func place(under item: CGRect) {
+        let screen = NSScreen.screens.first { $0.frame.intersects(item) } ?? NSScreen.main
+        guard let visible = screen?.visibleFrame else { return }
+        setFrame(IslandPlacement.underItem(item, size: frame.size, visibleFrame: visible), display: true)
+    }
+
     func dragBegan() {
         dragStart = (NSEvent.mouseLocation, frame.origin)
         isDragging = false

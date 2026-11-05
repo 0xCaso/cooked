@@ -16,6 +16,7 @@ struct IslandRoot: View {
         let reduce = env.reducesMotion
         Group {
             VStack(spacing: IslandLayout.gap) {
+                if model.displayMode == .island {
                     IslandView(model: model, namespace: glass)
                         .contentShape(.rect)
                         .modifier(PressableIsland(model: model) { model.isOpen.toggle() })
@@ -29,11 +30,16 @@ struct IslandRoot: View {
                                 ForEach(GlassStyle.allCases, id: \.self) { Text($0.title).tag($0) }
                             }
                             .pickerStyle(.menu)
+                            Picker("Show in", selection: Bindable(model).displayMode) {
+                                ForEach(DisplayMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.menu)
                             Divider()
                             Button("Settings…") { model.openSettings(nil) }
                             Button("Quit Cooked") { NSApp.terminate(nil) }
                         }
                         .reportsHitRect(into: model, slot: 0)
+                }
                     if model.isOpen {
                         PopoverView(model: model, histogram: model.histogram, namespace: glass)
                             // grows out of the island: from 0.96 and transparent, anchored at the top centre
