@@ -2,3 +2,10 @@
 .build/
 build/
 .swiftpm/
+# Kept on the maintainer's Mac only: agent notes, plans, decisions, design work and release tools
+CLAUDE.md
+docs/
+release-tools/
+design/*
+!design/DESIGN.md
+.superpowers/
