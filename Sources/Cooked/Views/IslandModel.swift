@@ -163,6 +163,18 @@ final class IslandModel {
     func dismiss(_ reason: DismissReason) {
         guard isOpen else { return }
         isOpen = false
+        if reason == .clickOutside || reason == .resignedKey { closedByMouseAt = Date() }
+    }
+
+    /// When a click elsewhere last closed the popover. The menu bar item lives outside the app on macOS 26, so the
+    /// mouse-down on it closes the popover before the item's click arrives.
+    @ObservationIgnored private var closedByMouseAt: Date?
+
+    /// A click elsewhere closed the popover in the last half second: the menu bar item's click is that same click,
+    /// and must leave the popover closed.
+    func closedByThisClick(now: Date = Date()) -> Bool {
+        guard let closedByMouseAt else { return false }
+        return now.timeIntervalSince(closedByMouseAt) < 0.5
     }
 
     /// Every 3 s: the next calm rate. The peak and live data keep their rate.

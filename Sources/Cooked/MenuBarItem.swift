@@ -99,6 +99,8 @@ final class MenuBarItem: NSObject {
             showMenu()
         } else if model.isOpen {
             model.close()
+        } else if model.closedByThisClick() {
+            // the mouse-down already closed the popover
         } else {
             openPopover()
         }

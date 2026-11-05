@@ -30,4 +30,19 @@ import Testing
         IslandModel(defaults: defaults).displayMode = .menuBar
         #expect(IslandModel(defaults: defaults).displayMode == .menuBar)
     }
+
+    /// The menu bar item's mouse-down closes the popover as a click elsewhere; its click right after must not reopen it.
+    @Test @MainActor func aClickElsewhereCountsForHalfASecond() {
+        let model = IslandModel(defaults: UserDefaults(suiteName: "MenuBarTests-\(UUID().uuidString)")!)
+        #expect(!model.closedByThisClick())
+        model.open()
+        model.dismiss(.clickOutside)
+        #expect(model.closedByThisClick())
+        #expect(!model.closedByThisClick(now: Date().addingTimeInterval(0.6)))
+        model.open()
+        model.close()
+        model.open()
+        model.dismiss(.escape)
+        #expect(!model.closedByThisClick(now: Date().addingTimeInterval(0.6)))
+    }
 }
