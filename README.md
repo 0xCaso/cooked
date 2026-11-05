@@ -9,7 +9,8 @@ A macOS app that shows live usage of your Claude and Codex accounts (5-hour wind
 Needs macOS 26 or later, on a Mac with Apple silicon.
 
 1. Download `Cooked-<version>.zip` from [Releases](https://github.com/0xCaso/cooked/releases) and open it.
-2. Move **Cooked** to Applications, then open it.
+2. Drag **Cooked** to Applications in Finder, then open it from there. Opened from Downloads, macOS runs it from a
+   hidden copy, and open at login can lose it.
 3. macOS says it cannot check Cooked for malware, and does not open it. Click **Done**.
 4. Open **System Settings → Privacy & Security**, scroll to Security, and click **Open Anyway** next to "Cooked was
    blocked". Confirm with your password. macOS asks only this first time.
