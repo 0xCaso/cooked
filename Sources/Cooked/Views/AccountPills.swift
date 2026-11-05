@@ -18,9 +18,14 @@ import SwiftUI
     private var drip: Double
     private var seed: UInt64
 
-    init() {
-        seed = Self.nextSeed
-        Self.nextSeed = Self.nextSeed % 2_147_483_000 + 7919
+    /// `seed` fixes the drops, for tests: tests run in parallel, so the shared next seed differs from run to run.
+    init(seed: UInt64? = nil) {
+        if let seed {
+            self.seed = seed
+        } else {
+            self.seed = Self.nextSeed
+            Self.nextSeed = Self.nextSeed % 2_147_483_000 + 7919
+        }
         drip = 0
         drip = random() * 0.8
     }

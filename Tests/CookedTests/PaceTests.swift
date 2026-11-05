@@ -42,7 +42,7 @@ import Testing
 
     /// Dot motion task 3: each row's front sways on its spring, within ±0.7 column, and settles.
     @Test func frontsSwayWithinBoundsAndKeepMoving() {
-        let fronts = PaceFronts()
+        let fronts = PaceFronts(seed: 11)
         var biggest = 0.0, moving = 0
         var rows = Set<Int>()
         for frame in 0...(60 * 60) {
@@ -60,7 +60,7 @@ import Testing
     }
 
     @Test func stillFrontsDoNotSway() {
-        let fronts = PaceFronts()
+        let fronts = PaceFronts(seed: 11)
         for frame in 0...600 { _ = fronts.sway(at: Double(frame) / 60, still: false) }
         #expect(fronts.sway(at: 10.1, still: true) == [0, 0, 0])
     }
