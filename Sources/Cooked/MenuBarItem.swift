@@ -153,7 +153,7 @@ final class MenuBarItem: NSObject {
     }
 
     private func choice(_ title: String, on: Bool, _ run: @escaping @MainActor () -> Void) -> NSMenuItem {
-        let menuItem = NSMenuItem(title: title, action: #selector(MenuAction.perform(_:)), keyEquivalent: "")
+        let menuItem = NSMenuItem(title: title, action: #selector(MenuAction.fire(_:)), keyEquivalent: "")
         let action = MenuAction(run)
         menuItem.target = action
         menuItem.representedObject = action // the item keeps its target alive
@@ -162,15 +162,13 @@ final class MenuBarItem: NSObject {
     }
 }
 
+/// The target of a menu item: runs its closure. Internal, with an explicit Objective-C name: from a private class,
+/// `#selector` gave a selector the runtime did not know, and every menu item did nothing.
 @MainActor
-private final class MenuAction: NSObject {
+final class MenuAction: NSObject {
     let run: @MainActor () -> Void
     init(_ run: @escaping @MainActor () -> Void) { self.run = run }
-    /// After the menu closes: inside its tracking loop, nested in the item's click, `NSApp.terminate` does nothing.
-    @objc func perform(_ sender: Any?) {
-        let run = run
-        DispatchQueue.main.async { MainActor.assumeIsolated { run() } }
-    }
+    @objc(fire:) func fire(_ sender: Any?) { run() }
 }
 
 /// Lets clicks through to the status item's button.

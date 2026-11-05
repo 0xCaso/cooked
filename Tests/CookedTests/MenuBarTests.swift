@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Cooked
@@ -44,5 +45,17 @@ import Testing
         model.open()
         model.dismiss(.escape)
         #expect(!model.closedByThisClick(now: Date().addingTimeInterval(0.6)))
+    }
+
+    /// A menu item with a `MenuAction` target runs its closure (it once raised "unrecognized selector").
+    @Test @MainActor func menuItemsRunTheirAction() {
+        var ran = false
+        _ = NSApplication.shared // menu actions go through NSApp
+        let action = MenuAction { ran = true }
+        let menu = NSMenu()
+        let item = menu.addItem(withTitle: "Quit", action: #selector(MenuAction.fire(_:)), keyEquivalent: "")
+        item.target = action
+        menu.performActionForItem(at: 0)
+        #expect(ran)
     }
 }
