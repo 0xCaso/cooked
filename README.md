@@ -5,7 +5,7 @@
 Know you're cooked before Claude does. Cooked shows the live usage of your Claude and Codex accounts (5-hour window,
 week, tokens per minute) in an island under the menu bar.
 
-https://github.com/user-attachments/assets/76cc20e9-02e8-474c-a5da-a25ba4d345ce
+https://github.com/user-attachments/assets/04cb143e-3ed4-48f4-8557-69919efb6ab6
 
 ## How it works
 
