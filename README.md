@@ -1,8 +1,33 @@
+<p align="center"><img src=".github/media/icon.png" width="96" alt="Cooked icon"></p>
+
 # Cooked
 
-Know you're cooked before Claude does.
+Know you're cooked before Claude does. Cooked shows the live usage of your Claude and Codex accounts (5-hour window,
+week, tokens per minute) in an island under the menu bar.
 
-A macOS app that shows live usage of your Claude and Codex accounts (5-hour window, week, tokens per minute) in an island under the menu bar.
+https://github.com/user-attachments/assets/76cc20e9-02e8-474c-a5da-a25ba4d345ce
+
+## How it works
+
+### 1. The island tells you when you go too fast
+
+One line under the menu bar: what is left of the 5-hour window, the account at work and its tokens per minute. When you
+burn tokens faster than usual, the percent and the edge turn red.
+
+<p><img src=".github/media/island-calm.png" width="400" alt="The island, calm: 96% left, work, 9k/min"> <img src=".github/media/island-peak.png" width="400" alt="The island in a peak: 18% left in red, work, 184k/min"></p>
+
+### 2. Click it to see what burns tokens
+
+Tokens per minute, from the last 10 minutes to the last day, the threads that burn the most in the last 5 minutes, and when each account is
+full. Click a thread to open it where it runs: T3 Code, Codex, the Claude app or Terminal.
+
+<p><img src=".github/media/popover-peak.png" width="400" alt="The popover: tokens per minute, what burns tokens, usage per account"></p>
+
+### 3. Pick your accounts once
+
+Cooked finds every Claude and Codex folder on your Mac. It reads them on your Mac and sends nothing anywhere.
+
+<p><img src=".github/media/setup-accounts.png" width="560" alt="Set up Cooked: pick your accounts"></p>
 
 ## Install
 
