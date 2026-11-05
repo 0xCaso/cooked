@@ -67,6 +67,7 @@ For checks from the terminal:
 - `Cooked --feed demoCalm|demoPeak|live [--open]` starts on that feed (and opens the popover).
 - `Cooked --statusline status|connect|disconnect` shows or changes the status line bridge of each Claude account.
 
+Design rules: `design/DESIGN.md`.
 
 ## Structure
 

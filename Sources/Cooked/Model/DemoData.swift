@@ -1,7 +1,7 @@
 import Foundation
 
 /// The mockup's demo data (src/lib.js): `calm` is a real status.json of 28/10 19:28, `peak` (23:05) is invented.
-/// The week % of every account but work is invented.
+/// The week % of every account but the work account is invented.
 enum DemoData {
     static let threshold = 40000
     static let calmRates = [9000, 11000, 8000, 10000]

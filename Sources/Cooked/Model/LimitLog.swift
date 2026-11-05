@@ -179,7 +179,7 @@ final class LimitLog: @unchecked Sendable {
     }
 
     /// Share per second over the window before the last sample; nil with too few samples or under `coverage` of the
-    /// window (the script took 7.5 minutes for "30 min" and saw work full at 13:57; it was at 37% at 13:44).
+    /// window (the script took 7.5 minutes for "30 min" and saw the work account full at 13:57; it was at 37% at 13:44).
     static func slope(_ samples: [Sample], window: TimeInterval, minimum: Int) -> Double? {
         guard let last = samples.last else { return nil }
         let inside = samples.filter { $0.at >= last.at - window }
@@ -199,7 +199,7 @@ final class LimitLog: @unchecked Sendable {
     }
 
     /// p99 of each account's 15-min buckets. An account with little history takes the largest p99 of the other Claude
-    /// accounts (the same person's pace), else a fixed fallback: team sat at the fallback on 30/10.
+    /// accounts (the same person's pace), else a fixed fallback: the team account sat at the fallback on 30/10.
     static func thresholds(buckets: [String: [Double]], ids: Set<String> = []) -> [String: Int] {
         var own: [String: Int] = [:]
         for (id, values) in buckets { own[id] = p99(values) }

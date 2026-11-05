@@ -611,7 +611,8 @@ struct TokenSourcesTests {
         #expect(out.map(\.rate) == [10_000, 1000])
     }
 
-    /// A thread with no call in the last 5 minutes goes under "Ended", newest first, after the live ones.
+    /// A thread with no call in the last 5 minutes goes under "Ended", newest first, after the live ones
+    ///.
     @Test func endedThreadsComeLastWithTheirMinutes() {
         let now = Date(timeIntervalSince1970: 1_000 * 60)
         let sessions: [TranscriptLog.Session] = [

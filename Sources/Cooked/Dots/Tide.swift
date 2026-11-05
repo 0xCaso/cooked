@@ -192,7 +192,8 @@ final class TideIsland {
 /// The popover's 60 minutes as a liquid: when a minute closes the targets jump, and the surface flows into its
 /// new shape. Slow drops keep it alive while nothing changes, like the island: they fall on a separate ripple layer,
 /// added to the data's heights only when drawn, so the data's columns stay where the minutes put them. The ripple
-/// reaches into the body: the dots under a moving surface rise and sink with it, less with depth.
+/// reaches into the body: the dots under a moving surface rise and sink with it, less with depth
+///.
 final class TideHistogram {
     static let cols = 84, rows = 24
     static let pitch = 348.0 / Double(cols)
@@ -208,7 +209,8 @@ final class TideHistogram {
         /// The ripples never move a column further than this, in rows.
         let maxRipple: Double
 
-        /// 40% slower than the island, 1.6 drops a second whatever the data.
+        /// 40% slower than the island, 1.6 drops a second whatever the data
+        ///.
         static let calm = Motion(slow: 0.6, dropRate: (1.6, 0), kick: (8, 6), followsLevel: false, maxRipple: 0.6)
         /// The island's drops: more and harder as tokens flow in (`TideIsland`).
         static let lively = Motion(slow: 1, dropRate: (2, 22), kick: (14, 18), followsLevel: true, maxRipple: 1.2)

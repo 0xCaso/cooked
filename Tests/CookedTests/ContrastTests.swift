@@ -20,8 +20,8 @@ struct ContrastTests {
         #expect(Contrast.ratio(RGBA(Palette.redRGB), over: Palette.bgBaseRGB) >= 4.5)
     }
 
-    /// The lightest glass measured on screen behind each text, with every style over a white window.
-    /// If a veil changes, measure again and update these.
+    /// The lightest glass measured on screen behind each text, with every style over a white window
+    ///. If a veil changes, measure again and update these.
     @Test func textOnTheVeiledGlass() {
         // calm island and popover labels, 72% ink: Clear's popover over white
         #expect(Contrast.ratio(RGBA(ink, alpha: Palette.ink2Opacity), over: RGB(hex: 0x494949)) >= 4.5)

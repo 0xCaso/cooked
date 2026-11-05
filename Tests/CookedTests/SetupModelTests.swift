@@ -85,9 +85,9 @@ struct SetupModelTests {
 
     @Test func savedAccountsKeepTheirTickAndName() {
         let found = Accounts.scan(home: home)
-        let rows = SetupModel.rows(found: found, saved: [ConnectedAccount(id: "claudeAgent_work", name: "work", path: home + "/.claude-work")])
+        let rows = SetupModel.rows(found: found, saved: [ConnectedAccount(id: "claudeAgent_work", name: "job", path: home + "/.claude-work")])
         #expect(rows.map(\.ticked) == [false, true, false])
-        #expect(rows.map(\.name) == ["claude", "work", "codex"])
+        #expect(rows.map(\.name) == ["claude", "job", "codex"])
     }
 
     @Test func anEmptyNameFallsBackToTheDefault() {

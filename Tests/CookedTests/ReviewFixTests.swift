@@ -61,7 +61,7 @@ struct ReviewFixTests {
     }
 }
 
-/// Bug found with a manual right-click test: while the context menu tracks, the pointer leaves the island,
+/// Bug found in a manual right-click test: while the context menu tracks, the pointer leaves the island,
 /// the panel went back to ignoring the mouse, and no menu item could be chosen.
 @MainActor
 struct ContextMenuTests {
