@@ -100,3 +100,7 @@ Design rules: `design/DESIGN.md`.
 - `Sources/Cooked/`: `CookedApp` (launch, no Dock), `IslandPanel` (borderless window under the menu bar, click-through, drag), `IslandPlacement` and `PositionStore` (where the window goes), `Views/` (island, popover, surfaces, motion), `Dots/` (the dot-matrix charts), `Model/` (usage snapshot, session file readers, status line bridge, notices, live mapping, demo data), `Style/` (palette, type, contrast).
 - `Resources/Info.plist`: `LSUIElement` for the app with no Dock icon.
 - `scripts/`: `bundle.sh` (builds the .app), `run.sh` (bundle + launch), `install.sh` (release into /Applications), `release.sh` (the release zip).
+
+## License
+
+MIT, see [LICENSE](LICENSE). The IBM Plex fonts in `Resources/Fonts/` are under the SIL Open Font License.
