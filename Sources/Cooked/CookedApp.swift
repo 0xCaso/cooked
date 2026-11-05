@@ -115,8 +115,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let bundled = resourceURL?.appendingPathComponent("Fonts"), FileManager.default.fileExists(atPath: bundled.path) {
             return bundled
         }
+        #if DEBUG
         return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Resources/Fonts")
+        #else
+        // A release build always runs from the bundle; #filePath would put the build machine's path in the binary.
+        return URL(fileURLWithPath: "Resources/Fonts")
+        #endif
     }
 }
