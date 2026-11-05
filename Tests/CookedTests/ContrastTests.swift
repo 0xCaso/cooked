@@ -25,15 +25,9 @@ struct ContrastTests {
     @Test func textOnTheVeiledGlass() {
         // calm island and popover labels, 72% ink: Clear's popover over white
         #expect(Contrast.ratio(RGBA(ink, alpha: Palette.ink2Opacity), over: RGB(hex: 0x494949)) >= 4.5)
-        // red 32 pt on the peak card: Clear with the popover open over white
-        #expect(Contrast.ratio(RGBA(Palette.redRGB), over: RGB(hex: 0x383838)) >= 3)
-        // red 13 pt of the minimized peak, in its well (the well's light bottom)
+        // red 13 pt of the urgent island, in its well (the well's light bottom)
         #expect(Contrast.ratio(RGBA(Palette.redRGB), over: RGB(hex: 0x1B1B1B)) >= 4.5)
         // the reason for that well: the darkest glass measured, #2d2d2d, is not enough for red 13 pt
         #expect(Contrast.ratio(RGBA(Palette.redRGB), over: RGB(hex: 0x2D2D2D)) < 4.5)
-    }
-
-    @Test func veilsAreDarkerWhereRedSits() {
-        for style in GlassStyle.allCases { #expect(style.veil(redHero: true) >= style.veil(redHero: false)) }
     }
 }

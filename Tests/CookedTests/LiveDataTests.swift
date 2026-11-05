@@ -261,7 +261,7 @@ struct LiveDataTests {
         #expect(s.urgency == nil)
     }
 
-    /// A live blocked account in the peak card: "blocked until" the reset; a thread under 1 token/min is not named.
+    /// A live blocked account in urgency: "blocked until" the reset; a thread under 1 token/min is not named.
     @Test func blockedPeakSaysBlockedUntil() throws {
         let st = try status {
             $0.accounts["claudeAgent"]?.fiveHourPct = 103

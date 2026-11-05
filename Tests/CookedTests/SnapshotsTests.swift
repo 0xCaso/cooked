@@ -23,7 +23,7 @@ struct SnapshotsTests {
         #expect(pixelSize(dir.appendingPathComponent("pills-peak.png")) != nil)
         // island and popover: surface + 24 pt desk on each side, at 2×
         #expect(pixelSize(dir.appendingPathComponent("island-calm.png"))?.height == CGFloat((44 + 48) * 2))
-        #expect(pixelSize(dir.appendingPathComponent("island-peak.png"))?.width == CGFloat((404 + 48) * 2))
+        #expect(pixelSize(dir.appendingPathComponent("island-peak.png"))?.height == CGFloat((44 + 48) * 2)) // urgency keeps the capsule
         #expect(pixelSize(dir.appendingPathComponent("popover-calm.png"))?.width == CGFloat((404 + 48) * 2))
         #expect(pixelSize(dir.appendingPathComponent("popover-peak.png")) != nil)
         for name in ["setup-accounts", "setup-percent", "setup-login", "settings-percent-connected", "settings-percent-changed",

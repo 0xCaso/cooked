@@ -41,12 +41,6 @@ enum Snapshots {
                        to: dir.appendingPathComponent("island-\(name).png"))
             try render(SurfaceShot { PopoverView(model: model, histogram: clock(snapshot), namespace: $0) }.padding(24).background(desk),
                        to: dir.appendingPathComponent("popover-\(name).png"))
-            if snapshot.isUrgent {
-                model.peakMinimized = true
-                try render(SurfaceShot { IslandView(model: model, namespace: $0) }.padding(24).background(desk),
-                           to: dir.appendingPathComponent("island-\(name)-minimized.png"))
-                model.peakMinimized = false
-            }
             model.open()
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))
@@ -81,15 +75,6 @@ enum Snapshots {
         for (name, hovered) in [("sources-long", nil), ("sources-long-hover", "l1")] as [(String, String?)] {
             try render(SourcesCard(sources: long, hovered: hovered).frame(width: 388).padding(24).background(desk),
                        to: dir.appendingPathComponent("\(name).png"))
-        }
-        // The peak card without an ETA: blocked, and urgent by % with no tokens.
-        for (name, lead, time, detail) in [("blocked", "free at ", "20:20", "personal is cooked"),
-                                           ("no-eta", "resets ", "20:20", "personal")] {
-            var s = peak
-            s.urgency = Urgency(percent: name == "blocked" ? 103 : 91, lead: lead, fullAt: time, detail: detail,
-                                source: "Idle for 5 min")
-            try render(SurfaceShot { IslandView(model: IslandModel(snapshot: s), namespace: $0) }.padding(24).background(desk),
-                       to: dir.appendingPathComponent("island-peak-\(name).png"))
         }
     }
 

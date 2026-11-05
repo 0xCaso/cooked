@@ -172,7 +172,7 @@ struct SourcesCard: View {
     @State var hovered: String?
     /// The full list is open. Lives with the popover: closing it folds the list again.
     @State var expanded = false
-    /// The source the peak card's "Open thread" opens: its rate in red.
+    /// In urgency, the top source of the account that fills up: its rate in red.
     var hot: String? = nil
     @Environment(\.self) private var env
 

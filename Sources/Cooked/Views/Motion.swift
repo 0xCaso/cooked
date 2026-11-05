@@ -8,7 +8,6 @@ enum Motion {
         static let control = 0.2
         static let popoverIn = 0.24
         static let popoverOut = 0.2
-        static let island = 0.3
     }
 
     enum Scale {
@@ -24,7 +23,6 @@ enum Motion {
     static let control = Animation.spring(duration: Duration.control, bounce: 0)
     static let popoverIn = Animation.spring(duration: Duration.popoverIn, bounce: 0)
     static let popoverOut = Animation.easeOut(duration: Duration.popoverOut)
-    static let island = Animation.spring(duration: Duration.island, bounce: 0)
 
     /// `--reduce-motion`: the same as the system setting, for checking without touching it.
     static let forcedReduce = CommandLine.arguments.contains("--reduce-motion")
@@ -87,22 +85,5 @@ struct PressableIsland: ViewModifier {
                         tracking = false
                     }
             )
-    }
-}
-
-/// New content arrives through a light blur: opacity 0 → 1, blur 4 → 0.
-struct BlurFade: ViewModifier {
-    let active: Bool
-    func body(content: Content) -> some View {
-        content.opacity(active ? 0 : 1).blur(radius: active ? 4 : 0)
-    }
-}
-
-extension AnyTransition {
-    static func blurIn(reduceMotion: Bool) -> AnyTransition {
-        .asymmetric(
-            insertion: .modifier(active: BlurFade(active: true), identity: BlurFade(active: false))
-                .animation(Motion.animation(Motion.control.delay(0.06), reduceMotion: reduceMotion)),
-            removal: .identity)
     }
 }

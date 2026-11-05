@@ -20,7 +20,7 @@ enum LiveSnapshot {
         accounts.first { $0.id == id }?.name ?? id
     }
 
-    /// nil when no account has 5h data yet. `sources` name the peak card's thread, the one its button opens.
+    /// nil when no account has 5h data yet. `sources` give the popover's hot thread in urgency.
     /// `accounts` are the connected ones, in display order: the others are left out. Empty keeps every account, by id.
     static func make(status: StatusFile, minutes: [String: [Int: Double]], now: Date, calendar: Calendar = .current,
                      sources: [TokenSource] = [], accounts: [ConnectedAccount] = []) -> UsageSnapshot? {

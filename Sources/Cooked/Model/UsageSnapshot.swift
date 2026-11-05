@@ -66,7 +66,7 @@ struct UsageSnapshot: Equatable {
     /// The accounts not used in the last 5 hours, in display order.
     var unused: [Account] { accounts.filter(\.isUnused) }
 
-    /// The top source of `account`, else the top source: the thread the peak card names and opens.
+    /// The top source of `account`, else the top source: the popover marks its rate in red in urgency.
     static func peakSource(_ sources: [TokenSource], account: String?) -> TokenSource? {
         sources.first { $0.account == account } ?? sources.first
     }

@@ -12,18 +12,6 @@ struct IslandModelTests {
         #expect(model.rateNow == 9000)
     }
 
-    @Test func peakCanBeMinimizedUntilItEnds() {
-        let model = IslandModel(snapshot: DemoData.peak)
-        #expect(model.showsPeakCard)
-        model.peakMinimized = true
-        #expect(!model.showsPeakCard)
-        // the peak ends: the next peak shows the card again
-        model.toggleDemo()
-        #expect(!model.peakMinimized)
-        model.toggleDemo()
-        #expect(model.showsPeakCard)
-    }
-
     @Test func toggleDemoSwitchesCalmAndPeak() {
         let model = IslandModel()
         model.toggleDemo()

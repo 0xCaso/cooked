@@ -43,8 +43,6 @@ struct IslandSurface<S: InsettableShape>: ViewModifier {
     /// Opaque fill: #161616 for the island, #080808 for the popover.
     let solidFill: Color
     var urgent = false
-    /// The red 32 pt percentage sits right on this glass (the peak card): it needs a darker veil.
-    var redHero = false
     var glassID: String
     var namespace: Namespace.ID
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -72,7 +70,7 @@ struct IslandSurface<S: InsettableShape>: ViewModifier {
     }
 
     private var solid: Bool { reduceTransparency || solidSurfaces }
-    private var veil: Double { glassStyle.veil(redHero: redHero) }
+    private var veil: Double { glassStyle.veil }
 }
 
 /// The glass look. System and Clear are macOS's own Liquid Glass, so they follow System Settings
@@ -101,12 +99,12 @@ enum GlassStyle: String, CaseIterable {
     /// A fixed dark layer over the glass, so the text on it stays legible over a white window. Liquid Glass sets its
     /// own brightness from what is under it: alone over white, System went #c1c1c1 and Clear #d8d8d8, and white text
     /// on them fell to 1.2–1.6:1. Values measured on the real screen over white (the worst case):
-    /// the text veil brings 72% ink to 4.5:1 or more, the
-    /// `redHero` veil (the peak card, red 32 pt percentage) brings red to 3:1 or more. Darker already passes both.
-    func veil(redHero: Bool) -> Double {
+    /// the veil brings 72% ink to 4.5:1 or more.
+    /// Red text never sits on the glass: the island's red percentage is in a well.
+    var veil: Double {
         switch self {
-        case .system: redHero ? 0.85 : 0.8
-        case .clear: redHero ? 0.92 : 0.85
+        case .system: 0.8
+        case .clear: 0.85
         case .darker: 0.8
         }
     }

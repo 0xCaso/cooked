@@ -27,11 +27,6 @@ struct IslandRoot: View {
                             if model.feed == .live, let problem = model.liveProblem {
                                 Text(problem.message)
                             }
-                            if model.snapshot.isUrgent {
-                                Button(model.peakMinimized ? "Show the peak card" : "Minimize the peak card") {
-                                    model.peakMinimized.toggle()
-                                }
-                            }
                             Divider()
                             Picker("Glass", selection: Bindable(model).glassStyle) {
                                 ForEach(GlassStyle.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -50,7 +45,6 @@ struct IslandRoot: View {
                     }
             }
             .animation(Motion.animation(model.isOpen ? Motion.popoverIn : Motion.popoverOut, reduceMotion: reduce), value: model.isOpen)
-            .animation(Motion.animation(Motion.island, reduceMotion: reduce), value: model.showsPeakCard)
             .padding(IslandLayout.margin)
             .frame(width: IslandLayout.popoverWidth + 2 * IslandLayout.margin)
             .coordinateSpace(.named(IslandRoot.space))
