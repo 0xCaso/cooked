@@ -43,7 +43,7 @@ struct PopoverView: View {
                 HStack {
                     Text("What burns tokens")
                     Spacer(minLength: 0)
-                    Text("last 15 min")
+                    Text("last 5 min")
                 }
                 .lineLimit(1)
                 .textStyle(.label)

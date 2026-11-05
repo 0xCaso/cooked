@@ -9,7 +9,7 @@ struct OpenTargetTests {
                     ConnectedAccount(id: "codex", name: "codex", path: "/Users/x/.codex")]
 
     func session(_ account: String, _ id: String) -> TranscriptLog.Session {
-        .init(account: account, id: id, cwd: "/Users/x/My Repo", tokens: 600, mainActive: true, activeSubagents: 0)
+        .init(account: account, id: id, cwd: "/Users/x/My Repo", tokens: 600, mainActive: true, activeSubagents: 0).steady
     }
 
     @Test func eachKindOfRowHasItsPlace() {

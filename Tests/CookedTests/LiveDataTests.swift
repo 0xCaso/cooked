@@ -540,8 +540,14 @@ extension TranscriptLogTests {
         let r = TranscriptLog(dirs: ["claudeAgent_work": TranscriptLog.dir(for: "claudeAgent_work", home: home)]).read(now: now)
         #expect(r.sessions == [.init(account: "claudeAgent_work", id: "s", cwd: "/r/cooked", tokens: 6000,
                                      mainActive: true, activeSubagents: 1,
-                                     lastMinute: Int(ISO8601DateFormatter().date(from: "2026-10-29T14:25:00Z")!.timeIntervalSince1970) / 60)])
+                                     lastMinute: Int(ISO8601DateFormatter().date(from: "2026-10-29T14:25:00Z")!.timeIntervalSince1970) / 60,
+                                     lastFive: 4500)]) // the call at 14:15 is out of the last 5 minutes
     }
+}
+
+extension TranscriptLog.Session {
+    /// A session as busy in its last 5 minutes as in its last 15: the same rate on both windows.
+    var steady: Self { var s = self; s.lastFive = tokens / 3; return s }
 }
 
 struct TokenSourcesTests {
@@ -555,7 +561,7 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent", id: "s4", cwd: "/r/atlas", tokens: 15_000, mainActive: false, activeSubagents: 2),
         ]
         // where a click goes: OpenTargetTests
-        let out = TokenSources.make(sessions: sessions, threads: ["s1": thread], accounts: testAccounts)
+        let out = TokenSources.make(sessions: sessions.map(\.steady), threads: ["s1": thread], accounts: testAccounts)
             .map { var s = $0; s.session = nil; return s }
         #expect(out == [
             .init(id: "t1", threadID: "t1", project: "cooked", detail: "popover data", account: "work", rate: 113_000, agents: "1 agent + 3 sub"),
@@ -568,7 +574,7 @@ struct TokenSourcesTests {
     /// The card shows 3 and "N more"; the list behind it stops at 8 (2026-10-30-sources-expand).
     @Test func keepsUpToEightSources() {
         let sessions = (1...10).map { TranscriptLog.Session(account: "claudeAgent", id: "s\($0)", cwd: nil, tokens: Double($0) * 1500,
-                                                            mainActive: true, activeSubagents: 0) }
+                                                            mainActive: true, activeSubagents: 0).steady }
         let out = TokenSources.make(sessions: sessions, threads: [:], accounts: testAccounts)
         #expect(out.map(\.id) == ["s10", "s9", "s8", "s7", "s6", "s5", "s4", "s3"])
     }
@@ -578,9 +584,22 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent_work", id: "a", cwd: nil, tokens: 15_000, mainActive: false, activeSubagents: 0),
             .init(account: "claudeAgent_work", id: "b", cwd: nil, tokens: 30_000, mainActive: true, activeSubagents: 0),
         ]
-        let out = TokenSources.make(sessions: sessions, threads: ["a": thread, "b": thread], accounts: testAccounts)
+        let out = TokenSources.make(sessions: sessions.map(\.steady), threads: ["a": thread, "b": thread], accounts: testAccounts)
         #expect(out.map(\.rate) == [3000])
         #expect(out.first?.agents == "1 agent")
+    }
+
+    /// A live line's rate is its last 5 minutes on the popover's "now" divisor, so the lines add up to "now";
+    /// an ended line keeps its last 15.
+    @Test func liveLinesUseTheLastFiveMinutes() {
+        let now = Date(timeIntervalSince1970: 1_000 * 60 + 30) // half of this minute gone: 4.5 minutes
+        var live = TranscriptLog.Session(account: "claudeAgent", id: "live", cwd: nil, tokens: 90_000, mainActive: true,
+                                         activeSubagents: 0, lastMinute: 1_000)
+        live.lastFive = 45_000
+        let ended = TranscriptLog.Session(account: "claudeAgent", id: "ended", cwd: nil, tokens: 15_000, mainActive: false,
+                                          activeSubagents: 0, lastMinute: 993)
+        let out = TokenSources.make(sessions: [live, ended], threads: [:], accounts: testAccounts, now: now)
+        #expect(out.map(\.rate) == [10_000, 1000])
     }
 
     /// A thread with no call in the last 5 minutes goes under "Ended", newest first, after the live ones.
@@ -592,7 +611,7 @@ struct TokenSourcesTests {
             .init(account: "claudeAgent", id: "recent", cwd: "/r/c", tokens: 30_000, mainActive: false, activeSubagents: 0, lastMinute: 994),
             .init(account: "claudeAgent", id: "subs", cwd: "/r/d", tokens: 3_000, mainActive: false, activeSubagents: 1, lastMinute: 999),
         ]
-        let out = TokenSources.make(sessions: sessions, threads: [:], accounts: testAccounts, now: now)
+        let out = TokenSources.make(sessions: sessions.map(\.steady), threads: [:], accounts: testAccounts, now: now)
         #expect(out.map(\.id) == ["live", "subs", "recent", "big"])
         #expect(out.map(\.endedAgo) == [nil, nil, 6, 9])
         // two sessions of one thread: ended only when both are, at the newer one's minute

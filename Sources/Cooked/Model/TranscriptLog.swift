@@ -47,6 +47,9 @@ final class TranscriptLog: @unchecked Sendable {
         var name: String? = nil
         /// The newest minute with a call, subagents included: an ended session shows how long ago it stopped.
         var lastMinute: Int? = nil
+        /// New tokens in the last 5 minutes (this one included), subagents included: the line's rate, on the same
+        /// minutes as the popover's "now".
+        var lastFive: Double = 0
     }
 
     struct Reading {
@@ -137,16 +140,17 @@ final class TranscriptLog: @unchecked Sendable {
                     }
                 }
                 files[url.path] = file
-                var recent = 0.0, active = false, last: Int?
+                var recent = 0.0, five = 0.0, active = false, last: Int?
                 for (minute, tokens) in mark.recent where minute <= minuteNow {
                     if minute > minuteNow - 15 { recent += tokens; last = max(last ?? minute, minute) }
-                    if minute > minuteNow - 5 { active = true }
+                    if minute > minuteNow - 5 { active = true; five += tokens }
                 }
                 if recent > 0 {
                     let (sid, isSub) = Self.session(of: url)
                     mainPaths[sid] = isSub ? url.deletingLastPathComponent().deletingLastPathComponent().path + ".jsonl" : url.path
                     var s = sessions[sid] ?? Session(account: id, id: sid, cwd: nil, tokens: 0, mainActive: false, activeSubagents: 0)
                     s.tokens += recent
+                    s.lastFive += five
                     if let last { s.lastMinute = max(s.lastMinute ?? last, last) }
                     if isSub { s.activeSubagents += active ? 1 : 0 } else { s.mainActive = active }
                     // a subagent may run in another folder: the session's own cwd wins

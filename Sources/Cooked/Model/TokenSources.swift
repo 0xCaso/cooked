@@ -1,6 +1,6 @@
 import Foundation
 
-/// One line of "What burns tokens": a project and the T3 Code thread working in it, over the last 15 minutes.
+/// One line of "What burns tokens": a project and the T3 Code thread working in it, over the last 5 minutes.
 struct TokenSource: Identifiable, Equatable {
     /// The T3 thread id when known, else the Claude session id.
     let id: String
@@ -11,7 +11,7 @@ struct TokenSource: Identifiable, Equatable {
     let detail: String
     /// The account's short name: "team".
     var account = ""
-    /// New tokens per minute over the last 15 minutes.
+    /// New tokens per minute over the last 5 minutes, like the popover's "now"; an ended line, over the last 15.
     let rate: Double
     /// "1 agent + 3 sub", "3 sub"; nil when nothing ran in the last 5 minutes.
     let agents: String?
@@ -69,6 +69,7 @@ struct OpenTarget: Equatable {
 enum TokenSources {
     /// The full list, when the card is open; it shows `SourcesCard.collapsed` lines until then.
     static let limit = 8
+    /// An ended line's rate: it made no call in the last 5 minutes, so its last 15.
     static let window: Double = 15
     /// Lines under this many tokens per minute are left out: a source of 0/min says nothing.
     static let minimumRate: Double = 1
@@ -78,16 +79,20 @@ enum TokenSources {
                      accounts: [ConnectedAccount] = [], now: Date? = nil) -> [TokenSource] {
         func short(_ id: String) -> String { LiveSnapshot.short(id: id, accounts: accounts) }
         let minuteNow = now.map { Int($0.timeIntervalSince1970) / 60 }
+        // the same divisor as `LiveSnapshot`'s rate: 4 whole minutes and the part of this one gone by
+        let gone = now.map { 4 + $0.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60 } ?? 5
         func ended(_ s: TranscriptLog.Session) -> Int? {
             guard !s.mainActive, s.activeSubagents == 0, let minuteNow, let last = s.lastMinute else { return nil }
             return max(minuteNow - last, 0)
         }
         let out = sessions.map { s in
             let thread = threads[s.id]
+            let endedAgo = ended(s)
             return TokenSource(id: thread?.id ?? s.id, threadID: thread?.id, project: thread.map(project) ?? project(cwd: s.cwd),
                                detail: thread?.title ?? s.name ?? (s.account == Accounts.codexID ? "Codex session" : "Claude Code session"), account: short(s.account),
-                               rate: s.tokens / window, agents: agents(main: s.mainActive, subagents: s.activeSubagents),
-                               endedAgo: ended(s), session: .session(s, accounts: accounts))
+                               rate: endedAgo == nil ? s.lastFive / gone : s.tokens / window,
+                               agents: agents(main: s.mainActive, subagents: s.activeSubagents),
+                               endedAgo: endedAgo, session: .session(s, accounts: accounts))
         }
         // one T3 thread can hold several sessions (a resumed or handed-off conversation): one line
         var merged: [String: TokenSource] = [:]
