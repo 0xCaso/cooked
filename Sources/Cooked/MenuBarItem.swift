@@ -166,7 +166,11 @@ final class MenuBarItem: NSObject {
 private final class MenuAction: NSObject {
     let run: @MainActor () -> Void
     init(_ run: @escaping @MainActor () -> Void) { self.run = run }
-    @objc func perform(_ sender: Any?) { run() }
+    /// After the menu closes: inside its tracking loop, nested in the item's click, `NSApp.terminate` does nothing.
+    @objc func perform(_ sender: Any?) {
+        let run = run
+        DispatchQueue.main.async { MainActor.assumeIsolated { run() } }
+    }
 }
 
 /// Lets clicks through to the status item's button.
