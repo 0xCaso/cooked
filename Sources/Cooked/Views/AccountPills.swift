@@ -187,7 +187,10 @@ struct PillTimes: View {
             if let full {
                 Text("\(Text("full "))\(Text(full).styled(.labelNumber))").styled(.label).foregroundStyle(Palette.red)
                 Text(reset).textStyle(.labelNumber).foregroundStyle(Palette.ink3)
-            } else if reset.isEmpty || reset == "—" {
+            } else if reset.isEmpty {
+                // nothing to say: the pill's own "—" already says there is no number
+                EmptyView()
+            } else if reset == "—" {
                 Text("—").textStyle(.labelNumber).foregroundStyle(Palette.ink3)
             } else {
                 Text("\(Text("resets "))\(Text(reset).styled(.labelNumber))").styled(.label)

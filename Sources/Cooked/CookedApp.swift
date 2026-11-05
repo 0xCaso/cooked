@@ -18,7 +18,7 @@ enum CookedApp {
         if args.contains("--limits") {
             let source = UsageSource()
             var reading = source.read()
-            while case .success(let r) = reading, r.history != nil { reading = source.read() }
+            while reading.history != nil { reading = source.read() }
             let status = source.limits.read(now: Date(), buckets: source.ledger.buckets15)
             for (id, e) in status.accounts.sorted(by: { $0.key < $1.key }) {
                 print(id, "5h \(e.fiveHourPct ?? -1)% reset \(e.fiveHourResetsAt ?? "-")", "week \(e.sevenDayPct ?? -1)% reset \(e.sevenDayResetsAt ?? "-")",
@@ -27,6 +27,7 @@ enum CookedApp {
                       e.note ?? "")
             }
             print("all accounts: alert \(status.totalThreshold15m ?? -1)")
+            for notice in reading.notices { print("notice:", notice.title) }
             exit(0)
         }
         // `--statusline status|connect|disconnect`: the status line bridge of each connected Claude account's settings
@@ -74,7 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.restorePosition()
         panel.orderFrontRegardless()
         self.panel = panel
-        model.openSettings = { [weak self] in self?.setup.showSettings() }
+        model.openSettings = { [weak self] tab in self?.setup.showSettings(tab: tab ?? .accounts) }
+        model.openSetup = { [weak self] in self?.setup.showSetup() }
         // First launch, or `--setup`: the Setup window. `--settings`: the Settings window.
         let arguments = CommandLine.arguments
         if arguments.contains("--setup") || !SetupModel.isDone() { setup.showSetup() }

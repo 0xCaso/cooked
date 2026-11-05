@@ -45,6 +45,7 @@ func source(_ dir: String) -> UsageSource {
     s.limits = LimitLog(dir: dir)
     s.t3Database = "/nonexistent"
     s.bridgeDir = "/nonexistent"
+    s.statusLine = StatusLineSetup(support: "/nonexistent")
     s.transcripts = nil
     s.codex = nil
     return s
@@ -476,15 +477,23 @@ struct UsageSourceTests {
         let now = Date()
         let dir = try LimitLogTests.logDir([LimitLogTests.claudeLine(at: now.addingTimeInterval(-60), account: "claudeAgent_work",
                                                                     five: 0.48, fiveReset: now.addingTimeInterval(3600))])
-        let reading = try source(dir).read(now: now).get()
+        let reading = source(dir).read(now: now)
         #expect(reading.snapshot.accounts.map(\.short) == ["work"])
         #expect(reading.snapshot.accounts[0].fiveHourPercent == 48)
         #expect(reading.snapshot.series == Array(repeating: 0, count: 1440)) // no database: empty histogram
     }
 
+    /// No percent and no tokens: an empty snapshot, never the demo, and the notice says why.
+    @Test func withNoDataTheNoticeSaysWhy() throws {
+        let reading = source(try LimitLogTests.logDir([])).read()
+        #expect(reading.snapshot.accounts.isEmpty)
+        #expect(reading.notices.first == .noPercent(id: testAccounts[0].id, account: testAccounts[0].name))
+    }
+
     @Test func reportsNoAccounts() throws {
-        let dir = try LimitLogTests.logDir([])
-        #expect(source(dir).read() == .failure(.noAccounts))
+        var s = source(try LimitLogTests.logDir([]))
+        s.accounts = []
+        #expect(s.read().notices == [.noAccounts])
     }
 }
 

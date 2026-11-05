@@ -20,19 +20,21 @@ enum LiveSnapshot {
         accounts.first { $0.id == id }?.name ?? id
     }
 
-    /// nil when no account has 5h data yet. `sources` give the popover's hot thread in urgency.
-    /// `accounts` are the connected ones, in display order: the others are left out. Empty keeps every account, by id.
+    /// nil when there is no account to show. `sources` give the popover's hot thread in urgency.
+    /// `accounts` are the connected ones, in display order: the others are left out, and a connected account with
+    /// tokens but no 5h percent stays, with "—". Empty keeps every account with a percent, by id.
     static func make(status: StatusFile, minutes: [String: [Int: Double]], now: Date, calendar: Calendar = .current,
                      sources: [TokenSource] = [], accounts: [ConnectedAccount] = []) -> UsageSnapshot? {
         let connected = accounts
         let order = connected.map(\.id)
-        let ids = status.accounts.keys
-            .filter { status.accounts[$0]?.fiveHourPct != nil && (order.isEmpty || order.contains($0)) }
-            .sorted { (order.firstIndex(of: $0) ?? 99, $0) < (order.firstIndex(of: $1) ?? 99, $1) }
+        let ids = order.isEmpty
+            ? status.accounts.keys.filter { status.accounts[$0]?.fiveHourPct != nil }.sorted()
+            : order.filter { status.accounts[$0]?.fiveHourPct != nil || minutes[$0] != nil }
         guard !ids.isEmpty else { return nil }
         let minuteNow = Int(now.timeIntervalSince1970) / 60
 
-        func entry(_ id: String) -> StatusFile.Entry { status.accounts[id]! }
+        func entry(_ id: String) -> StatusFile.Entry { status.accounts[id] ?? StatusFile.Entry(name: id) }
+        func hasPercent(_ id: String) -> Bool { status.accounts[id]?.fiveHourPct != nil }
         func stale(_ id: String) -> Bool { entry(id).note != nil }
         func percent(_ id: String) -> Int { stale(id) ? 0 : entry(id).fiveHourPct ?? 0 }
         func threshold(_ id: String) -> Int { (entry(id).spikeThreshold15m ?? fallbackThreshold15m) / 15 }
@@ -97,12 +99,12 @@ enum LiveSnapshot {
                     isBlocked: blocked(id), isUnused: unused(id),
                     fiveHourElapsed: stale(id) ? nil : resetDate(id).map { elapsed(until: $0, window: fiveHours, now: now) },
                     weekElapsed: weekPercent(id) == nil ? nil : weekResetDate(id).map { elapsed(until: $0, window: week, now: now) },
-                    weekReset: weekReset(id))
+                    weekReset: weekReset(id), hasPercent: hasPercent(id))
         }
 
         func isUrgent(_ id: String) -> Bool {
             let e = entry(id)
-            guard !stale(id), e.live == true else { return false }
+            guard !stale(id), hasPercent(id), e.live == true else { return false }
             if percent(id) >= urgentPercent { return true }
             if let eta = eta(id), eta.timeIntervalSince(now) <= urgentETA { return true }
             if let state = e.limitStatus, !okStates.contains(state) { return true }

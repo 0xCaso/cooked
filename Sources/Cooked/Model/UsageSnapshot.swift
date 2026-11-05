@@ -20,11 +20,15 @@ struct Account: Identifiable, Equatable {
     var weekElapsed: Double? = nil
     /// The day the week resets: "Mon".
     var weekReset: String? = nil
+    /// Cooked has a 5-hour percent for it: without one the popover shows "—" and the island no "%".
+    var hasPercent = true
 
     /// What is left of a window, counted like T3 Code's Usage page: 100 − used, within 0...100.
     static func left(_ used: Int) -> Int { 100 - min(max(used, 0), 100) }
     /// The 5 h window's % left; 0 when blocked.
     var fiveHourLeft: Int { isBlocked ? 0 : Self.left(fiveHourPercent) }
+    /// nil without a percent.
+    var fiveHourLeftIfKnown: Int? { hasPercent ? fiveHourLeft : nil }
 }
 
 /// The spike line of the urgent island: when the 5h window fills up and what to do.
@@ -58,6 +62,12 @@ struct UsageSnapshot: Equatable {
     var urgency: Urgency?
     /// "What burns tokens": the top sources of the last 15 minutes, empty when idle.
     var sources: [TokenSource] = []
+
+    /// No connected account: a flat wave and "Set up Cooked".
+    static func empty(clock: String) -> UsageSnapshot {
+        UsageSnapshot(clock: clock, accounts: [], activeID: "", rateNow: 0, threshold: LiveSnapshot.fallbackThreshold15m / 15,
+                      series: Array(repeating: 0, count: LiveSnapshot.historyMinutes), totalRate: 0)
+    }
 
     var isUrgent: Bool { urgency != nil }
     var active: Account? { accounts.first { $0.id == activeID } }

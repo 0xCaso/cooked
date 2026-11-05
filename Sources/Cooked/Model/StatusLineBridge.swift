@@ -34,6 +34,12 @@ enum StatusLineBridge {
         return out
     }
 
+    /// The accounts with a bridge file: their status line ran, with or without a percent.
+    static func accounts(dir: String = defaultDir) -> Set<String> {
+        Set(((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".json") }
+            .map { String($0.dropLast(".json".count)) })
+    }
+
     static func sample(_ data: Data, at: Date) -> LimitLog.Sample? {
         guard let limits = (try? JSONDecoder().decode(Input.self, from: data))?.rate_limits,
               let five = limits.five_hour?.used_percentage else { return nil }

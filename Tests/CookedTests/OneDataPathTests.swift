@@ -44,7 +44,7 @@ struct OneDataPathTests {
             .write(toFile: bridge + "/claudeAgent_work.json", atomically: true, encoding: .utf8)
         var s = source(logs)
         s.bridgeDir = bridge
-        let accounts = try s.read(now: now).get().snapshot.accounts
+        let accounts = s.read(now: now).snapshot.accounts
         #expect(accounts.map(\.id) == ["claudeAgent_work", "claudeAgent"])
         #expect(accounts.map(\.fiveHourPercent) == [42, 70]) // work from the bridge, personal from the logs until it has one
         // Codex from T3 Code's logs is not read: its percent comes from the rollouts
@@ -62,7 +62,7 @@ struct OneDataPathTests {
         try (line + "\n").write(toFile: day + "/rollout-2026-11-01T10-00-00-\(UUID().uuidString.lowercased()).jsonl", atomically: true, encoding: .utf8)
         var s = source(try LimitLogTests.logDir([]))
         s.codex = CodexLog(home: home, ledger: s.ledger)
-        let snapshot = try s.read(now: now).get().snapshot
+        let snapshot = s.read(now: now).snapshot
         #expect(snapshot.accounts.map(\.id) == ["codex"])
         #expect(snapshot.accounts[0].fiveHourPercent == 12 && snapshot.accounts[0].weekPercent == 40)
         #expect(snapshot.series.suffix(2).reduce(0, +) == 1010)
@@ -86,7 +86,7 @@ struct OneDataPathTests {
             .write(toFile: home + "/session_index.jsonl", atomically: true, encoding: .utf8)
         var s = source(try LimitLogTests.logDir([]))   // t3Database: /nonexistent
         s.codex = CodexLog(home: home, ledger: s.ledger)
-        let row = try #require(s.read(now: now).get().snapshot.sources.first)
+        let row = try #require(s.read(now: now).snapshot.sources.first)
         #expect(row.detail == "Fix the login page")
         #expect(row.threadID == nil)
         #expect(row.target == .codex(session: id, cwd: nil))

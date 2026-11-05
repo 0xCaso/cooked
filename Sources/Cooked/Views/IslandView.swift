@@ -29,18 +29,25 @@ struct IslandView: View {
                 .wellSurface(Capsule(), innerBlur: 2.5)
             // Urgency: the capsule's percentage and ring turn red. Red 13 pt needs 4.5:1, which no glass
             // reaches (#2d2d2d at best, 4.0:1): there it sits in a well, red on #1b1b1b is 5.1:1. Same layout.
-            Text("\(s.active?.fiveHourLeft ?? 100)%").textStyle(.numberEmphasis)
-                .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
-                .background {
-                    if s.isUrgent {
-                        Color.clear.wellSurface(Capsule(), innerBlur: 2)
-                            .padding(.horizontal, -6).frame(height: 24)
-                    }
+            if model.notice == .noAccounts {
+                Text("Set up Cooked").textStyle(.body).foregroundStyle(rateInk)
+            } else {
+                // without a percent the island shows no "%": the popover's notice says why
+                if let left = s.active?.fiveHourLeftIfKnown {
+                    Text("\(left)%").textStyle(.numberEmphasis)
+                        .foregroundStyle(s.isUrgent ? Palette.red : Palette.ink)
+                        .background {
+                            if s.isUrgent {
+                                Color.clear.wellSurface(Capsule(), innerBlur: 2)
+                                    .padding(.horizontal, -6).frame(height: 24)
+                            }
+                        }
                 }
-            Text(s.active?.short ?? "").textStyle(.body).foregroundStyle(Palette.ink2)
-            Text("\(TokenFormat.short(Double(model.rateNow)))/min").textStyle(.number).foregroundStyle(rateInk)
-                .contentTransition(.numericText(value: Double(model.rateNow)))
-                .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
+                if let name = s.active?.short { Text(name).textStyle(.body).foregroundStyle(Palette.ink2) }
+                Text("\(TokenFormat.short(Double(model.rateNow)))/min").textStyle(.number).foregroundStyle(rateInk)
+                    .contentTransition(.numericText(value: Double(model.rateNow)))
+                    .animation(Motion.animation(Motion.control, reduceMotion: env.reducesMotion), value: model.rateNow)
+            }
         }
         .lineLimit(1)
         .fixedSize()

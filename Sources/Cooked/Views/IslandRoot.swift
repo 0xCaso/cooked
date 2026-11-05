@@ -24,16 +24,13 @@ struct IslandRoot: View {
                                 ForEach(IslandModel.Feed.allCases, id: \.self) { Text($0.title).tag($0) }
                             }
                             .pickerStyle(.inline)
-                            if model.feed == .live, let problem = model.liveProblem {
-                                Text(problem.message)
-                            }
                             Divider()
                             Picker("Glass", selection: Bindable(model).glassStyle) {
                                 ForEach(GlassStyle.allCases, id: \.self) { Text($0.title).tag($0) }
                             }
                             .pickerStyle(.menu)
                             Divider()
-                            Button("Settings…") { model.openSettings() }
+                            Button("Settings…") { model.openSettings(nil) }
                             Button("Quit Cooked") { NSApp.terminate(nil) }
                         }
                         .reportsHitRect(into: model, slot: 0)

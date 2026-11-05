@@ -16,17 +16,23 @@ struct PopoverView: View {
     var body: some View {
         let s = model.snapshot
         VStack(alignment: .leading, spacing: 0) {
-            Text("Tokens per minute")
-                .textStyle(.label)
-                .foregroundStyle(sectionInk)
-                .padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-            rateCard(s)
-            // the full list of sources and many accounts can be taller than the screen: then they scroll
-            ViewThatFits(in: .vertical) {
-                lower(s)
-                ScrollView { lower(s) }
-                    .scrollIndicators(.automatic)
-                    .scrollBounceBehavior(.basedOnSize)
+            if let notice = model.notice {
+                NoticeCard(notice: notice, act: model.act(on:), dismiss: model.dismiss)
+            }
+            // no account: the notice is all there is to show
+            if model.notice != .noAccounts {
+                Text("Tokens per minute")
+                    .textStyle(.label)
+                    .foregroundStyle(sectionInk)
+                    .padding(EdgeInsets(top: model.notice == nil ? 8 : 12, leading: 12, bottom: 8, trailing: 12))
+                rateCard(s)
+                // the full list of sources and many accounts can be taller than the screen: then they scroll
+                ViewThatFits(in: .vertical) {
+                    lower(s)
+                    ScrollView { lower(s) }
+                        .scrollIndicators(.automatic)
+                        .scrollBounceBehavior(.basedOnSize)
+                }
             }
         }
         // The top label's text starts 16 pt below the edge: the last card ends as far from the bottom edge.
@@ -51,9 +57,11 @@ struct PopoverView: View {
                 .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
                 sourcesCard(s.sources)
             }
-            accountsHeader
-                .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
-            accountsCard(s)
+            if !s.rows.isEmpty {
+                accountsHeader
+                    .padding(EdgeInsets(top: 12, leading: 12, bottom: 8, trailing: 12))
+                accountsCard(s)
+            }
         }
     }
 
@@ -133,9 +141,9 @@ struct PopoverView: View {
     private func accountRow(_ a: Account, urgent: Bool) -> some View {
         let fills = urgent || a.isBlocked || a.fullAt != nil
         return HStack(spacing: Self.rowSpacing) {
-            UsagePill(name: a.short, left: a.fiveHourLeft,
+            UsagePill(name: a.short, left: a.fiveHourLeftIfKnown,
                       timeLeft: a.fiveHourElapsed.map { 1 - $0 }, hot: fills, live: a.isLive) {
-                PillTimes(full: a.isBlocked ? nil : a.fullAt, reset: a.fiveHourReset, red: a.isBlocked)
+                PillTimes(full: a.isBlocked ? nil : a.fullAt, reset: a.hasPercent ? a.fiveHourReset : "", red: a.isBlocked)
             }
             .frame(maxWidth: .infinity)
             UsagePill(left: a.weekPercent.map(Self.left), timeLeft: a.weekElapsed.map { 1 - $0 }, hot: false, live: false) {
@@ -150,6 +158,7 @@ struct PopoverView: View {
     static func left(_ used: Int) -> Int { Account.left(used) }
 
     private func accessibilityText(_ a: Account) -> String {
+        guard a.hasPercent else { return "\(a.short): no 5-hour percent" }
         var parts = ["\(a.short): 5 hours \(Self.left(a.fiveHourPercent))% left"]
         if a.isBlocked { parts.append("blocked until \(a.fiveHourReset)") }
         else if let full = a.fullAt { parts.append("full at \(full), before the reset at \(a.fiveHourReset)") }

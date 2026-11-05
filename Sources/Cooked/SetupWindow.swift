@@ -16,8 +16,8 @@ final class SetupWindows {
         present(title: "Set up Cooked", SetupView(model: model) { [weak self] in self?.close() })
     }
 
-    func showSettings() {
-        present(title: "Cooked Settings", SettingsView(model: makeModel()))
+    func showSettings(tab: SettingsView.Tab = .accounts) {
+        present(title: "Cooked Settings", SettingsView(model: makeModel(), tab: tab))
     }
 
     private func makeModel() -> SetupModel {

@@ -19,8 +19,12 @@ final class IslandModel {
     private(set) var histogram: any HistogramSource
     /// Live data, or a demo, chosen in the island's right-click menu.
     private(set) var feed: Feed
-    /// Why live data is missing, shown in the menu. nil while live data arrives.
-    private(set) var liveProblem: UsageSource.Problem?
+    /// What live data lacks and how to fix it, first the one to show (`notice`).
+    private(set) var notices: [Notice] = []
+    /// The notices put off with "Not now" or "OK", kept until the accounts change.
+    private(set) var dismissed: Set<String>
+    /// The popover's notice card: the first notice not put off.
+    var notice: Notice? { Notice.first(notices, dismissed: dismissed) }
     /// 0...1 while the first launch reads 14 days of history; nil when complete or in a demo.
     private(set) var historyProgress: Double?
     @ObservationIgnored private var liveHistogram: LiveHistogram?
@@ -40,10 +44,39 @@ final class IslandModel {
     @ObservationIgnored weak var mover: IslandMover?
     /// Goes up when Setup or Settings change the accounts: the live feed starts a new reader.
     private(set) var accountsVersion = 0
-    /// Opens the Settings window (the app delegate sets it).
-    @ObservationIgnored var openSettings: () -> Void = {}
+    /// Opens the Settings window, on a tab or the first one (the app delegate sets it).
+    @ObservationIgnored var openSettings: (SettingsView.Tab?) -> Void = { _ in }
+    /// Opens the Setup window (the app delegate sets it).
+    @ObservationIgnored var openSetup: () -> Void = {}
+    static let dismissedKey = "dismissedNotices"
 
-    func accountsChanged() { accountsVersion += 1 }
+    func accountsChanged() {
+        accountsVersion += 1
+        dismissed = []
+        defaults.removeObject(forKey: Self.dismissedKey)
+    }
+
+    /// The notice card's button.
+    func act(on notice: Notice) {
+        switch notice {
+        case .noAccounts: openSetup()
+        case .paused, .noPercent: openSettings(.percent)
+        case .formatChanged:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(notice.details ?? notice.title, forType: .string)
+        case .apiKey: dismiss(notice)
+        }
+    }
+
+    /// "Not now" and "OK": hides the notice until the accounts change.
+    func dismiss(_ notice: Notice) {
+        guard let key = notice.dismissKey else { return }
+        dismissed.insert(key)
+        defaults.set(Array(dismissed).sorted(), forKey: Self.dismissedKey)
+    }
+
+    /// Shows notices without live data: Snapshots and the panel's measure.
+    func show(_ notices: [Notice]) { self.notices = notices }
 
     enum Feed: String, CaseIterable { case live, demoCalm, demoPeak
         var title: String {
@@ -57,6 +90,7 @@ final class IslandModel {
 
     init(snapshot: UsageSnapshot = DemoData.calm, feed: Feed? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        dismissed = Set(defaults.stringArray(forKey: Self.dismissedKey) ?? [])
         self.feed = feed ?? (snapshot.isUrgent ? .demoPeak : .demoCalm)
         glassStyle = defaults.string(forKey: GlassStyle.defaultsKey).flatMap(GlassStyle.init(rawValue:)) ?? .darker
         chartRange = defaults.string(forKey: ChartRange.defaultsKey).flatMap(ChartRange.init(rawValue:)) ?? .tenMinutes
@@ -77,7 +111,7 @@ final class IslandModel {
             liveHistogram = nil
         case .demoCalm, .demoPeak:
             liveHistogram = nil
-            liveProblem = nil
+            notices = []
             historyProgress = nil
             snapshot = new == .demoPeak ? DemoData.peak : DemoData.calm
             calmRateIndex = 0
@@ -86,26 +120,21 @@ final class IslandModel {
         }
     }
 
-    /// A live reading (or why there is none).
-    func apply(_ result: Result<UsageSource.Reading, UsageSource.Problem>) {
+    /// A live reading.
+    func apply(_ reading: UsageSource.Reading) {
         guard feed == .live else { return }
-        switch result {
-        case .failure(let problem):
-            liveProblem = problem
-        case .success(let reading):
-            liveProblem = nil
-            if historyProgress != reading.history { historyProgress = reading.history }
-            let s = reading.snapshot
-            if snapshot != s { snapshot = s }
-            rateNow = s.rateNow
-            if let liveHistogram {
-                liveHistogram.update(values: s.series, threshold: Double(s.chartThreshold), minute: reading.minute)
-            } else {
-                let h = LiveHistogram(values: s.series, threshold: Double(s.chartThreshold), minute: reading.minute,
-                                      epoch: chartEpoch.timeIntervalSince1970)
-                liveHistogram = h
-                histogram = h
-            }
+        if notices != reading.notices { notices = reading.notices }
+        if historyProgress != reading.history { historyProgress = reading.history }
+        let s = reading.snapshot
+        if snapshot != s { snapshot = s }
+        rateNow = s.rateNow
+        if let liveHistogram {
+            liveHistogram.update(values: s.series, threshold: Double(s.chartThreshold), minute: reading.minute)
+        } else {
+            let h = LiveHistogram(values: s.series, threshold: Double(s.chartThreshold), minute: reading.minute,
+                                  epoch: chartEpoch.timeIntervalSince1970)
+            liveHistogram = h
+            histogram = h
         }
     }
 
@@ -162,6 +191,7 @@ enum IslandLayout {
         let model = IslandModel(snapshot: tallest(accounts: AccountStore.current().count))
         model.isOpen = true
         model.sourcesExpanded = true
+        model.show([.formatChanged(account: "measure", file: "")])
         let view = NSHostingView(rootView: AnyView(IslandRoot(model: model, forceStill: true).environment(\.solidSurfaces, true)))
         let fit = view.fittingSize
         return CGSize(width: popoverWidth + 2 * margin, height: min(ceil(fit.height), maxPanelHeight))

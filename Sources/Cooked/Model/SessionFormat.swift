@@ -38,4 +38,13 @@ enum SessionFormat: Equatable {
         if data.count == limit, data.last != UInt8(ascii: "\n"), lines.count > 1 { lines.removeLast() } // cut line
         return check(lines)
     }
+
+    /// The newest file's path when its format changed, else nil. `cache` keeps each file's answer, except "empty":
+    /// a new file has no lines yet.
+    static func newestChanged(_ urls: [(url: URL, modified: Date)], cache: inout [String: SessionFormat]) -> String? {
+        guard let newest = urls.max(by: { $0.modified < $1.modified })?.url else { return nil }
+        let format = cache[newest.path] ?? check(file: newest)
+        cache = format == .empty ? [:] : [newest.path: format]
+        return format == .formatChanged ? newest.path : nil
+    }
 }

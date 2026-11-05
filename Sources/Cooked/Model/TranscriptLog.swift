@@ -57,6 +57,8 @@ final class TranscriptLog: @unchecked Sendable {
         var minutes: [String: [Int: Double]] = [:]
         /// Sessions with tokens in the last 15 minutes, most tokens first.
         var sessions: [Session] = []
+        /// Account id → its newest transcript, when Cooked does not know its lines.
+        var formatChanged: [String: String] = [:]
         subscript(id: String) -> [Int: Double]? { minutes[id] }
     }
 
@@ -71,6 +73,8 @@ final class TranscriptLog: @unchecked Sendable {
 
     private let lock = NSLock()
     private var files: [String: File] = [:]
+    /// Account id → the format of its newest transcript, checked once per file.
+    private var formats: [String: [String: SessionFormat]] = [:]
     /// Main transcript path → the titles in its first `headBytes`, read once: the first prompt, and titles the tail lacks.
     private var heads: [String: Titles] = [:]
     static let headBytes = 512 * 1024
@@ -122,6 +126,9 @@ final class TranscriptLog: @unchecked Sendable {
                       modified >= since else { continue }
                 urls.append((url, modified))
             }
+            var cache = formats[id] ?? [:]
+            out.formatChanged[id] = SessionFormat.newestChanged(urls, cache: &cache)
+            formats[id] = cache
             for (url, _) in urls.sorted(by: { $0.modified > $1.modified }) {
                 seen.insert(url.path)
                 var file = files[url.path] ?? File()

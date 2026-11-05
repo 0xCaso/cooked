@@ -7,6 +7,8 @@ struct UsageSource: Sendable {
     /// The percents; keeps their samples across readings.
     var limits = LimitLog(store: LimitLog.defaultStore)
     var bridgeDir = StatusLineBridge.defaultDir
+    /// Whether each Claude account's status line still runs the bridge.
+    var statusLine = StatusLineSetup()
     /// T3 Code's database: thread titles only. No number depends on it.
     var t3Database = TokenLog.defaultPath
     /// The connected accounts, in display order, with their names.
@@ -32,19 +34,18 @@ struct UsageSource: Sendable {
         let minute: Int
         /// 0...1 while the first launch reads 14 days of history; nil when complete.
         var history: Double? = nil
+        /// What the popover's notice card can say, first the one to show.
+        var notices: [Notice] = []
     }
 
-    enum Problem: Error, Equatable {
-        case noAccounts
-        var message: String { "No 5-hour percent from any account yet" }
-    }
-
-    func read(now: Date = Date()) -> Result<Reading, Problem> {
+    func read(now: Date = Date()) -> Reading {
         ledger.begin()
         var calls = transcripts?.read(now: now, minutes: LiveSnapshot.historyMinutes) ?? TranscriptLog.Reading()
         var samples = StatusLineBridge.samples(dir: bridgeDir)
+        var formatChanged = calls.formatChanged
         if let codex, FileManager.default.fileExists(atPath: codex.home + "/sessions") {
             let rollouts = codex.read(now: now, minutes: LiveSnapshot.historyMinutes)
+            formatChanged[codex.id] = rollouts.formatChanged
             calls.minutes[codex.id] = rollouts.minutes
             calls.sessions += rollouts.sessions
             if let sample = rollouts.limits?.sample { samples[codex.id] = sample }
@@ -56,9 +57,13 @@ struct UsageSource: Sendable {
         let sources = TokenSources.make(sessions: calls.sessions,
                                         threads: (try? database?.threads(sessions: calls.sessions.map(\.id))) ?? [:], accounts: accounts,
                                         now: now)
-        guard let snapshot = LiveSnapshot.make(status: status, minutes: calls.minutes, now: now, sources: sources, accounts: accounts) else {
-            return .failure(.noAccounts)
-        }
-        return .success(Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60, history: history))
+        let lines = Dictionary(uniqueKeysWithValues: accounts.filter { $0.kind == .claude }
+            .map { ($0.id, statusLine.state(settings: $0.path + "/settings.json")) })
+        let notices = Notice.all(accounts: accounts, formatChanged: formatChanged, statusLine: lines,
+                                 withPercent: Set(status.accounts.filter { $0.value.fiveHourPct != nil }.keys),
+                                 bridged: StatusLineBridge.accounts(dir: bridgeDir))
+        let snapshot = LiveSnapshot.make(status: status, minutes: calls.minutes, now: now, sources: sources, accounts: accounts)
+            ?? .empty(clock: LiveSnapshot.clock(now, .current))
+        return Reading(snapshot: snapshot, minute: Int(now.timeIntervalSince1970) / 60, history: history, notices: notices)
     }
 }

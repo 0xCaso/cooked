@@ -45,6 +45,7 @@ enum Snapshots {
             try render(IslandRoot(model: model, forceStill: true).background(desk),
                        to: dir.appendingPathComponent("open-\(name).png"))
         }
+        try writeNotices(to: dir, desk: desk, clock: clock)
         // "What burns tokens" with the first line hovered (lifted), then the middle one (neighbours on both sides).
         for (name, index) in [("sources-hover", 0), ("sources-hover-middle", 1)] where peak.sources.indices.contains(index) {
             try render(SourcesCard(sources: peak.sources, hovered: peak.sources[index].id).frame(width: 388).padding(24).background(desk),
@@ -75,6 +76,37 @@ enum Snapshots {
         for (name, hovered) in [("sources-long", nil), ("sources-long-hover", "l1")] as [(String, String?)] {
             try render(SourcesCard(sources: long, hovered: hovered).frame(width: 388).padding(24).background(desk),
                        to: dir.appendingPathComponent("\(name).png"))
+        }
+    }
+
+    /// The five notices, island and open popover, on demo data.
+    static func writeNotices(to dir: URL, desk: Color, clock: (UsageSnapshot) -> HistogramClock) throws {
+        let defaults = UserDefaults(suiteName: "cooked-notice-shots")!
+        defaults.removePersistentDomain(forName: "cooked-notice-shots")
+        func without(_ ids: Set<String>) -> UsageSnapshot {
+            var s = DemoData.calm
+            // as LiveSnapshot makes them: no percent, so no reset and no week either
+            s.accounts = s.accounts.map { a in
+                ids.contains(a.id) ? Account(id: a.id, short: a.short, fiveHourPercent: 0, fiveHourReset: "—", isLive: a.isLive,
+                                             isUnused: a.isUnused, hasPercent: false) : a
+            }
+            return s
+        }
+        let states: [(String, UsageSnapshot, Notice)] = [
+            ("noaccounts", .empty(clock: "19:28"), .noAccounts),
+            ("formatchanged", DemoData.calm, .formatChanged(account: "work", file: "~/.claude-work/projects/p/s.jsonl")),
+            ("paused", without(["work", "team", "side"]), .paused),
+            ("nopercent", without(["side"]), .noPercent(id: "side", account: "side")),
+            ("apikey", without(["side"]), .apiKey(id: "side", account: "side")),
+        ]
+        for (name, snapshot, notice) in states {
+            let model = IslandModel(snapshot: snapshot, defaults: defaults)
+            model.show([notice])
+            try render(SurfaceShot { IslandView(model: model, namespace: $0) }.padding(24).background(desk),
+                       to: dir.appendingPathComponent("notice-island-\(name).png"))
+            let histogram = clock(snapshot)
+            try render(SurfaceShot { PopoverView(model: model, histogram: histogram, namespace: $0) }.padding(24).background(desk),
+                       to: dir.appendingPathComponent("notice-popover-\(name).png"))
         }
     }
 
@@ -150,11 +182,10 @@ enum Snapshots {
         let now = Date()
         // the first launch fills 14 days of history over several readings
         let source = UsageSource()
-        var result = source.read(now: now)
+        var reading = source.read(now: now)
         let deadline = Date().addingTimeInterval(120)
-        while case .success(let r) = result, r.history != nil, Date() < deadline { result = source.read(now: Date()) }
-        model.apply(result)
-        if let problem = model.liveProblem { throw CocoaError(.fileReadUnknown, userInfo: [NSLocalizedDescriptionKey: problem.message]) }
+        while reading.history != nil, Date() < deadline { reading = source.read(now: Date()) }
+        model.apply(reading)
         let desk = Color(red: 27 / 255, green: 28 / 255, blue: 31 / 255)
         try render(IslandRoot(model: model, forceStill: true).background(desk), to: dir.appendingPathComponent("live-closed.png"))
         model.open()

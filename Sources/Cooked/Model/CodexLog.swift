@@ -41,9 +41,13 @@ final class CodexLog: @unchecked Sendable {
         /// Sessions with tokens in the last 15 minutes, most tokens first.
         var sessions: [TranscriptLog.Session] = []
         var limits: Limits?
+        /// The newest rollout, when Cooked does not know its lines.
+        var formatChanged: String?
     }
 
     private let lock = NSLock()
+    /// The format of the newest rollout, checked once per file.
+    private var formats: [String: SessionFormat] = [:]
     /// Rollout path → (cwd, first prompt), from its first lines, read once.
     private var heads: [String: (cwd: String?, prompt: String?)] = [:]
     /// Thread names from `session_index.jsonl`, and the index's size when read.
@@ -90,6 +94,7 @@ final class CodexLog: @unchecked Sendable {
                   modified >= since else { continue }
             urls.append((url, modified))
         }
+        out.formatChanged = SessionFormat.newestChanged(urls, cache: &formats)
         for (url, _) in urls.sorted(by: { $0.modified > $1.modified }) {
             seen.insert(url.path)
             let mark = ledger.read(url, now: now) { line, mark in
