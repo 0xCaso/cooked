@@ -29,6 +29,13 @@ enum Snapshots {
                     }.frame(width: 220)
                 }
             })),
+            // The week pill on its reset day shows a time, not a day: the % stays whole, the word "resets" gives way.
+            ("pills-week-today", AnyView(VStack(spacing: 8) {
+                ForEach([(2, "15:00"), (23, "09:30"), (100, "23:59"), (64, "Mon")], id: \.0) { left, reset in
+                    UsagePill(left: left, timeLeft: 0.1, hot: false, live: false) { PillTimes(reset: reset) }
+                        .frame(width: PopoverView.weekColumn)
+                }
+            })),
         ]
         for (name, view) in charts {
             try render(view.padding(8).background(Color(white: 0.06)), to: dir.appendingPathComponent("\(name).png"))

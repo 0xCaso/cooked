@@ -166,11 +166,12 @@ struct UsagePill<Times: View>: View {
                     Text(name).textStyle(live ? .emphasis : .body).foregroundStyle(live ? Palette.ink : Palette.ink2)
                         .frame(height: TextStyle.label.lineHeight)
                 }
+                // the % never truncates: the name gives way first, then the times get shorter
                 Text(left.map { "\($0)%" } ?? "—").textStyle(.labelNumber)
                     .foregroundStyle(hot ? Palette.red : live ? Palette.ink : Palette.ink2)
+                    .fixedSize().layoutPriority(2)
                 Spacer(minLength: 4)
-                // the times never truncate: the name gives way first
-                times.fixedSize().layoutPriority(1)
+                times.layoutPriority(1)
             }
             .lineLimit(1)
             PaceStrip(left: left ?? 0, timeLeft: left == nil ? nil : timeLeft, hot: hot, dim: !live)
@@ -198,8 +199,12 @@ struct PillTimes: View {
             } else if reset == "—" {
                 Text("—").textStyle(.labelNumber).foregroundStyle(Palette.ink3)
             } else {
-                Text("\(Text("resets "))\(Text(reset).styled(.labelNumber))").styled(.label)
-                    .foregroundStyle(red ? Palette.red : Palette.ink3)
+                // a narrow pill (the week's, on its reset day: "15:00" instead of "Mon") drops the word
+                ViewThatFits(in: .horizontal) {
+                    Text("\(Text("resets "))\(Text(reset).styled(.labelNumber))").styled(.label)
+                    Text(reset).textStyle(.labelNumber)
+                }
+                .foregroundStyle(red ? Palette.red : Palette.ink3)
             }
         }
         .frame(height: TextStyle.label.lineHeight)
