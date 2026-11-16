@@ -127,7 +127,7 @@ struct PopoverView: View {
             .textStyle(.label)
             .foregroundStyle(Palette.ink3)
             .accessibilityHidden(true)
-            ForEach(s.rows) { a in accountRow(a, urgent: s.isUrgent && a.id == s.activeID) }
+            ForEach(s.rows) { a in accountRow(a) }
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
@@ -135,19 +135,20 @@ struct PopoverView: View {
         .cardSurface()
     }
 
-    /// A pill per window, counted as what is left (like T3 Code). The 5-hour pill opens with the account name and turns
-    /// red, "full HH:MM" before the reset, when the window fills before it resets; a blocked account is red up to its
-    /// reset; the account that makes the island urgent is red too.
-    private func accountRow(_ a: Account, urgent: Bool) -> some View {
-        let fills = urgent || a.isBlocked || a.fullAt != nil
+    /// A pill per window, counted as what is left (like T3 Code). Red only when that window runs out before it resets
+    /// (2026-11-16-red-account-rule): the 5-hour pill, which opens with the account name, when blocked, full, or
+    /// "full HH:MM" before the reset; the week pill with "full HH:MM" when the last hour's pace empties it within 5 h.
+    private func accountRow(_ a: Account) -> some View {
+        let fills = a.isBlocked || a.fullAt != nil
         return HStack(spacing: Self.rowSpacing) {
             UsagePill(name: a.short, left: a.fiveHourLeftIfKnown,
                       timeLeft: a.fiveHourElapsed.map { 1 - $0 }, hot: fills, live: a.isLive) {
                 PillTimes(full: a.isBlocked ? nil : a.fullAt, reset: a.hasPercent ? a.fiveHourReset : "", red: a.isBlocked)
             }
             .frame(maxWidth: .infinity)
-            UsagePill(left: a.weekPercent.map(Self.left), timeLeft: a.weekElapsed.map { 1 - $0 }, hot: false, live: false) {
-                PillTimes(reset: a.weekReset ?? "")
+            UsagePill(left: a.weekPercent.map(Self.left), timeLeft: a.weekElapsed.map { 1 - $0 }, hot: a.weekFullAt != nil,
+                      live: false) {
+                PillTimes(full: a.weekFullAt, reset: a.weekFullAt == nil ? a.weekReset ?? "" : "")
             }
             .frame(width: Self.weekColumn)
         }

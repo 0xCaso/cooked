@@ -31,6 +31,10 @@ final class LimitLog: @unchecked Sendable {
     /// The paces: window, label, fewest samples. A pace needs samples over `coverage` of its window.
     static let paces: [(window: TimeInterval, label: String, minimum: Int)] = [(300, "5 min", 3), (1800, "30 min", 2)]
     static let coverage = 0.75
+    /// The week's pace: its percent moves about 1% at a time, so it takes the whole hour of samples kept.
+    static let weekPace: (window: TimeInterval, label: String, minimum: Int) = (3600, "1 h", 2)
+    /// A week projection counts only this close: further out, the pace of one hour says nothing about the days ahead.
+    static let weekHorizon: TimeInterval = 5 * 3600
     /// An account needs this many 15-min buckets of history for its own p99.
     static let minimumBuckets = 30
     static let thresholdsMaxAge: TimeInterval = 3600
@@ -175,16 +179,23 @@ final class LimitLog: @unchecked Sendable {
             }
             entry.projection = best.map { .init(window: $0.label, eta: clock($0.eta, now, calendar)) }
         }
+        if live, let weekReset = last.weekReset, weekReset > t, last.week >= projectionMinimum, last.week < 1,
+           let slope = slope(samples, window: weekPace.window, minimum: weekPace.minimum, \.week), slope > 0 {
+            let eta = last.at + (1 - last.week) / slope
+            if eta < weekReset, eta < t + weekHorizon {
+                entry.weekProjection = .init(window: weekPace.label, eta: clock(eta, now, calendar))
+            }
+        }
         return entry
     }
 
     /// Share per second over the window before the last sample; nil with too few samples or under `coverage` of the
     /// window (the script took 7.5 minutes for "30 min" and saw the work account full at 13:57; it was at 37% at 13:44).
-    static func slope(_ samples: [Sample], window: TimeInterval, minimum: Int) -> Double? {
+    static func slope(_ samples: [Sample], window: TimeInterval, minimum: Int, _ share: KeyPath<Sample, Double> = \.five) -> Double? {
         guard let last = samples.last else { return nil }
         let inside = samples.filter { $0.at >= last.at - window }
         guard inside.count >= minimum, let first = inside.first, last.at - first.at >= window * coverage else { return nil }
-        return (last.five - first.five) / (last.at - first.at)
+        return (last[keyPath: share] - first[keyPath: share]) / (last.at - first.at)
     }
 
     /// p99 of the summed 15-min buckets; with little history, `fallback` (the largest account threshold).

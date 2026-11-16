@@ -36,6 +36,13 @@ enum Snapshots {
                         .frame(width: PopoverView.weekColumn)
                 }
             })),
+            // The week runs out at the last hour's pace within 5 h: red, "full" before the reset.
+            ("pills-week-full", AnyView(VStack(spacing: 8) {
+                ForEach([4, 100], id: \.self) { left in
+                    UsagePill(left: left, timeLeft: 0.3, hot: true, live: false) { PillTimes(full: "14:49", reset: "") }
+                        .frame(width: PopoverView.weekColumn)
+                }
+            })),
         ]
         for (name, view) in charts {
             try render(view.padding(8).background(Color(white: 0.06)), to: dir.appendingPathComponent("\(name).png"))

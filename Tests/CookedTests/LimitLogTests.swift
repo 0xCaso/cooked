@@ -40,9 +40,10 @@ struct LimitLogTests {
     }()
     var now: Date { calendar.date(from: DateComponents(year: 2026, month: 10, day: 30, hour: 14, minute: 0))! }
 
-    func sample(_ minutesAgo: Double, _ five: Double, reset: Double = 3600) -> LimitLog.Sample {
+    func sample(_ minutesAgo: Double, _ five: Double, reset: Double = 3600, week: Double = 0.5,
+                weekReset: Double = 86400) -> LimitLog.Sample {
         let t = now.timeIntervalSince1970
-        return .init(at: t - minutesAgo * 60, five: five, fiveReset: t + reset, week: 0.5, weekReset: t + 86400, status: "allowed")
+        return .init(at: t - minutesAgo * 60, five: five, fiveReset: t + reset, week: week, weekReset: t + weekReset, status: "allowed")
     }
 
     @Test func parsesClaudeAndCodexEvents() throws {
@@ -150,6 +151,27 @@ struct LimitLogTests {
         let long = [sample(25, 0.20), sample(1, 0.36)]
         let pace = try? #require(LimitLog.slope(long, window: 1800, minimum: 2))
         #expect(abs((pace ?? 0) - 0.16 / (24 * 60)) < 1e-9)
+    }
+
+    /// The week fills at the last hour's pace before its reset and within 5 h: red on the week pill (2026-11-16-red-account-rule).
+    @Test func weekProjectionWithinFiveHoursOnly() {
+        // 0.04 in 50 min: the last 0.04 in 50 min, at 13:59 + 50, before the week reset in 24 h
+        let soon = LimitLog.entry(id: "claudeAgent", samples: [sample(51, 0.3, week: 0.92), sample(1, 0.4, week: 0.96)],
+                                  threshold: nil, now: now, calendar: calendar)
+        #expect(soon.weekProjection == .init(window: "1 h", eta: "14:49"))
+        // 0.01 in 50 min with 0.22 left: 18 h away, more than 5 h
+        let slow = LimitLog.entry(id: "claudeAgent", samples: [sample(51, 0.3, week: 0.77), sample(1, 0.4, week: 0.78)],
+                                  threshold: nil, now: now, calendar: calendar)
+        #expect(slow.weekProjection == nil)
+        // after the week reset
+        let late = LimitLog.entry(id: "claudeAgent", samples: [sample(51, 0.3, week: 0.92, weekReset: 1800),
+                                                               sample(1, 0.4, week: 0.96, weekReset: 1800)],
+                                  threshold: nil, now: now, calendar: calendar)
+        #expect(late.weekProjection == nil)
+        // 20 minutes of samples are no 1 h pace
+        let short = LimitLog.entry(id: "claudeAgent", samples: [sample(21, 0.3, week: 0.92), sample(1, 0.4, week: 0.96)],
+                                   threshold: nil, now: now, calendar: calendar)
+        #expect(short.weekProjection == nil)
     }
 
     @Test func projectionBeforeTheResetOnly() {

@@ -6,8 +6,8 @@ enum LiveSnapshot {
     static let fallbackThreshold15m = 500_000
     /// The chart keeps a day, for its longest range (`ChartRange.day`).
     static let historyMinutes = 24 * 60
-    /// Urgency rules.
-    static let urgentPercent = 90
+    /// The island turns urgent when a window fills this soon. Red means "fills before the reset", never a spike or a
+    /// percent alone (2026-11-16-red-account-rule).
     static let urgentETA: TimeInterval = 20 * 60
     static let okStates: Set<String> = ["allowed", "allowed_warning", "?"]
     static let fiveHours: TimeInterval = 5 * 3600
@@ -38,6 +38,13 @@ enum LiveSnapshot {
         func stale(_ id: String) -> Bool { entry(id).note != nil }
         func percent(_ id: String) -> Int { stale(id) ? 0 : entry(id).fiveHourPct ?? 0 }
         func threshold(_ id: String) -> Int { (entry(id).spikeThreshold15m ?? fallbackThreshold15m) / 15 }
+        /// nil once it has gone by, or at the week reset and after.
+        func weekETA(_ id: String) -> Date? {
+            guard let eta = entry(id).weekProjection.flatMap({ WatcherTime.parse($0.eta, now: now, calendar: calendar) }),
+                  eta > now, !stale(id), !blocked(id) else { return nil }
+            if let reset = weekResetDate(id), eta >= reset { return nil }
+            return eta
+        }
         func series(_ id: String) -> [Double] {
             let m = minutes[id] ?? [:]
             return (0..<historyMinutes).map { m[minuteNow - historyMinutes + 1 + $0] ?? 0 }
@@ -96,6 +103,7 @@ enum LiveSnapshot {
             Account(id: id, short: short(id: id, accounts: connected), fiveHourPercent: percent(id),
                     fiveHourReset: stale(id) ? "—" : clockPart(entry(id).fiveHourResetsAt) ?? "—",
                     isLive: entry(id).live ?? false, fullAt: fullAt(id), weekPercent: weekPercent(id),
+                    weekFullAt: weekETA(id).map { clock($0, calendar) },
                     isBlocked: blocked(id), isUnused: unused(id),
                     fiveHourElapsed: stale(id) ? nil : resetDate(id).map { elapsed(until: $0, window: fiveHours, now: now) },
                     weekElapsed: weekPercent(id) == nil ? nil : weekResetDate(id).map { elapsed(until: $0, window: week, now: now) },
@@ -105,10 +113,11 @@ enum LiveSnapshot {
         func isUrgent(_ id: String) -> Bool {
             let e = entry(id)
             guard !stale(id), hasPercent(id), e.live == true else { return false }
-            if percent(id) >= urgentPercent { return true }
+            if percent(id) >= 100 { return true }
             if let eta = eta(id), eta.timeIntervalSince(now) <= urgentETA { return true }
+            if let eta = weekETA(id), eta.timeIntervalSince(now) <= urgentETA { return true }
             if let state = e.limitStatus, !okStates.contains(state) { return true }
-            return series(id).suffix(2).contains { $0 > Double(threshold(id)) }
+            return false
         }
         let urgentID = ids.filter(isUrgent).max { percent($0) < percent($1) }
         let liveIDs = ids.filter { entry($0).live == true }
@@ -123,6 +132,7 @@ enum LiveSnapshot {
             let (lead, time, when): (String, String, String?) =
                 if blocked(id) { ("free at ", reset, "is cooked") }
                 else if let eta = eta(id) { ("full at ", clock(eta, calendar), "in \(max(0, Int(eta.timeIntervalSince(now) / 60))) min") }
+                else if let eta = weekETA(id) { ("full at ", clock(eta, calendar), "week in \(max(0, Int(eta.timeIntervalSince(now) / 60))) min") }
                 else if percent(id) >= 100 { ("full ", "now", "resets \(reset)") }
                 else { ("resets ", reset, nil) }
             let rate = rate(id)

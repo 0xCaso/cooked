@@ -145,18 +145,11 @@ struct LiveDataTests {
         #expect(LiveSnapshot.make(status: st, minutes: minutes, now: now, calendar: calendar, accounts: testAccounts)?.chartThreshold == 617_094 / 15)
     }
 
-    @Test func urgentWhenFiveHourReachesNinety() throws {
+    /// 91% used with no projection: not red, it is not expected to fill before the reset (2026-11-16-red-account-rule).
+    @Test func ninetyPercentAloneIsNotUrgent() throws {
         let st = try status { $0.accounts["claudeAgent"]?.fiveHourPct = 91 }
         let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
-        let u = try #require(s.urgency)
-        #expect(s.activeID == "claudeAgent")
-        #expect(u.percent == 91)
-        #expect(u.left == 9) // the card counts what is left, like the popover
-        // no ETA: the headline gives the reset, not "full at —"
-        #expect(u.lead == "resets ")
-        #expect(u.fullAt == "20:20")
-        #expect(u.detail == "personal")
-        #expect(u.source == "Idle for 5 min") // no minutes in this fixture: never "0/min"
+        #expect(s.urgency == nil)
     }
 
     @Test func urgentWhenFullWithinTwentyMinutes() throws {
@@ -175,15 +168,37 @@ struct LiveDataTests {
         #expect(IslandView.peakThread(s) == "tw")
     }
 
-    @Test func urgentOnASpikeMinute() throws {
+    /// A spike alone is not red: on 16/11 the personal account was red at 36% used, 111k/min over a 59k/min p99.
+    @Test func aSpikeAloneIsNotUrgent() throws {
         var minutes: [String: [Int: Double]] = [:]
-        minutes["claudeAgent"] = [minuteNow - 1: 425_706 / 15 + 1]
+        minutes["claudeAgent"] = [minuteNow - 1: 425_706 / 15 * 3]
         let s = try #require(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts))
         #expect(s.activeID == "claudeAgent")
-        #expect(s.isUrgent)
-        // an older spike does not count
-        minutes["claudeAgent"] = [minuteNow - 2: 1_000_000]
-        #expect(LiveSnapshot.make(status: try status(), minutes: minutes, now: now, calendar: calendar, accounts: testAccounts)?.isUrgent == false)
+        #expect(!s.isUrgent)
+    }
+
+    /// The week fills within 20 minutes: urgent, and the account carries "full" for its week pill.
+    @Test func urgentWhenTheWeekFillsSoon() throws {
+        let st = try status {
+            $0.accounts["claudeAgent_work"]?.projection = nil
+            $0.accounts["claudeAgent"]?.weekProjection = .init(window: "1 h", eta: "15:40")
+        }
+        let s = try #require(LiveSnapshot.make(status: st, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
+        #expect(s.accounts[1].weekFullAt == "15:40")
+        #expect(s.accounts[1].fullAt == nil)
+        let u = try #require(s.urgency)
+        #expect(s.activeID == "claudeAgent")
+        #expect(u.lead == "full at ")
+        #expect(u.fullAt == "15:40")
+        #expect(u.detail == "personal week in 14 min")
+        // later: the week pill is red, the island is not urgent
+        let later = try status {
+            $0.accounts["claudeAgent_work"]?.projection = nil
+            $0.accounts["claudeAgent"]?.weekProjection = .init(window: "1 h", eta: "18:00")
+        }
+        let l = try #require(LiveSnapshot.make(status: later, minutes: .init(), now: now, calendar: calendar, accounts: testAccounts))
+        #expect(l.accounts[1].weekFullAt == "18:00")
+        #expect(l.urgency == nil)
     }
 
     @Test func urgentWhenTheLimitIsHit() throws {

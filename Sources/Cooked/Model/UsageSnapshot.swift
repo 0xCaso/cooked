@@ -10,6 +10,8 @@ struct Account: Identifiable, Equatable {
     var fullAt: String? = nil
     /// The week's %, nil when the week has already reset and no new data came in.
     var weekPercent: Int? = nil
+    /// When the week fills at the last hour's pace, within 5 h and before its reset: "HH:MM". nil otherwise.
+    var weekFullAt: String? = nil
     /// The limit is hit (`limit_status` "rejected"): blocked until `fiveHourReset`.
     var isBlocked = false
     /// No event in the last 5 hours: hidden from the popover.

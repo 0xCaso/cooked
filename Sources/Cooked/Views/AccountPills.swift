@@ -182,7 +182,7 @@ struct UsagePill<Times: View>: View {
     }
 }
 
-/// The times on a pill's top line: "full 13:42" in red then the reset, or "resets 14:30".
+/// The times on a pill's top line: "full 13:42" in red then the reset (none when `reset` is empty), or "resets 14:30".
 struct PillTimes: View {
     var full: String? = nil
     let reset: String
@@ -192,7 +192,8 @@ struct PillTimes: View {
         HStack(spacing: 8) {
             if let full {
                 Text("\(Text("full "))\(Text(full).styled(.labelNumber))").styled(.label).foregroundStyle(Palette.red)
-                Text(reset).textStyle(.labelNumber).foregroundStyle(Palette.ink3)
+                // the week pill is too narrow for both: "full" alone
+                if !reset.isEmpty { Text(reset).textStyle(.labelNumber).foregroundStyle(Palette.ink3) }
             } else if reset.isEmpty {
                 // nothing to say: the pill's own "—" already says there is no number
                 EmptyView()

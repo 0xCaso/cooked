@@ -27,11 +27,14 @@ struct StatusFile: Decodable, Equatable {
         var lastEventAt: String?
         var live: Bool?
         var projection: Projection?
+        /// When the week fills at the last hour's pace, before its reset and within `LimitLog.weekHorizon`.
+        var weekProjection: Projection?
         /// Set when the 5h window has already reset and no new data came in.
         var note: String?
 
         enum CodingKeys: String, CodingKey {
             case name, live, projection, note
+            case weekProjection = "week_projection"
             case tokensFresh = "tokens_fresh", spikeThreshold15m = "spike_threshold_15m"
             case fiveHourPct = "five_hour_pct", fiveHourResetsAt = "five_hour_resets_at"
             case sevenDayPct = "seven_day_pct", sevenDayResetsAt = "seven_day_resets_at"
