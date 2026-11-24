@@ -1,7 +1,10 @@
 //! Task 14 (F5, F10): how well the lit chrome tiles read on their well. Each scene is rendered headless at
 //! `snaps::SNAP_T`; for every lit tile the mean luminance of its inner face (the tile less its outer 1 px ring) is
-//! set against the well's fill with WCAG's `contrast_ratio`. The test prints the minimum per colour; the floor is
-//! pinned only after the look is approved (plan Task 14 step 2).
+//! set against the well's fill with WCAG's `contrast_ratio`. The tests print the minimum per colour and hold it to
+//! the floors below: the mins measured on the signed-off look (variant B, 2026-11-24) less ~0.05.
+//!
+//! It lives in the binary's tests, not `tests/`: the crate has no library for an integration test to reach the
+//! scenes and grids through.
 
 use std::path::PathBuf;
 
@@ -14,6 +17,11 @@ use crate::popover;
 use crate::snaps::SNAP_T;
 use crate::snaps::tests::decode;
 use crate::tiles::{TileGrid, TileGrids};
+
+/// Floors, WCAG ratio: chrome tiles (measured 1.75), red tiles in the popover (2.47) and on the island (3.05).
+const CHROME_FLOOR: f64 = 1.7;
+const RED_POPOVER_FLOOR: f64 = 2.4;
+const RED_ISLAND_FLOOR: f64 = 3.0;
 
 /// A scene rendered headless: its pixels (RGBA, device pixels), its tree, and the scale between them.
 struct Render {
@@ -143,33 +151,33 @@ fn median(mut v: Vec<f64>) -> f64 {
     v.get(v.len() / 2).copied().unwrap_or(f64::NAN)
 }
 
-/// Prints and returns the minimum contrast of `faces`, per colour and overall.
-fn report(scene: &str, faces: &[Face]) -> f64 {
-    let mut min_all = f64::INFINITY;
-    for level in [TileLevel::Lit, TileLevel::Red] {
+/// Prints the minimum contrast of `faces` per colour and overall; returns (chrome, red), infinite when none.
+fn report(scene: &str, faces: &[Face]) -> (f64, f64) {
+    let mut mins = [f64::INFINITY; 2];
+    for (k, level) in [TileLevel::Lit, TileLevel::Red].into_iter().enumerate() {
         let of: Vec<&Face> = faces.iter().filter(|f| f.level == level).collect();
         if of.is_empty() {
             continue;
         }
-        let min = of.iter().map(|f| f.ratio).fold(f64::INFINITY, f64::min);
-        min_all = min_all.min(min);
-        let med = |k: usize| median(of.iter().map(|f| f.rgb[k]).collect());
+        mins[k] = of.iter().map(|f| f.ratio).fold(f64::INFINITY, f64::min);
+        let med = |i: usize| median(of.iter().map(|f| f.rgb[i]).collect());
         println!(
-            "readability {scene} {}: tiles {} min {min:.2}:1 median {:.2}:1 median rgb ({:.0}, {:.0}, {:.0})",
+            "readability {scene} {}: tiles {} min {:.2}:1 median {:.2}:1 median rgb ({:.0}, {:.0}, {:.0})",
             if level == TileLevel::Red {
                 "red"
             } else {
                 "chrome"
             },
             of.len(),
+            mins[k],
             median(of.iter().map(|f| f.ratio).collect()),
             med(0),
             med(1),
             med(2),
         );
     }
-    println!("readability {scene} min {min_all:.2}:1");
-    min_all
+    println!("readability {scene} min {:.2}:1", mins[0].min(mins[1]));
+    (mins[0], mins[1])
 }
 
 #[test]
@@ -180,8 +188,15 @@ fn popover_peak_tiles_read_on_their_well() {
     let grid = p.tile_grid(popover::HISTOGRAM_MARK).expect("histogram");
     let faces = faces(&r, grid, &grid.cells, rect, well);
     assert!(faces.iter().any(|f| f.level == TileLevel::Red));
-    // no floor yet: the look is approved first (Task 14 step 2)
-    assert!(report("popover-peak", &faces) > 1.0);
+    let (chrome, red) = report("popover-peak", &faces);
+    assert!(
+        chrome >= CHROME_FLOOR,
+        "chrome {chrome:.2} < {CHROME_FLOOR}"
+    );
+    assert!(
+        red >= RED_POPOVER_FLOOR,
+        "red {red:.2} < {RED_POPOVER_FLOOR}"
+    );
 }
 
 #[test]
@@ -195,5 +210,6 @@ fn island_urgent_tiles_read_on_their_well() {
     grid.cells_at(SNAP_T as f32, &mut cells);
     let faces = faces(&r, grid, &cells, rect, well);
     assert!(faces.iter().all(|f| f.level == TileLevel::Red));
-    assert!(report("island-urgent", &faces) > 1.0);
+    let (_, red) = report("island-urgent", &faces);
+    assert!(red >= RED_ISLAND_FLOOR, "red {red:.2} < {RED_ISLAND_FLOOR}");
 }
