@@ -13,6 +13,7 @@ use cooked_model::defaults::DefaultsStore;
 use cooked_model::demo_data::Feed;
 use cooked_model::island_model::{DisplayMode, GlassStyle, IslandState};
 use cooked_model::island_placement::{self as placement, OVERHANG, Point, Rect, ScreenInfo, Size};
+use cooked_model::menu_bar::{MenuBarLabel, screen_under_item};
 use cooked_model::position_store::{self, IslandPosition};
 use cooked_model::token_format;
 use rune::{
@@ -22,7 +23,9 @@ use rune::{
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::mac::status_item::StatusItem;
 use crate::mac::window::{self as mac, Displays};
+use crate::menu_bar::{self, Command};
 use crate::popover::{Anchor, Popover};
 use crate::scheduler;
 use crate::setup;
@@ -55,6 +58,8 @@ pub(crate) const WAVE_MARK: u32 = 1;
 const WAVE_WIDTH: (f32, f32) = (56.0, 112.0);
 /// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt, as the mockup.
 const WAVE_GAP: f32 = 1.2;
+/// Checks in a row that must find the menu bar item hidden before the island shows in its place.
+const HIDDEN_CHECKS: u8 = 2;
 /// Past this many points a press is a drag, not a tap (`PressableIsland.dragThreshold`).
 pub const DRAG_THRESHOLD: f64 = 3.0;
 
@@ -93,6 +98,14 @@ pub struct Island {
     dragging: bool,
     /// Reduce Transparency: an opaque `#161616` capsule instead of glass.
     pub solid: bool,
+    /// The menu bar item ("Show in › Menu bar"); made only with an overlay (none in scenes and tests).
+    status_item: Option<StatusItem>,
+    /// The display mode the overlay and the item follow now; `None` before the first `sync_display_mode`.
+    shown_mode: Option<DisplayMode>,
+    /// Menu bar mode, and macOS hid the item (a full menu bar): the island shows instead, so Cooked stays in reach.
+    item_hidden: bool,
+    /// Checks in a row that found the item hidden: it slides in below the menu bar for a moment when added.
+    hidden_checks: u8,
 }
 
 impl Island {
@@ -110,6 +123,10 @@ impl Island {
             press: None,
             dragging: false,
             solid: false,
+            status_item: None,
+            shown_mode: None,
+            item_hidden: false,
+            hidden_checks: 0,
         };
         island.refresh_wave();
         island
@@ -133,6 +150,113 @@ impl Island {
         };
         // the mockup rounds tiles at 0.28 of their short side
         self.wave = TileGrid::wave(cols, rows, wave).spacing(WAVE_GAP, 0.95);
+        self.refresh_status_item();
+    }
+
+    /// The menu bar item's label for the model now; it draws again only when the label changed.
+    fn refresh_status_item(&mut self) {
+        if let Some(item) = &mut self.status_item {
+            item.set_label(&MenuBarLabel::of(&self.model.borrow().snapshot));
+        }
+    }
+
+    /// Follows "Show Cooked in" (`AppDelegate.showDisplayMode`): in menu bar mode the item is added and the island
+    /// hides; in island mode the item goes and the island comes back where it was left. The popover closes.
+    pub fn sync_display_mode(&mut self) {
+        let mode = self.model.borrow().display_mode();
+        if self.shown_mode == Some(mode) {
+            return;
+        }
+        self.shown_mode = Some(mode);
+        self.close_popover();
+        self.item_hidden = false;
+        self.hidden_checks = 0;
+        match mode {
+            DisplayMode::MenuBar => {
+                if self.status_item.is_none()
+                    && let Some(overlay) = self.overlay.clone()
+                {
+                    self.status_item = menu_bar::status_item(self.model.clone(), overlay);
+                }
+                self.refresh_status_item();
+            }
+            DisplayMode::Island => {
+                self.status_item = None;
+                if let Some(displays) = Displays::current() {
+                    self.restore_position(displays);
+                }
+            }
+        }
+        self.apply_visibility();
+    }
+
+    /// The island shows in island mode, and in menu bar mode while the item is hidden.
+    pub fn island_visible(&self) -> bool {
+        self.shown_mode != Some(DisplayMode::MenuBar) || self.item_hidden
+    }
+
+    fn apply_visibility(&self) {
+        if menu_bar::probing() {
+            eprintln!("probe island visible {}", self.island_visible());
+        }
+        if let Some(overlay) = &self.overlay {
+            if self.island_visible() {
+                overlay.show();
+            } else {
+                overlay.hide();
+            }
+        }
+    }
+
+    /// Menu bar mode: whether macOS hid the item. The island shows once two checks in a row (3 s apart) find it
+    /// hidden, and hides again as soon as the item is back. (Swift left nothing on screen with a full menu bar.)
+    fn check_item(&mut self) {
+        let Some(item) = &self.status_item else {
+            return;
+        };
+        let screens = self
+            .displays
+            .as_ref()
+            .map(|d| d.screens.as_slice())
+            .unwrap_or(&[]);
+        let hidden = item
+            .frame()
+            .is_none_or(|f| screen_under_item(f, screens).is_none());
+        if menu_bar::probing() {
+            eprintln!("probe item frame {:?}, hidden {hidden}", item.frame());
+        }
+        self.hidden_checks = if hidden {
+            self.hidden_checks.saturating_add(1)
+        } else {
+            0
+        };
+        let hidden = self.hidden_checks >= HIDDEN_CHECKS;
+        if hidden != self.item_hidden {
+            self.item_hidden = hidden;
+            self.apply_visibility();
+        }
+    }
+
+    /// What the menu bar item asked (`menu_bar::item_clicked`).
+    pub fn command(&mut self, command: Command, tx: &mut Tx) {
+        match command {
+            Command::Open => {
+                menu_bar::probe("island turn");
+                self.open_popover();
+            }
+            Command::Close => self.close_popover(),
+            Command::Pick(id) => self.run_pick(&id, tx),
+        }
+    }
+
+    /// A pick from the island's or the item's menu; Quit stops the reader and the app.
+    pub fn run_pick(&mut self, id: &str, tx: &mut Tx) {
+        if self.menu_pick(id) == MenuAction::Quit {
+            if let Some(reader) = self.reader.take() {
+                reader.stop();
+            }
+            tx.quit();
+        }
     }
 
     /// The connected accounts changed (Setup, Settings): the reader reads again at once with a new source.
@@ -184,9 +308,23 @@ impl Island {
         }
     }
 
-    /// Where the popover hangs: the capsule, where its window really is, and the display that holds its centre.
+    /// Where the popover hangs: under the menu bar item in menu bar mode, while macOS shows it; else under the
+    /// capsule, where its window really is (or would be, hidden), on the display that holds its centre.
     fn popover_anchor(&self) -> Option<Anchor> {
+        if menu_bar::probing() {
+            return None;
+        }
         let displays = self.displays.as_ref()?;
+        if self.shown_mode == Some(DisplayMode::MenuBar)
+            && let Some(item) = self.status_item.as_ref().and_then(StatusItem::frame)
+            && let Some(screen) = screen_under_item(item, &displays.screens)
+        {
+            return Some(Anchor::item(
+                item,
+                screen.visible_frame,
+                displays.primary_height,
+            ));
+        }
         let frame = self
             .overlay
             .as_ref()
@@ -197,11 +335,11 @@ impl Island {
         let centre = Point::new(capsule.mid_x(), capsule.mid_y());
         let screen =
             placement::screen_containing(centre, &displays.screens).unwrap_or(&displays.main);
-        Some(Anchor {
+        Some(Anchor::island(
             capsule,
-            visible: screen.visible_frame,
-            primary_height: displays.primary_height,
-        })
+            screen.visible_frame,
+            displays.primary_height,
+        ))
     }
 
     /// Every 3 s (`IslandRoot`'s task): the calm demo's next rate, the displays, Reduce Transparency and the
@@ -226,6 +364,7 @@ impl Island {
         {
             self.restore_position(now);
         }
+        self.check_item();
         self.apply_glass_style();
         changed
     }
@@ -324,33 +463,7 @@ impl Island {
 
     /// The right-click menu, as `IslandRoot`'s context menu and `MenuBarItem.showMenu`.
     pub fn menu(&self) -> PopupMenu {
-        let (feed, glass, mode) = {
-            let m = self.model.borrow();
-            (m.feed(), m.glass_style(), m.display_mode())
-        };
-        PopupMenu::new()
-            .item(PopupItem::new("data", "Data").enabled(false))
-            .items(
-                Feed::ALL.map(|f| {
-                    PopupItem::new(format!("feed:{}", f.raw()), f.title()).checked(f == feed)
-                }),
-            )
-            .separator()
-            .submenu(
-                "Glass",
-                PopupMenu::new().items(GlassStyle::ALL.map(|g| {
-                    PopupItem::new(format!("glass:{}", g.raw()), g.title()).checked(g == glass)
-                })),
-            )
-            .submenu(
-                "Show in",
-                PopupMenu::new().items(DisplayMode::ALL.map(|m| {
-                    PopupItem::new(format!("show:{}", m.raw()), m.title()).checked(m == mode)
-                })),
-            )
-            .separator()
-            .item(PopupItem::new("settings", "Settings…"))
-            .item(PopupItem::new("quit", "Quit Cooked"))
+        menu_for(&self.model.borrow())
     }
 
     /// A pick from `menu`.
@@ -368,10 +481,10 @@ impl Island {
                     self.apply_glass_style();
                 }
             }
-            // Saved now; the island hides for the status item in Task 16.
             "show" => {
                 if let Some(mode) = DisplayMode::from_raw(value) {
                     self.model.borrow_mut().set_display_mode(mode);
+                    self.sync_display_mode();
                 }
             }
             "settings" => {
@@ -390,6 +503,33 @@ impl TileGrids for Island {
     fn tile_grid(&self, mark: u32) -> Option<&TileGrid> {
         (mark == WAVE_MARK).then_some(&self.wave)
     }
+}
+
+/// The menu of the island's right click and of the menu bar item: Data, Glass, Show in, Settings…, Quit.
+pub fn menu_for(m: &IslandState<Prefs>) -> PopupMenu {
+    let (feed, glass, mode) = (m.feed(), m.glass_style(), m.display_mode());
+    PopupMenu::new()
+        .item(PopupItem::new("data", "Data").enabled(false))
+        .items(
+            Feed::ALL
+                .map(|f| PopupItem::new(format!("feed:{}", f.raw()), f.title()).checked(f == feed)),
+        )
+        .separator()
+        .submenu(
+            "Glass",
+            PopupMenu::new().items(GlassStyle::ALL.map(|g| {
+                PopupItem::new(format!("glass:{}", g.raw()), g.title()).checked(g == glass)
+            })),
+        )
+        .submenu(
+            "Show in",
+            PopupMenu::new().items(DisplayMode::ALL.map(|m| {
+                PopupItem::new(format!("show:{}", m.raw()), m.title()).checked(m == mode)
+            })),
+        )
+        .separator()
+        .item(PopupItem::new("settings", "Settings…"))
+        .item(PopupItem::new("quit", "Quit Cooked"))
 }
 
 /// Straight-line distance, points.
@@ -440,13 +580,8 @@ fn press_handlers(capsule: El) -> El {
         .on_drag(|s: &mut Island, d: &mut Drag, _: &mut Tx| s.drag(d))
         .on_secondary_press(|s: &mut Island, at: PointerPress, tx: &mut Tx| {
             tx.popup_menu(s.menu(), at, |s: &mut Island, picked, tx: &mut Tx| {
-                if let Some(id) = picked
-                    && s.menu_pick(id) == MenuAction::Quit
-                {
-                    if let Some(reader) = s.reader.take() {
-                        reader.stop();
-                    }
-                    tx.quit();
+                if let Some(id) = picked {
+                    s.run_pick(id, tx);
                 }
             });
         })
@@ -773,6 +908,28 @@ mod tests {
         .into_defaults();
         let again = IslandState::new(demo_data::calm(), None, prefs, 0.0);
         assert_eq!(again.glass_style(), GlassStyle::Clear);
+    }
+
+    /// `MenuBarTests.displayModeIsKeptAndStartsAsTheIsland`, and the island hides in menu bar mode.
+    #[test]
+    fn display_mode_starts_as_the_island_and_menu_bar_hides_it() {
+        let mut s = island(Feed::DemoCalm);
+        s.sync_display_mode();
+        assert_eq!(s.model.borrow().display_mode(), DisplayMode::Island);
+        assert!(s.island_visible());
+        s.toggle_popover();
+        assert!(s.model.borrow().is_open);
+        // "Show in › Menu bar": the popover closes, the island goes
+        s.menu_pick("show:menuBar");
+        assert!(!s.model.borrow().is_open);
+        assert!(!s.island_visible());
+        assert!(s.menu().find("show:menuBar").unwrap().is_checked());
+        // macOS hid the item: the island shows instead
+        s.item_hidden = true;
+        assert!(s.island_visible());
+        s.menu_pick("show:island");
+        assert!(s.island_visible());
+        assert!(!s.item_hidden);
     }
 
     #[test]

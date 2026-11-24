@@ -71,22 +71,46 @@ pub enum Request {
     Copy(String),
 }
 
-/// Where the popover hangs: the island's capsule and the visible frame of its display, AppKit coordinates (origin
-/// bottom-left of the primary display, y up), and the primary display's height to flip them for Rune.
+/// Where the popover hangs: under the island's capsule, or under the menu bar item (`capsule` is then the item's
+/// frame), `gap` points below it; the visible frame of its display, AppKit coordinates (origin bottom-left of the
+/// primary display, y up), and the primary display's height to flip them for Rune.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Anchor {
     pub capsule: Rect,
+    pub gap: f64,
     pub visible: Rect,
     pub primary_height: f64,
 }
 
+impl Anchor {
+    /// Under the island's capsule.
+    pub fn island(capsule: Rect, visible: Rect, primary_height: f64) -> Self {
+        Self {
+            capsule,
+            gap: GAP,
+            visible,
+            primary_height,
+        }
+    }
+
+    /// Under the menu bar item at `item` (`IslandPlacement.underItem`).
+    pub fn item(item: Rect, visible: Rect, primary_height: f64) -> Self {
+        Self {
+            capsule: item,
+            gap: cooked_model::island_placement::GAP_BELOW_ITEM,
+            visible,
+            primary_height,
+        }
+    }
+}
+
 /// The overlay's frame (AppKit coordinates, margin included) for a page `height` points tall: centred under the
-/// capsule, `GAP` below it, the page kept inside the display's visible frame across, and no taller than the space
+/// capsule, `gap` below it, the page kept inside the display's visible frame across, and no taller than the space
 /// down to the visible frame's bottom (Swift capped the panel at the screen's visible height).
 pub fn frame(anchor: &Anchor, height: f32) -> Rect {
     let (mx, top, bottom) = (MARGIN_X as f64, MARGIN_TOP as f64, MARGIN_BOTTOM as f64);
     let width = WIDTH as f64 + 2.0 * mx;
-    let page_top = anchor.capsule.min_y() - GAP;
+    let page_top = anchor.capsule.min_y() - anchor.gap;
     let room = (page_top - anchor.visible.min_y() - SCREEN_BOTTOM_GAP).max(0.0);
     let page = (height as f64).min(room);
     let full = page + top + bottom;
@@ -143,6 +167,8 @@ pub struct Popover {
     /// Scenes: the chart's clock stopped at this time.
     still_at: Option<f64>,
     outside: Option<OutsideClicks>,
+    /// The click latency probe waits for the first frame after a show.
+    first_frame: bool,
 }
 
 impl Popover {
@@ -166,6 +192,7 @@ impl Popover {
             pinned: args.iter().any(|a| a == crate::app::OPEN_FLAG),
             still_at: None,
             outside: None,
+            first_frame: false,
         };
         popover.refresh();
         popover
@@ -202,6 +229,8 @@ impl Popover {
         if let Some(anchor) = &self.anchor {
             overlay.set_placement(Some(placement(anchor, self.height)));
         }
+        crate::menu_bar::probe("popover show");
+        self.first_frame = crate::menu_bar::probing();
         overlay.show();
         overlay.request_keys();
         let handle = overlay.clone();
@@ -314,6 +343,9 @@ impl TileGrids for Popover {
 
 /// Before each frame: the chart moves with its clock while the page is up. The view doesn't change for it.
 pub fn poll(s: &mut Popover, _: f64, _: &mut Tx) -> bool {
+    if std::mem::take(&mut s.first_frame) {
+        crate::menu_bar::probe("popover first frame");
+    }
     if s.shown && s.still_at.is_none() && !s.reduce_motion {
         s.step_chart();
     }

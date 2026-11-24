@@ -16,11 +16,11 @@ use crate::snaps::tests::assert_matches_snap;
 
 fn anchor(capsule_x: f64) -> Anchor {
     // a 1440 x 900 display with a 24 pt menu bar; the capsule 8 pt under it
-    Anchor {
-        capsule: Rect::new(capsule_x, 828.0, 290.0, 40.0),
-        visible: Rect::new(0.0, 0.0, 1440.0, 876.0),
-        primary_height: 900.0,
-    }
+    Anchor::island(
+        Rect::new(capsule_x, 828.0, 290.0, 40.0),
+        Rect::new(0.0, 0.0, 1440.0, 876.0),
+        900.0,
+    )
 }
 
 // ---- placement ----
@@ -34,6 +34,25 @@ fn the_page_hangs_centred_under_the_capsule() {
     // the page's top edge GAP under the capsule; the margin above it
     assert_eq!(f.max_y() - MARGIN_TOP as f64, a.capsule.min_y() - GAP);
     assert_eq!(f.height, 600.0 + MARGIN_TOP as f64 + MARGIN_BOTTOM as f64);
+}
+
+/// `MenuBarTests.popoverHangsUnderTheItemAndStaysOnScreen`: centred under the menu bar item, `GAP_BELOW_ITEM`
+/// below it; next to the clock it is pushed left so the page ends at the screen edge.
+#[test]
+fn popover_hangs_under_the_item_and_stays_on_screen() {
+    use cooked_model::island_placement::GAP_BELOW_ITEM;
+    let visible = Rect::new(0.0, 0.0, 1512.0, 945.0);
+    let middle = frame(
+        &Anchor::item(Rect::new(700.0, 945.0, 60.0, 37.0), visible, 982.0),
+        700.0,
+    );
+    assert_eq!(middle.mid_x(), 730.0);
+    assert_eq!(middle.max_y() - MARGIN_TOP as f64, 945.0 - GAP_BELOW_ITEM);
+    let edge = frame(
+        &Anchor::item(Rect::new(1400.0, 945.0, 60.0, 37.0), visible, 982.0),
+        700.0,
+    );
+    assert_eq!(edge.max_x(), 1512.0 + MARGIN_X as f64);
 }
 
 #[test]
