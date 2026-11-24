@@ -55,9 +55,4 @@ fn panel_keeps_the_mouse_while_a_menu_tracks() {
     unimplemented!("port with the island view in Task 12");
 }
 
-#[test]
-#[ignore = "needs Task 17: reopen handling (applicationShouldHandleReopen)"]
-fn reopening_shows_the_popover() {
-    // Swift: #expect(!model.isOpen); applicationShouldHandleReopen(...); #expect(model.isOpen)
-    unimplemented!("port with reopen in Task 17");
-}
+// ReopenTests.reopeningShowsThePopover: `reopening_shows_the_popover` in `crates/cooked/src/island.rs` (Task 17).
