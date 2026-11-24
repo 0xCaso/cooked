@@ -3,6 +3,9 @@ mod common;
 
 use cooked_model::accounts::ConnectedAccount;
 use cooked_model::clock::FixedOffset;
+use cooked_model::defaults::MemoryDefaults;
+use cooked_model::demo_data;
+use cooked_model::island_model::IslandState;
 use cooked_model::live_snapshot::{self, Minutes};
 use cooked_model::notice::Notice;
 use cooked_model::session_format::SessionFormat;
@@ -82,16 +85,30 @@ fn api_key_only_after_the_status_line_ran() {
 }
 
 #[test]
-#[ignore = "needs Task 7: IslandModel (show, dismiss, accountsChanged; dismissed kept in defaults)"]
 fn not_now_hides_it_until_the_accounts_change() {
-    // Swift: let model = IslandModel(defaults: defaults); let missing = Notice.noPercent(id: "claudeAgent", account: "personal")
-    // model.show([missing, .apiKey(id: "claudeAgent_work", account: "work")]); model.dismiss(missing)
-    // #expect(model.notice == .apiKey(id: "claudeAgent_work", account: "work"))
-    // #expect(IslandModel(defaults: defaults).dismissed == ["noPercent:claudeAgent"]) // kept across launches
-    // model.accountsChanged(); #expect(model.notice == missing)
-    // model.dismiss(.paused) // a notice with a fix cannot be put off
-    // #expect(model.dismissed.isEmpty)
-    unimplemented!("port with IslandModel in Task 7");
+    let mut model = IslandState::new(demo_data::calm(), None, MemoryDefaults::default(), 0.0);
+    let missing = Notice::NoPercent {
+        id: "claudeAgent".to_owned(),
+        account: "personal".to_owned(),
+    };
+    let api_key = Notice::ApiKey {
+        id: "claudeAgent_work".to_owned(),
+        account: "work".to_owned(),
+    };
+    model.show(vec![missing.clone(), api_key.clone()]);
+    model.dismiss(&missing);
+    assert_eq!(model.notice(), Some(&api_key));
+    let defaults = model.defaults().clone();
+    let relaunched = IslandState::new(demo_data::calm(), None, defaults, 0.0);
+    // kept across launches
+    assert_eq!(
+        relaunched.dismissed(),
+        &HashSet::from(["noPercent:claudeAgent".to_owned()])
+    );
+    model.accounts_changed();
+    assert_eq!(model.notice(), Some(&missing));
+    model.dismiss(&Notice::Paused); // a notice with a fix cannot be put off
+    assert!(model.dismissed().is_empty());
 }
 
 #[test]

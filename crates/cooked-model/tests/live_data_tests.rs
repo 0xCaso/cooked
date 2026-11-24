@@ -8,6 +8,7 @@ use common::{
     test_accounts, token_source, uuid,
 };
 use cooked_model::clock::{self, FixedOffset, iso_date, iso_string};
+use cooked_model::histogram_clock::LiveHistogram;
 use cooked_model::live_snapshot::{self, Minutes};
 use cooked_model::notice::Notice;
 use cooked_model::status_file::{Entry, Projection, StatusFile, WatcherTime};
@@ -772,39 +773,39 @@ fn reports_no_accounts() {
 // MARK: - LiveHistogramTests
 
 #[test]
-#[ignore = "needs Task 7: LiveHistogram (Dots/HistogramClock.swift)"]
 fn shows_the_values_as_they_are() {
-    // Swift: let h = LiveHistogram(values: Array(repeating: 32000, count: 60), threshold: 40000, minute: 100, epoch: 6000)
-    // let history = h.history(at: 10, still: false)
-    // #expect(history.values.allSatisfy { $0 == 32000 }); #expect(history.top == 64000 && history.threshold == 40000)
-    unimplemented!("port with HistogramClock in Task 7");
+    let mut h = LiveHistogram::new(vec![32000.0; 60], 40000.0, 100, 6000.0);
+    let history = h.history(10.0, false);
+    assert!(history.values.iter().all(|v| *v == 32000.0));
+    assert!(history.top == 64000.0 && history.threshold == 40000.0);
 }
 
 #[test]
-#[ignore = "needs Task 7: LiveHistogram (Dots/HistogramClock.swift)"]
 fn shifts_when_the_wall_clock_minute_closes() {
-    // Swift: values = (0..<60).map { 1000 * ($0 + 1) }; h = LiveHistogram(values:, threshold: 40000, minute: 100, epoch: 6000)
-    // #expect(h.history(at: 59, still: false).values[10] == 11000)
-    // let after = h.history(at: 60, still: false); #expect(after.values[10] == 12000); #expect(after.values[59] == 0)
-    unimplemented!("port with HistogramClock in Task 7");
+    let values: Vec<f64> = (0..60).map(|i| 1000.0 * (i as f64 + 1.0)).collect();
+    let mut h = LiveHistogram::new(values, 40000.0, 100, 6000.0);
+    assert_eq!(h.history(59.0, false).values[10], 11000.0);
+    let after = h.history(60.0, false);
+    assert_eq!(after.values[10], 12000.0);
+    assert_eq!(after.values[59], 0.0);
 }
 
 #[test]
-#[ignore = "needs Task 7: LiveHistogram (Dots/HistogramClock.swift)"]
 fn new_data_replaces_the_history() {
-    // Swift: h = LiveHistogram(values: 60 × 16000, threshold: 40000, minute: 100, epoch: 6000); _ = h.history(at: 10)
-    // h.update(values: 60 × 32000, threshold: 30000, minute: 100); let history = h.history(at: 10, still: false)
-    // #expect(history.values.allSatisfy { $0 == 32000 }); #expect(history.threshold == 30000)
-    unimplemented!("port with HistogramClock in Task 7");
+    let mut h = LiveHistogram::new(vec![16000.0; 60], 40000.0, 100, 6000.0);
+    h.history(10.0, false);
+    h.update(vec![32000.0; 60], 30000.0, 100);
+    let history = h.history(10.0, false);
+    assert!(history.values.iter().all(|v| *v == 32000.0));
+    assert_eq!(history.threshold, 30000.0);
 }
 
 #[test]
-#[ignore = "needs Task 7: LiveHistogram (Dots/HistogramClock.swift)"]
 fn catches_up_after_several_minutes_unseen() {
-    // Swift: h = LiveHistogram(values: 60 × 32000, threshold: 40000, minute: 100, epoch: 6000)
-    // let after = h.history(at: 3 * 60 + 5, still: false)
-    // #expect(after.values.suffix(3).allSatisfy { $0 == 0 }); #expect(after.values.prefix(57).allSatisfy { $0 == 32000 })
-    unimplemented!("port with HistogramClock in Task 7");
+    let mut h = LiveHistogram::new(vec![32000.0; 60], 40000.0, 100, 6000.0);
+    let after = h.history(3.0 * 60.0 + 5.0, false);
+    assert!(after.values[57..].iter().all(|v| *v == 0.0));
+    assert!(after.values[..57].iter().all(|v| *v == 32000.0));
 }
 
 // MARK: - TokenSourcesTests
