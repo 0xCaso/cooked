@@ -82,8 +82,7 @@ pub fn make(
                 five_hour_elapsed: if c.stale(id) {
                     None
                 } else {
-                    c.reset_date(id)
-                        .map(|r| elapsed(r, FIVE_HOURS, now))
+                    c.reset_date(id).map(|r| elapsed(r, FIVE_HOURS, now))
                 },
                 week_elapsed: week_percent
                     .and_then(|_| c.week_reset_date(id))
@@ -97,7 +96,8 @@ pub fn make(
                     &if c.stale(id) {
                         "—".to_owned()
                     } else {
-                        clock_part(e.five_hour_resets_at.as_deref()).unwrap_or_else(|| "—".to_owned())
+                        clock_part(e.five_hour_resets_at.as_deref())
+                            .unwrap_or_else(|| "—".to_owned())
                     },
                     e.live.unwrap_or(false),
                 )
@@ -302,7 +302,10 @@ impl Ctx<'_> {
 
     /// `None` once the week has reset with no new data.
     fn week_percent(&self, id: &str) -> Option<i64> {
-        if self.week_reset_date(id).is_some_and(|reset| reset <= self.now) {
+        if self
+            .week_reset_date(id)
+            .is_some_and(|reset| reset <= self.now)
+        {
             return None;
         }
         self.entry(id).seven_day_pct
@@ -349,7 +352,10 @@ impl Ctx<'_> {
         if self.eta(id).is_some_and(|eta| eta - self.now <= URGENT_ETA) {
             return true;
         }
-        if self.week_eta(id).is_some_and(|eta| eta - self.now <= URGENT_ETA) {
+        if self
+            .week_eta(id)
+            .is_some_and(|eta| eta - self.now <= URGENT_ETA)
+        {
             return true;
         }
         e.limit_status

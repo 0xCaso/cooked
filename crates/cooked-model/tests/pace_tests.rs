@@ -11,7 +11,10 @@ fn elapsed_is_the_share_of_the_window_gone() {
     let now = 1_000_000.0;
     assert_eq!(live_snapshot::elapsed(now + 3600.0, 5.0 * 3600.0, now), 0.8);
     assert_eq!(live_snapshot::elapsed(now - 60.0, 5.0 * 3600.0, now), 1.0);
-    assert_eq!(live_snapshot::elapsed(now + 9.0 * 3600.0, 5.0 * 3600.0, now), 0.0);
+    assert_eq!(
+        live_snapshot::elapsed(now + 9.0 * 3600.0, 5.0 * 3600.0, now),
+        0.0
+    );
 }
 
 #[test]

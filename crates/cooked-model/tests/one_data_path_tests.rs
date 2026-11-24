@@ -28,7 +28,11 @@ fn reads_the_bridge_files() {
     let now = common::now();
     let dir = temp_dir("bridge");
     let (reset, week_reset) = (now + 3600.0, now + 86400.0);
-    std::fs::write(dir.join("claudeAgent_work.json"), status_line(42.0, reset, 12.0, week_reset)).unwrap();
+    std::fs::write(
+        dir.join("claudeAgent_work.json"),
+        status_line(42.0, reset, 12.0, week_reset),
+    )
+    .unwrap();
     // an API key user: no rate_limits, no percent
     std::fs::write(dir.join("claudeAgent.json"), r#"{"session_id":"s"}"#).unwrap();
     let s = status_line_bridge::samples(&dir);
@@ -63,7 +67,10 @@ fn the_bridge_wins_over_the_t3_code_logs() {
     );
     // work from the bridge, personal from the logs until it has one
     assert_eq!(
-        accounts.iter().map(|a| a.five_hour_percent).collect::<Vec<_>>(),
+        accounts
+            .iter()
+            .map(|a| a.five_hour_percent)
+            .collect::<Vec<_>>(),
         [42, 70]
     );
     // Codex from T3 Code's logs is not read: its percent comes from the rollouts
@@ -73,7 +80,11 @@ fn rollout(home: &Path, day: &str, id: &str, line: &str) {
     let dir = home.join(format!("sessions/{day}"));
     std::fs::create_dir_all(&dir).unwrap();
     let date = day.replace('/', "-");
-    std::fs::write(dir.join(format!("rollout-{date}T10-00-00-{id}.jsonl")), format!("{line}\n")).unwrap();
+    std::fs::write(
+        dir.join(format!("rollout-{date}T10-00-00-{id}.jsonl")),
+        format!("{line}\n"),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -91,10 +102,17 @@ fn codex_percent_comes_from_the_rollouts() {
     s.codex = Some(CodexLog::new("codex", &home, Some(Arc::clone(&s.ledger))));
     let snapshot = s.read(now, &UTC).snapshot;
     assert_eq!(
-        snapshot.accounts.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
+        snapshot
+            .accounts
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect::<Vec<_>>(),
         ["codex"]
     );
-    assert!(snapshot.accounts[0].five_hour_percent == 12 && snapshot.accounts[0].week_percent == Some(40));
+    assert!(
+        snapshot.accounts[0].five_hour_percent == 12
+            && snapshot.accounts[0].week_percent == Some(40)
+    );
     assert_eq!(snapshot.series.iter().rev().take(2).sum::<f64>(), 1010.0);
     // after a restart the rollout continues from its mark: the limits come from its last lines
     let mut restarted = CodexLog::new("codex", &home, Some(Arc::clone(&s.ledger)));
@@ -143,13 +161,20 @@ fn the_alert_lines_come_from_the_cache() {
     for q in 0..40 {
         for m in 0..15 {
             let minute = (minute_now / 15 - 40 + q) * 15 + m;
-            ledger.add("claudeAgent_work", minute, if q == 39 { 2000.0 } else { 1000.0 });
+            ledger.add(
+                "claudeAgent_work",
+                minute,
+                if q == 39 { 2000.0 } else { 1000.0 },
+            );
             ledger.add("claudeAgent", minute, 100.0);
         }
     }
     let b = ledger.buckets15();
     assert_eq!(b.by_account.get("claudeAgent_work").map(Vec::len), Some(40));
-    assert_eq!(b.total.iter().copied().fold(f64::NEG_INFINITY, f64::max), 15.0 * 2100.0);
+    assert_eq!(
+        b.total.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        15.0 * 2100.0
+    );
     let mut log = LimitLog::new(None, None);
     let sample = Sample {
         at: now,
@@ -172,7 +197,13 @@ fn the_alert_lines_come_from_the_cache() {
         },
         &UTC,
     );
-    assert_eq!(status.accounts["claudeAgent_work"].spike_threshold_15m, Some(30_000));
-    assert_eq!(status.accounts["claudeAgent"].spike_threshold_15m, Some(1_500));
+    assert_eq!(
+        status.accounts["claudeAgent_work"].spike_threshold_15m,
+        Some(30_000)
+    );
+    assert_eq!(
+        status.accounts["claudeAgent"].spike_threshold_15m,
+        Some(1_500)
+    );
     assert_eq!(status.total_threshold_15m, Some(31_500));
 }

@@ -103,11 +103,39 @@ pub fn calm() -> UsageSnapshot {
     UsageSnapshot {
         clock: "19:28".to_owned(),
         accounts: vec![
-            account("work", "work", 4, "00:20", true, Some((74, 0.38, 0.71, "Mon"))),
-            account("team", "team", 11, "04:40", false, Some((22, 0.04, 0.3, "Wed"))),
+            account(
+                "work",
+                "work",
+                4,
+                "00:20",
+                true,
+                Some((74, 0.38, 0.71, "Mon")),
+            ),
+            account(
+                "team",
+                "team",
+                11,
+                "04:40",
+                false,
+                Some((22, 0.04, 0.3, "Wed")),
+            ),
             personal,
-            account("side", "side", 12, "01:55", false, Some((41, 0.11, 0.5, "Tue"))),
-            account("cdx", "codex", 6, "03:10", false, Some((9, 0.2, 0.14, "Sun"))),
+            account(
+                "side",
+                "side",
+                12,
+                "01:55",
+                false,
+                Some((41, 0.11, 0.5, "Tue")),
+            ),
+            account(
+                "cdx",
+                "codex",
+                6,
+                "03:10",
+                false,
+                Some((9, 0.2, 0.14, "Sun")),
+            ),
         ],
         active_id: "work".to_owned(),
         rate_now: 9000,
@@ -143,7 +171,14 @@ fn source(
 }
 
 pub fn peak() -> UsageSnapshot {
-    let mut work = account("work", "work", 82, "00:20", true, Some((79, 0.55, 0.71, "Mon")));
+    let mut work = account(
+        "work",
+        "work",
+        82,
+        "00:20",
+        true,
+        Some((79, 0.55, 0.71, "Mon")),
+    );
     work.full_at = Some("23:14".to_owned());
     let mut personal = account(
         "per",
@@ -158,10 +193,31 @@ pub fn peak() -> UsageSnapshot {
         clock: "23:05".to_owned(),
         accounts: vec![
             work,
-            account("team", "team", 12, "04:40", false, Some((23, 0.07, 0.3, "Wed"))),
+            account(
+                "team",
+                "team",
+                12,
+                "04:40",
+                false,
+                Some((23, 0.07, 0.3, "Wed")),
+            ),
             personal,
-            account("side", "side", 12, "01:55", false, Some((41, 0.11, 0.5, "Tue"))),
-            account("cdx", "codex", 9, "03:10", false, Some((10, 0.2, 0.14, "Sun"))),
+            account(
+                "side",
+                "side",
+                12,
+                "01:55",
+                false,
+                Some((41, 0.11, 0.5, "Tue")),
+            ),
+            account(
+                "cdx",
+                "codex",
+                9,
+                "03:10",
+                false,
+                Some((10, 0.2, 0.14, "Sun")),
+            ),
         ],
         active_id: "work".to_owned(),
         rate_now: 184_000,

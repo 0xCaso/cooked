@@ -105,7 +105,10 @@ impl Notice {
             missing
                 .iter()
                 .filter(|a| {
-                    status_line.get(&a.id).copied().unwrap_or(State::NotConnected)
+                    status_line
+                        .get(&a.id)
+                        .copied()
+                        .unwrap_or(State::NotConnected)
                         == State::NotConnected
                 })
                 .map(|a| Notice::NoPercent {

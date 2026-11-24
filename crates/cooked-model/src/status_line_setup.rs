@@ -403,7 +403,8 @@ impl JsonObjectText {
                 }
             }
             _ => {
-                while *i < n && !matches!(b[*i], b',' | b'}' | b']' | b' ' | b'\t' | b'\n' | b'\r') {
+                while *i < n && !matches!(b[*i], b',' | b'}' | b']' | b' ' | b'\t' | b'\n' | b'\r')
+                {
                     *i += 1;
                 }
             }

@@ -259,5 +259,6 @@ pub const ROME: cooked_model::clock::FixedOffset = cooked_model::clock::FixedOff
 
 /// A Rome wall-clock time in 2026, in Unix seconds.
 pub fn rome(day: i64, month: i64, h: i64, m: i64, s: i64) -> f64 {
-    (cooked_model::clock::days_from_civil(2026, month, day) * 86_400 + h * 3600 + m * 60 + s - 3600) as f64
+    (cooked_model::clock::days_from_civil(2026, month, day) * 86_400 + h * 3600 + m * 60 + s - 3600)
+        as f64
 }

@@ -58,7 +58,10 @@ impl UsageSource {
             bridge_dir: status_line_bridge::default_dir(),
             status_line: StatusLineSetup::default(),
             t3_database: TokenLog::default_path(),
-            transcripts: Some(TranscriptLog::with_accounts(&accounts, Some(Arc::clone(&ledger)))),
+            transcripts: Some(TranscriptLog::with_accounts(
+                &accounts,
+                Some(Arc::clone(&ledger)),
+            )),
             codex: CodexLog::with_accounts(&accounts, Some(Arc::clone(&ledger))),
             accounts,
             ledger,
@@ -139,9 +142,16 @@ impl UsageSource {
             .as_deref()
             .map(status_line_bridge::accounts)
             .unwrap_or_default();
-        let notices = Notice::all(&self.accounts, &format_changed, &lines, &with_percent, &bridged);
-        let snapshot = live_snapshot::make(&status, &calls.minutes, now, tz, &sources, &self.accounts)
-            .unwrap_or_else(|| UsageSnapshot::empty(&live_snapshot::clock(now, tz)));
+        let notices = Notice::all(
+            &self.accounts,
+            &format_changed,
+            &lines,
+            &with_percent,
+            &bridged,
+        );
+        let snapshot =
+            live_snapshot::make(&status, &calls.minutes, now, tz, &sources, &self.accounts)
+                .unwrap_or_else(|| UsageSnapshot::empty(&live_snapshot::clock(now, tz)));
         Reading {
             snapshot,
             minute: now as i64 / 60,
