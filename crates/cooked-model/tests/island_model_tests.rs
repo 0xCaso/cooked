@@ -163,7 +163,9 @@ fn closing_by_a_click_elsewhere_swallows_that_same_click() {
 #[test]
 fn demo_minutes_after_launch_keep_the_series_level() {
     for snapshot in [demo_data::peak(), demo_data::calm()] {
-        let last: Vec<f64> = snapshot.series[snapshot.series.len() - 10..].to_vec();
+        // the peak's burst: its last 8 minutes
+        let last: Vec<f64> = snapshot.series[snapshot.series.len() - 8..].to_vec();
+        let lowest = last.iter().copied().fold(f64::INFINITY, f64::min);
         let before = last.iter().sum::<f64>() / last.len() as f64;
         let mut clock = IslandState::<MemoryDefaults>::demo_clock(&snapshot);
         // 12 demo minutes of 4 s: the last 10 closed minutes are all new
@@ -179,5 +181,13 @@ fn demo_minutes_after_launch_keep_the_series_level() {
             "{}: new minutes average {after:.0}, the series ended at {before:.0}",
             snapshot.clock
         );
+        // no single new minute falls under the burst either (a dip in the chart's right side): ±15% of its minutes
+        for v in fresh {
+            assert!(
+                *v >= 0.85 * lowest - 1e-6,
+                "{}: a new minute of {v:.0}, the burst's lowest {lowest:.0}",
+                snapshot.clock
+            );
+        }
     }
 }

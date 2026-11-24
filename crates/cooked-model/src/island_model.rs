@@ -370,7 +370,9 @@ impl<D: DefaultsStore> IslandState<D> {
     /// `DEMO_TAIL` minutes, ±15%, so the demo goes on at the level it shows. Swift drew from minutes 5...n-5, the
     /// calm start of the peak series, and the chart dropped to a fifth after launch.
     pub fn demo_clock(s: &UsageSnapshot) -> HistogramClock {
-        const DEMO_TAIL: usize = 10;
+        // the peak series' burst is its last 8 minutes (`demo_data::series`): a 10-minute tail let minutes 50 and
+        // 51, half as high, into the feed
+        const DEMO_TAIL: usize = 8;
         let source = s.series.clone();
         let n = source.len();
         let tail = n.clamp(1, DEMO_TAIL);
