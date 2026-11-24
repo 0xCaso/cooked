@@ -1,8 +1,8 @@
 //! The limits read from T3 Code's provider logs, in place of the watcher script.
 mod common;
 
-use common::{append_raw, set_modified, temp_dir};
-use cooked_model::clock::{FixedOffset, days_from_civil, iso_string};
+use common::{append_raw, claude_line, claude_line_full, codex_line, log_dir, set_modified, temp_dir};
+use cooked_model::clock::{FixedOffset, days_from_civil};
 use cooked_model::limit_log::{LimitInput, LimitLog, Sample};
 use cooked_model::status_file::Projection;
 use std::collections::{HashMap, HashSet};
@@ -14,61 +14,6 @@ const ROME: FixedOffset = FixedOffset(3600);
 /// 30/10/2026 14:00 in Rome.
 fn now() -> f64 {
     (days_from_civil(2026, 10, 30) * 86_400 + 13 * 3600) as f64
-}
-
-/// A Claude `rate_limit_event` line as T3 Code logs it (30/10 11:59).
-fn claude_line_full(
-    at: f64,
-    account: Option<&str>,
-    five: f64,
-    five_reset: f64,
-    week: f64,
-    week_reset: f64,
-    status: &str,
-) -> String {
-    let session = account
-        .map(|a| format!("provider-session:provider-instance:{a}:thread:t1:x"))
-        .unwrap_or_else(|| "provider-session:x".to_owned());
-    format!(
-        r#"[{}] NTIVE: {{"provider":"claudeAgent","providerSessionId":"{session}","event":{{"direction":"incoming","stage":"decoded","payload":{{"type":"rate_limit_event","rate_limit_info":{{"status":"{status}","unifiedWindows":{{"five_hour":{{"utilization":{five},"resetsAt":{},"status":"allowed"}},"seven_day":{{"utilization":{week},"resetsAt":{},"status":"allowed"}}}}}}}}}}}}"#,
-        iso_string(at, true),
-        five_reset as i64,
-        week_reset as i64
-    )
-}
-
-fn claude_line(at: f64, account: Option<&str>, five: f64, five_reset: f64) -> String {
-    claude_line_full(
-        at,
-        account,
-        five,
-        five_reset,
-        0.38,
-        1_793_714_400.0,
-        "allowed",
-    )
-}
-
-/// A Codex `account/rateLimits/updated` line.
-fn codex_line(at: f64, used: f64, reset: f64, hit: bool) -> String {
-    format!(
-        r#"[{}] NTIVE: {{"provider":"codex","providerSessionId":"provider-session:provider-instance:codex:thread:t2:y","event":{{"payload":{{"method":"account/rateLimits/updated","params":{{"rateLimits":{{"primary":{{"usedPercent":{used},"windowDurationMins":300,"resetsAt":{}}},"secondary":{{"usedPercent":12,"windowDurationMins":10080,"resetsAt":{}}},"rateLimitReachedType":{}}}}}}}}}}}"#,
-        iso_string(at, true),
-        reset as i64,
-        reset as i64 + 86400,
-        if hit {
-            r#""rate_limit_reached""#
-        } else {
-            "null"
-        }
-    )
-}
-
-fn log_dir(lines: &[String]) -> PathBuf {
-    let dir = temp_dir("limits");
-    let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
-    std::fs::write(dir.join("events.t1.log"), text).expect("write");
-    dir
 }
 
 fn sample_full(minutes_ago: f64, five: f64, reset: f64, week: f64, week_reset: f64) -> Sample {
