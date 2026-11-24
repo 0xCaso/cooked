@@ -58,6 +58,16 @@ fn info(screen: &NSScreen) -> ScreenInfo {
     }
 }
 
+/// The frame of this app's window `number` (AppKit screen coordinates), where the window really is.
+pub fn window_frame(number: u32) -> Option<Rect> {
+    let mtm = MainThreadMarker::new()?;
+    let app = NSApplication::sharedApplication(mtm);
+    // SAFETY: `windowWithWindowNumber:` returns this app's window with that number, or nil.
+    let window: Option<Retained<objc2_app_kit::NSWindow>> =
+        unsafe { msg_send![&*app, windowWithWindowNumber: number as isize] };
+    window.map(|w| rect(w.frame()))
+}
+
 /// The pointer in AppKit screen coordinates (`NSEvent.mouseLocation`).
 pub fn mouse_location() -> Point {
     let p = NSEvent::mouseLocation();
@@ -133,5 +143,6 @@ mod tests {
         // cargo runs tests on worker threads: no displays, no windows, no crash
         assert_eq!(Displays::current(), None);
         assert_eq!(set_glass_style(1, 1), 0);
+        assert_eq!(window_frame(1), None);
     }
 }

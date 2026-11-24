@@ -1,6 +1,7 @@
 //! The macOS calls the model keeps behind traits: settings (`NSUserDefaults`) and the local time zone.
 
 pub mod defaults;
+pub mod events;
 pub mod window;
 
 use cooked_model::clock::TimeZone;

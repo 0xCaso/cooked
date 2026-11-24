@@ -98,10 +98,10 @@ pub fn app() -> App<Snap> {
     .compositor(ChromeTiles::still_at(SNAP_T))
 }
 
-/// Whether `args` ask for one of the island's scenes (`island::scenes`).
-pub fn wanted_island(args: &[String]) -> bool {
+/// Whether `args` ask for one of `scenes` (`island::scenes`, `popover::scenes`).
+pub fn wanted_scene(args: &[String], scenes: &[&str]) -> bool {
     args.windows(2)
-        .any(|w| w[0] == "--scene" && crate::island::scenes::SCENES.contains(&w[1].as_str()))
+        .any(|w| w[0] == "--scene" && scenes.contains(&w[1].as_str()))
 }
 
 /// Whether `args` ask for one of these scenes (or the list of them).
@@ -113,17 +113,16 @@ pub fn wanted(args: &[String]) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use cooked_model::tiles::TileLevel;
     use std::path::{Path, PathBuf};
 
-    const SNAP: &str = "tests/snaps/tiles-demo-peak.png";
     /// Mean absolute difference per channel, out of 255, the new render may have against the checked-in one. Step 0
     /// (1f) measured 0.28 between a headless snap and the same frame on screen; renders on one machine are equal.
     const MEAN_TOLERANCE: f64 = 1.0;
 
-    fn decode(path: &Path) -> (u32, u32, Vec<u8>) {
+    pub(crate) fn decode(path: &Path) -> (u32, u32, Vec<u8>) {
         let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         let mut reader = png::Decoder::new(std::io::BufReader::new(file))
             .read_info()
@@ -133,6 +132,42 @@ mod tests {
         assert_eq!(info.color_type, png::ColorType::Rgba, "{}", path.display());
         buf.truncate(info.buffer_size());
         (info.width, info.height, buf)
+    }
+
+    /// Renders `scene` of `app` headless and compares it with `tests/snaps/<scene>.png`: the mean absolute
+    /// difference per channel stays within `MEAN_TOLERANCE`. `COOKED_UPDATE_SNAPS=1` writes the new render there
+    /// instead.
+    pub(crate) fn assert_matches_snap<S: 'static>(app: rune::App<S>, scene: &str) {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let dir = std::env::temp_dir().join(format!("cooked-snap-{}-{scene}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let out = dir.join(format!("{scene}.png"));
+        app.args([
+            "--snap".to_owned(),
+            out.to_string_lossy().into_owned(),
+            "--scene".to_owned(),
+            scene.to_owned(),
+        ])
+        .try_run()
+        .expect("headless render");
+        let expected = manifest.join("tests/snaps").join(format!("{scene}.png"));
+        if std::env::var_os("COOKED_UPDATE_SNAPS").is_some() {
+            std::fs::copy(&out, &expected).expect("update snap");
+        }
+        let (w, h, new) = decode(&out);
+        let (ew, eh, old) = decode(&expected);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!((w, h), (ew, eh), "{scene}: snap size");
+        let total: u64 = new
+            .iter()
+            .zip(&old)
+            .map(|(a, b)| a.abs_diff(*b) as u64)
+            .sum();
+        let mean = total as f64 / new.len() as f64;
+        assert!(
+            mean <= MEAN_TOLERANCE,
+            "{scene}: mean abs diff {mean:.3}/255 > {MEAN_TOLERANCE}"
+        );
     }
 
     #[test]
@@ -163,54 +198,24 @@ mod tests {
         assert!(wanted(&args(&["cooked", "--list-scenes"])));
         assert!(!wanted(&args(&["cooked", "--scene", "other"])));
         assert!(!wanted(&args(&["cooked", "--feed", "demoPeak"])));
-        assert!(wanted_island(&args(&[
-            "cooked",
-            "--tree",
-            "t.json",
-            "--scene",
-            "island-urgent"
-        ])));
-        assert!(!wanted_island(&args(&[
-            "cooked",
-            "--scene",
-            "tiles-demo-peak"
-        ])));
+        let island = crate::island::scenes::SCENES;
+        assert!(wanted_scene(
+            &args(&["cooked", "--tree", "t.json", "--scene", "island-urgent"]),
+            island
+        ));
+        assert!(!wanted_scene(
+            &args(&["cooked", "--scene", "tiles-demo-peak"]),
+            island
+        ));
+        assert!(wanted_scene(
+            &args(&["cooked", "--snap", "p.png", "--scene", "popover-peak"]),
+            crate::popover::scenes::SCENES
+        ));
     }
 
-    /// Renders `tiles-demo-peak` headless and compares it with the PNG in `tests/snaps/`. `COOKED_UPDATE_SNAPS=1`
-    /// writes the new render there instead.
+    /// Renders `tiles-demo-peak` headless and compares it with the PNG in `tests/snaps/`.
     #[test]
     fn tiles_demo_peak_matches_the_checked_in_snap() {
-        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let dir = std::env::temp_dir().join(format!("cooked-snap-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
-        let out = dir.join("tiles-demo-peak.png");
-        app()
-            .args([
-                "--snap".to_owned(),
-                out.to_string_lossy().into_owned(),
-                "--scene".to_owned(),
-                "tiles-demo-peak".to_owned(),
-            ])
-            .try_run()
-            .expect("headless render");
-        let expected = manifest.join(SNAP);
-        if std::env::var_os("COOKED_UPDATE_SNAPS").is_some() {
-            std::fs::copy(&out, &expected).expect("update snap");
-        }
-        let (w, h, new) = decode(&out);
-        let (ew, eh, old) = decode(&expected);
-        let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!((w, h), (ew, eh), "snap size");
-        let total: u64 = new
-            .iter()
-            .zip(&old)
-            .map(|(a, b)| a.abs_diff(*b) as u64)
-            .sum();
-        let mean = total as f64 / new.len() as f64;
-        assert!(
-            mean <= MEAN_TOLERANCE,
-            "mean abs diff {mean:.3}/255 > {MEAN_TOLERANCE}"
-        );
+        assert_matches_snap(app(), "tiles-demo-peak");
     }
 }

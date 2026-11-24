@@ -361,7 +361,7 @@ impl<S: TileGrids + 'static> Compositor<S> for ChromeTiles {
 }
 
 /// `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`.
-fn system_reduce_motion() -> bool {
+pub fn system_reduce_motion() -> bool {
     use objc2::runtime::{AnyClass, AnyObject, Bool};
     use objc2::{msg_send, sel};
     let Some(class) = AnyClass::get(c"NSWorkspace") else {

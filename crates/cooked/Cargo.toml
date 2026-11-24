@@ -10,6 +10,8 @@ rune-fx.workspace = true
 cooked-model.workspace = true
 # Rune's own wgpu (same version): the tile compositor names texture formats.
 wgpu = { version = "30.0", default-features = false }
+# Blocks for AppKit callbacks (the popover's click-outside monitor), the version Rune uses.
+block2 = "0.6"
 objc2 = { version = "0.6", default-features = false, features = ["std"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = [
     "std",
