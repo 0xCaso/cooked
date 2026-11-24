@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>accounts</key>
+	<data>
+	W3siaWQiOiJjbGF1ZGVBZ2VudCIsIm5hbWUiOiJjbGF1ZGUiLCJwYXRoIjoiflwvLmNs
+	YXVkZSJ9LHsiaWQiOiJjbGF1ZGVBZ2VudF93b3JrX3RlYW0iLCJuYW1lIjoid29yayB0
+	ZWFtIiwicGF0aCI6In5cLy5jbGF1ZGUtd29yay10ZWFtIn0seyJpZCI6ImNvZGV4Iiwi
+	bmFtZSI6ImNvZGV4IiwicGF0aCI6In5cLy5jb2RleCJ9XQ==
+	</data>
+	<key>chartRange</key>
+	<string>10m</string>
+	<key>displayMode</key>
+	<string>island</string>
+	<key>glassStyle</key>
+	<string>clear</string>
+	<key>islandPosition</key>
+	<data>
+	eyJkaXNwbGF5SUQiOjMsInRvcENlbnRlciI6WzE4NDQsMTM2OV19
+	</data>
+	<key>setupDone</key>
+	<true/>
+</dict>
+</plist>

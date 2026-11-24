@@ -11,6 +11,9 @@ use crate::usage_snapshot::{Account, UsageSnapshot};
 use crate::usage_source::Reading;
 use std::collections::HashSet;
 
+/// The notices hidden with "Not now" or "OK", as a sorted string array.
+pub const DISMISSED_KEY: &str = "dismissedNotices";
+
 /// The glass look, chosen in the island's right-click menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum GlassStyle {
@@ -123,7 +126,7 @@ pub struct IslandState<D: DefaultsStore> {
 }
 
 impl<D: DefaultsStore> IslandState<D> {
-    pub const DISMISSED_KEY: &'static str = "dismissedNotices";
+    pub const DISMISSED_KEY: &'static str = DISMISSED_KEY;
 
     /// `feed`: `None` picks the demo that matches `snapshot`. `epoch`: time zero of every chart, Unix seconds; it lives
     /// as long as the state, so clicks and demo switches don't restart the wave.
