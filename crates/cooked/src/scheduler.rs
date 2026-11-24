@@ -9,10 +9,12 @@ use std::time::Duration;
 
 use cooked_model::accounts::ConnectedAccount;
 use cooked_model::clock;
+use cooked_model::limit_log::LimitLog;
 use cooked_model::minute_ledger::MinuteLedger;
 use cooked_model::usage_source::{Reading, UsageSource};
 
 use crate::mac::LocalZone;
+use crate::paths;
 
 /// The wait after each reading.
 pub const INTERVAL: Duration = Duration::from_secs(5);
@@ -61,7 +63,8 @@ pub fn run(
     }
 }
 
-/// The real source: the accounts' logs and the minute cache on disk, in the user's time zone.
+/// The real source: the accounts' logs, and the minute cache and limits store in Cooked's folder (`paths`), in the
+/// user's time zone.
 pub struct LiveReader {
     source: UsageSource,
 }
@@ -69,13 +72,20 @@ pub struct LiveReader {
 impl LiveReader {
     pub fn new(accounts: Vec<ConnectedAccount>) -> Self {
         Self {
-            source: UsageSource::new(accounts, Self::ledger()),
+            source: Self::source(accounts),
         }
     }
 
-    /// As Swift's `MinuteLedger(url: MinuteLedger.defaultURL)`: each new source loads the cache from disk.
-    fn ledger() -> Arc<MinuteLedger> {
-        Arc::new(MinuteLedger::default_path().map_or_else(MinuteLedger::memory, MinuteLedger::at))
+    /// As Swift's `UsageSource` with `MinuteLedger(url:)`: each new source loads the caches from disk. The bridge
+    /// folder stays the real one: Claude Code's status line writes it, Cooked only reads it.
+    fn source(accounts: Vec<ConnectedAccount>) -> UsageSource {
+        let dir = paths::data_dir();
+        let file = |name: &str| dir.as_ref().map(|d| d.join(name));
+        let ledger =
+            Arc::new(file("minutes.json").map_or_else(MinuteLedger::memory, MinuteLedger::at));
+        let mut source = UsageSource::new(accounts, ledger);
+        source.limits = LimitLog::new(LimitLog::default_dir(), file("limits.json"));
+        source
     }
 }
 
@@ -85,7 +95,7 @@ impl Reader for LiveReader {
     }
 
     fn set_accounts(&mut self, accounts: Vec<ConnectedAccount>) {
-        self.source = UsageSource::new(accounts, Self::ledger());
+        self.source = Self::source(accounts);
     }
 }
 
