@@ -16,6 +16,7 @@ mod notice;
 mod tpm;
 mod usage;
 
+use std::rc::Rc;
 use std::time::Duration;
 
 use cooked_model::clock;
@@ -60,8 +61,8 @@ pub const FIRST_SIZE: (f32, f32) = (
 pub(crate) const HISTOGRAM_MARK: u32 = 1;
 const FIRST_BAR_MARK: u32 = 10;
 
-/// What a click in the popover asks of the rest of the app: opening a session (Task 18), Setup or Settings (Task
-/// 15), the clipboard (Task 18). The app sets `Popover::requests`; until then nothing happens.
+/// What a click in the popover asks of the rest of the app: opening a session (Task 18), Setup or Settings (the
+/// Setup window), the clipboard (Task 18). The app sets `Popover::requests`; until then nothing happens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     OpenSession(OpenTarget),
@@ -113,7 +114,7 @@ pub struct Popover {
     /// Set once the overlay exists. `None` in scenes.
     pub overlay: Option<OverlayHandle<Popover>>,
     /// What the clicks ask of the app.
-    pub requests: fn(Request),
+    pub requests: Rc<dyn Fn(Request)>,
     /// The page is mounted: open, or on its way in.
     shown: bool,
     anchor: Option<Anchor>,
@@ -144,14 +145,12 @@ pub struct Popover {
     outside: Option<OutsideClicks>,
 }
 
-fn no_requests(_: Request) {}
-
 impl Popover {
     pub fn new(model: Model, args: &[String]) -> Self {
         let mut popover = Self {
             model,
             overlay: None,
-            requests: no_requests,
+            requests: Rc::new(|_| {}),
             shown: false,
             anchor: None,
             height: FIRST_HEIGHT,

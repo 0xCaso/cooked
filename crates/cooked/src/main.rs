@@ -8,6 +8,7 @@ mod popover;
 #[cfg(test)]
 mod readability;
 mod scheduler;
+mod setup;
 #[cfg(any(test, feature = "tooling"))]
 mod snaps;
 mod theme;
@@ -23,6 +24,10 @@ fn main() {
         }
         if snaps::wanted_scene(&args, popover::scenes::SCENES) {
             popover::scenes::app().run();
+            return;
+        }
+        if snaps::wanted_scene(&args, setup::scenes::SCENES) {
+            setup::scenes::app().run();
             return;
         }
         if snaps::wanted(&args) {

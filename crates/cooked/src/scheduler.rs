@@ -127,19 +127,11 @@ impl Control {
         let _ = self.tx.send(Command::Live(live));
     }
 
-    #[expect(dead_code, reason = "the Setup window (Task 15) calls it")]
     pub fn set_accounts(&self, accounts: Vec<ConnectedAccount>) {
         let _ = self.tx.send(Command::Accounts(accounts));
     }
 
-    /// Stops the thread and waits for it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "quitting just exits; kept for tests and a later clean stop"
-        )
-    )]
+    /// Stops the thread and waits for it: quitting lets the reading in progress finish its cache writes.
     pub fn stop(mut self) {
         let _ = self.tx.send(Command::Stop);
         if let Some(thread) = self.thread.take() {

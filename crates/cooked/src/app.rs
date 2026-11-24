@@ -12,8 +12,10 @@ use rune::{App, AppSpec, Cx, El, KeyPolicy, OverlayInput, OverlayOptions, Overla
 use crate::island::{self, Island, Prefs, shared};
 use crate::mac::defaults::UserDefaults;
 use crate::mac::window::Displays;
+use crate::popover::Request;
 use crate::popover::{self, Popover};
 use crate::scheduler::{self, LiveReader};
+use crate::setup::{self, Setup};
 use crate::theme::PlexFont;
 use crate::tiles::ChromeTiles;
 
@@ -43,6 +45,7 @@ pub fn run() {
     legacy_defaults::migrate(Some(&legacy), &mut defaults);
     let home = std::env::var("HOME").unwrap_or_default();
     let accounts = AccountStore::current(&mut defaults, &home);
+    let setup_done = setup::is_done(&defaults);
     let prefs: Prefs = Box::new(defaults);
     let model = shared(IslandState::new(
         demo_data::calm(),
@@ -96,10 +99,33 @@ pub fn run() {
             .on_key(popover::on_key)
             .on_focus(popover::on_focus)
             .compositor(ChromeTiles::new(&args)),
-        Popover::new(model, &args),
+        Popover::new(model.clone(), &args),
+    );
+    // Setup and Settings: an ordinary window, created on its first open. New accounts go to the island's reader.
+    let sink = island.clone();
+    let opener = setup::install(
+        &mut app,
+        Setup::for_app(
+            model.clone(),
+            Box::new(move |accounts| {
+                sink.update(move |s, _| s.accounts_changed(accounts));
+            }),
+            &args,
+        ),
     );
     let handle = popover.clone();
-    popover.update(move |p, _| p.overlay = Some(handle));
+    let requests = opener.clone();
+    popover.update(move |p, _| {
+        p.overlay = Some(handle);
+        p.requests = std::rc::Rc::new(move |request| match request {
+            Request::OpenSetup => requests.open(setup::Mode::Setup, setup::Tab::Accounts),
+            Request::OpenPercentSettings => {
+                requests.open(setup::Mode::Settings, setup::Tab::Percent)
+            }
+            // Opening sessions and the clipboard are Task 18.
+            Request::OpenSession(_) | Request::Copy(_) => {}
+        });
+    });
     let sink = island.clone();
     let reader = scheduler::spawn(
         LiveReader::new(accounts),
@@ -114,8 +140,11 @@ pub fn run() {
     );
     let handle = island.clone();
     let open = args.iter().any(|a| a == OPEN_FLAG);
+    let launch = setup::launch_mode(&args, setup_done);
+    let menu_opener = opener.clone();
     island.update(move |s, _| {
         s.reader = Some(reader);
+        s.setup = Some(menu_opener);
         s.overlay = Some(handle);
         s.popover = Some(popover);
         if let Some(feed) = feed {
@@ -136,6 +165,12 @@ pub fn run() {
             }
         });
     island.show();
+    // First launch, or `--setup`: the Setup window. `--settings`: the Settings window.
+    match launch {
+        Some(setup::Mode::Setup) => opener.open(setup::Mode::Setup, setup::Tab::Accounts),
+        Some(setup::Mode::Settings) => opener.open(setup::Mode::Settings, setup::Tab::Accounts),
+        None => {}
+    }
     app.run();
 }
 
