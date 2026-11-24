@@ -75,21 +75,20 @@ pub struct LiveReader {
 impl LiveReader {
     pub fn new(accounts: Vec<ConnectedAccount>) -> Self {
         Self {
-            source: Self::source(accounts),
+            source: live_source(accounts),
         }
     }
+}
 
-    /// As Swift's `UsageSource` with `MinuteLedger(url:)`: each new source loads the caches from disk. The bridge
-    /// folder stays the real one: Claude Code's status line writes it, Cooked only reads it.
-    fn source(accounts: Vec<ConnectedAccount>) -> UsageSource {
-        let dir = paths::data_dir();
-        let file = |name: &str| dir.as_ref().map(|d| d.join(name));
-        let ledger =
-            Arc::new(file("minutes.json").map_or_else(MinuteLedger::memory, MinuteLedger::at));
-        let mut source = UsageSource::new(accounts, ledger);
-        source.limits = LimitLog::new(LimitLog::default_dir(), file("limits.json"));
-        source
-    }
+/// As Swift's `UsageSource` with `MinuteLedger(url:)`: each new source loads the caches from disk. The bridge
+/// folder stays the real one: Claude Code's status line writes it, Cooked only reads it.
+pub fn live_source(accounts: Vec<ConnectedAccount>) -> UsageSource {
+    let dir = paths::data_dir();
+    let file = |name: &str| dir.as_ref().map(|d| d.join(name));
+    let ledger = Arc::new(file("minutes.json").map_or_else(MinuteLedger::memory, MinuteLedger::at));
+    let mut source = UsageSource::new(accounts, ledger);
+    source.limits = LimitLog::new(LimitLog::default_dir(), file("limits.json"));
+    source
 }
 
 impl Reader for LiveReader {
@@ -98,7 +97,7 @@ impl Reader for LiveReader {
     }
 
     fn set_accounts(&mut self, accounts: Vec<ConnectedAccount>) {
-        self.source = Self::source(accounts);
+        self.source = live_source(accounts);
     }
 }
 

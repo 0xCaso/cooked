@@ -154,7 +154,10 @@ fn losing_the_keyboard_closes_it_and_marks_the_click() {
 fn open_flag_pins_it_until_a_key() {
     let mut p = Popover::new(
         popover(Feed::DemoCalm).model,
-        &["cooked".into(), "--open".into()],
+        &crate::cli::Launch {
+            open: true,
+            ..Default::default()
+        },
     );
     p.shown = true;
     p.dismiss(DismissReason::ClickOutside);

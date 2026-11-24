@@ -35,10 +35,6 @@ pub use views::view;
 pub const WIDTH: f32 = 600.0;
 /// The band at the top with the traffic lights and the title (mockup `.tb`).
 pub const TITLEBAR: f32 = 40.0;
-/// `--setup` opens Setup at launch, `--settings` Settings (as the Swift app).
-pub const SETUP_FLAG: &str = "--setup";
-pub const SETTINGS_FLAG: &str = "--settings";
-
 /// Open at login kept for this run only: the login item of tests, scenes and the blank window, which must never
 /// register the real one.
 #[derive(Debug, Clone, Default)]
@@ -182,7 +178,11 @@ impl Setup {
 
     /// The app's window: `UserDefaults`, the real home and Cooked's real folder (the one the reader's bridge
     /// reads), the app's login item.
-    pub fn for_app(island: island::Model, on_accounts: OnAccounts, args: &[String]) -> Self {
+    pub fn for_app(
+        island: island::Model,
+        on_accounts: OnAccounts,
+        launch: &crate::cli::Launch,
+    ) -> Self {
         let login = Login::MainApp(MainAppLogin);
         let make: MakeModel = Box::new(move || {
             let home = std::env::var("HOME").unwrap_or_default();
@@ -192,7 +192,7 @@ impl Setup {
         let mut setup = Self::new(make, Box::new(crate::mac::LocalZone::new()));
         setup.island = Some(island);
         setup.on_accounts = Some(on_accounts);
-        setup.reduce_motion = args.iter().any(|a| a == crate::tiles::REDUCE_MOTION_FLAG);
+        setup.reduce_motion = launch.reduce_motion;
         setup
     }
 
@@ -460,10 +460,10 @@ pub fn install<S: 'static>(app: &mut App<S>, setup: Setup) -> Opener {
 }
 
 /// What the launch flags open: Setup on the first launch or with `--setup`, Settings with `--settings`.
-pub fn launch_mode(args: &[String], done: bool) -> Option<Mode> {
-    if args.iter().any(|a| a == SETUP_FLAG) || !done {
+pub fn launch_mode(launch: &crate::cli::Launch, done: bool) -> Option<Mode> {
+    if launch.setup || !done {
         Some(Mode::Setup)
-    } else if args.iter().any(|a| a == SETTINGS_FLAG) {
+    } else if launch.settings {
         Some(Mode::Settings)
     } else {
         None
