@@ -89,7 +89,7 @@ fn taken() -> Vec<Request> {
 fn open(feed: Feed) -> Popover {
     let mut p = popover(feed);
     p.model.borrow_mut().open();
-    p.requests = record;
+    p.requests = std::rc::Rc::new(record);
     p
 }
 

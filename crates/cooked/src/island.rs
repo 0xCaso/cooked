@@ -25,6 +25,7 @@ use std::rc::Rc;
 use crate::mac::window::{self as mac, Displays};
 use crate::popover::{Anchor, Popover};
 use crate::scheduler;
+use crate::setup;
 use crate::theme::{GlassLook, Motion, Palette, TextStyle, well};
 use crate::tiles::{TileGrid, TileGrids, Wave, tile_slot};
 
@@ -80,6 +81,8 @@ pub struct Island {
     pub overlay: Option<OverlayHandle<Island>>,
     /// The popover's overlay, which a tap opens and closes. `None` in scenes.
     pub popover: Option<OverlayHandle<Popover>>,
+    /// Opens the Settings window ("Settings…"). `None` in scenes.
+    pub setup: Option<setup::Opener>,
     /// The wave for the current rate and urgency.
     wave: TileGrid,
     /// The overlay's frame in AppKit screen coordinates (margin included), as Swift's panel frame.
@@ -100,6 +103,7 @@ impl Island {
             reader: None,
             overlay: None,
             popover: None,
+            setup: None,
             wave: TileGrid::new(0, 0, Vec::new()),
             frame: Rect::new(0.0, 0.0, size.0 as f64, size.1 as f64),
             displays: None,
@@ -132,7 +136,6 @@ impl Island {
     }
 
     /// The connected accounts changed (Setup, Settings): the reader reads again at once with a new source.
-    #[expect(dead_code, reason = "the Setup window (Task 15) calls it")]
     pub fn accounts_changed(&mut self, accounts: Vec<cooked_model::accounts::ConnectedAccount>) {
         self.model.borrow_mut().accounts_changed();
         if let Some(reader) = &self.reader {
@@ -371,8 +374,11 @@ impl Island {
                     self.model.borrow_mut().set_display_mode(mode);
                 }
             }
-            // The Settings window is Task 15.
-            "settings" => {}
+            "settings" => {
+                if let Some(setup) = &self.setup {
+                    setup.open(setup::Mode::Settings, setup::Tab::Accounts);
+                }
+            }
             "quit" => return MenuAction::Quit,
             _ => {}
         }
@@ -437,6 +443,9 @@ fn press_handlers(capsule: El) -> El {
                 if let Some(id) = picked
                     && s.menu_pick(id) == MenuAction::Quit
                 {
+                    if let Some(reader) = s.reader.take() {
+                        reader.stop();
+                    }
                     tx.quit();
                 }
             });

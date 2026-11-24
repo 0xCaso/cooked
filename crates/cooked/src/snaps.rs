@@ -138,18 +138,51 @@ pub(crate) mod tests {
     /// difference per channel stays within `MEAN_TOLERANCE`. `COOKED_UPDATE_SNAPS=1` writes the new render there
     /// instead.
     pub(crate) fn assert_matches_snap<S: 'static>(app: rune::App<S>, scene: &str) {
+        assert_matches_snap_with(app, scene, &[]);
+    }
+
+    /// For a window that fits its content: a first run reads the content's height from `--tree`, and the snap is
+    /// taken at that size (a headless snap keeps the window's first size).
+    pub(crate) fn assert_matches_fitted_snap<S: 'static>(app: fn() -> rune::App<S>, scene: &str) {
+        let dir = std::env::temp_dir().join(format!("cooked-fit-{}-{scene}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let tree = dir.join("tree.json");
+        app()
+            .args([
+                "--tree".to_owned(),
+                tree.to_string_lossy().into_owned(),
+                "--scene".to_owned(),
+                scene.to_owned(),
+            ])
+            .try_run()
+            .expect("headless tree");
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&tree).expect("tree"))
+                .expect("tree json");
+        let _ = std::fs::remove_dir_all(&dir);
+        let size: Vec<f64> = json["viewport"]
+            .as_array()
+            .expect("viewport")
+            .iter()
+            .filter_map(|v| v.as_f64())
+            .collect();
+        let size = format!("{}x{}", size[0], size[1]);
+        assert_matches_snap_with(app(), scene, &["--size".to_owned(), size]);
+    }
+
+    fn assert_matches_snap_with<S: 'static>(app: rune::App<S>, scene: &str, extra: &[String]) {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let dir = std::env::temp_dir().join(format!("cooked-snap-{}-{scene}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let out = dir.join(format!("{scene}.png"));
-        app.args([
+        let mut args = vec![
             "--snap".to_owned(),
             out.to_string_lossy().into_owned(),
             "--scene".to_owned(),
             scene.to_owned(),
-        ])
-        .try_run()
-        .expect("headless render");
+        ];
+        args.extend_from_slice(extra);
+        app.args(args).try_run().expect("headless render");
         let expected = manifest.join("tests/snaps").join(format!("{scene}.png"));
         if std::env::var_os("COOKED_UPDATE_SNAPS").is_some() {
             std::fs::copy(&out, &expected).expect("update snap");
