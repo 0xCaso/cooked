@@ -209,11 +209,18 @@ fn notice_buttons_ask_the_app() {
     };
     p.act(&changed);
     assert!(p.copied);
+    // a reset meant for an earlier press leaves "Copied"; the last press's clears it
+    p.act(&changed);
+    assert!(!p.copied_expired(1));
+    assert!(p.copied);
+    assert!(p.copied_expired(2));
+    assert!(!p.copied);
     assert_eq!(
         taken(),
         [
             Request::OpenSetup,
             Request::OpenPercentSettings,
+            Request::Copy(changed.details().unwrap()),
             Request::Copy(changed.details().unwrap()),
         ]
     );
@@ -274,8 +281,11 @@ fn opening_a_source_asks_for_its_thread() {
     let target = p.model.borrow().snapshot.sources[0]
         .target()
         .expect("t1 has a thread");
-    p.request(Request::OpenSession(target.clone()));
-    assert_eq!(taken(), [Request::OpenSession(OpenTarget::t3_code("t1"))]);
+    p.request(Request::OpenSession(Some(target)));
+    assert_eq!(
+        taken(),
+        [Request::OpenSession(Some(OpenTarget::t3_code("t1")))]
+    );
 }
 
 /// `PaceTests`: the pills count what is left.

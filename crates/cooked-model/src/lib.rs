@@ -27,6 +27,7 @@ pub mod setup_model;
 pub mod status_file;
 pub mod status_line_bridge;
 pub mod status_line_setup;
+pub mod t3_code;
 pub mod tide;
 pub mod tiles;
 pub mod token_format;

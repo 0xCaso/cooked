@@ -57,15 +57,19 @@ pub const FIRST_SIZE: (f32, f32) = (
     FIRST_HEIGHT + MARGIN_TOP + MARGIN_BOTTOM,
 );
 
+/// How long "Copy details" says "Copied" (Swift `NoticeCard`).
+pub const COPIED_FOR: Duration = Duration::from_millis(1500);
+
 /// The tile grids' marks: the histogram, then a pair per account row (5 hours, week).
 pub(crate) const HISTOGRAM_MARK: u32 = 1;
 const FIRST_BAR_MARK: u32 = 10;
 
-/// What a click in the popover asks of the rest of the app: opening a session (Task 18), Setup or Settings (the
-/// Setup window), the clipboard (Task 18). The app sets `Popover::requests`; until then nothing happens.
+/// What a click in the popover asks of the rest of the app: opening a session (`mac::open`; no target: T3 Code),
+/// Setup or Settings (the Setup window), the clipboard (`mac::pasteboard`). The app sets `Popover::requests`; until
+/// then nothing happens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
-    OpenSession(OpenTarget),
+    OpenSession(Option<OpenTarget>),
     OpenSetup,
     OpenPercentSettings,
     Copy(String),
@@ -151,8 +155,10 @@ pub struct Popover {
     bars: Vec<TileGrid>,
     /// "N more" opened the full list of sources; closing the popover folds it again.
     expanded: bool,
-    /// "Copy details" was pressed: the button says "Copied" until the popover closes.
+    /// "Copy details" was pressed: the button says "Copied" for `COPIED_FOR`, or until the popover closes.
     copied: bool,
+    /// Presses of "Copy details": each one's reset clears "Copied" only if no press came after it.
+    copies: u64,
     /// `--reduce-motion`; the system setting is read at each open.
     reduce_motion_flag: bool,
     reduce_motion: bool,
@@ -185,6 +191,7 @@ impl Popover {
             bars: Vec::new(),
             expanded: false,
             copied: false,
+            copies: 0,
             reduce_motion_flag: args.iter().any(|a| a == tiles::REDUCE_MOTION_FLAG),
             reduce_motion: false,
             solid: false,
@@ -319,10 +326,30 @@ impl Popover {
             NoticeAction::OpenPercentSettings => self.request(Request::OpenPercentSettings),
             NoticeAction::Copy(text) => {
                 self.copied = true;
+                self.copies += 1;
                 self.request(Request::Copy(text));
+                if let Some(overlay) = self.overlay.clone() {
+                    let press = self.copies;
+                    let _ = std::thread::Builder::new()
+                        .name("cooked-copied".into())
+                        .spawn(move || {
+                            std::thread::sleep(COPIED_FOR);
+                            overlay.update_if(move |p, _| p.copied_expired(press));
+                        });
+                }
             }
             NoticeAction::Dismissed => {}
         }
+    }
+
+    /// `COPIED_FOR` after press number `press`: "Copy details" again, unless a later press came. True when the
+    /// label changed.
+    fn copied_expired(&mut self, press: u64) -> bool {
+        let expired = self.copied && self.copies == press;
+        if expired {
+            self.copied = false;
+        }
+        expired
     }
 
     /// "Not now".
