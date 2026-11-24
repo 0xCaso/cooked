@@ -8,6 +8,20 @@ license.workspace = true
 rune.workspace = true
 rune-fx.workspace = true
 cooked-model.workspace = true
+objc2 = { version = "0.6", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSArray",
+    "NSBundle",
+    "NSData",
+    "NSDate",
+    "NSEnumerator",
+    "NSObject",
+    "NSString",
+    "NSTimeZone",
+    "NSUserDefaults",
+    "NSValue",
+] }
 
 [features]
 # Rune's agent tooling (`--snap`, `--tree`) in perf builds, for checks. Off in the shipped app.
