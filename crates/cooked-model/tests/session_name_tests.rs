@@ -1,7 +1,11 @@
 mod common;
 
 use common::fixture;
-use cooked_model::transcript_log::{Titles, TranscriptLog};
+use cooked_model::accounts::ConnectedAccount;
+use cooked_model::clock::iso_string;
+use cooked_model::token_sources;
+use cooked_model::transcript_log::{Session, Titles, TranscriptLog};
+use std::collections::HashMap;
 
 fn titles(lines: &[&str]) -> Titles {
     let mut t = Titles::default();
@@ -85,19 +89,84 @@ fn long_names_are_cut() {
 }
 
 #[test]
-#[ignore = "needs Task 5: TranscriptLog.swift read() and MinuteLedger.swift"]
 fn live_sessions_carry_their_name() {
-    // Swift: writes ~/.claude/projects/-r-demo/{main.jsonl, sub.jsonl, sub/subagents/agent-1.jsonl}, then
-    // #expect(names == ["main": "Docs pass", "sub": "Refactor the parser"]); appends a custom-title "Docs v2" to
-    // main.jsonl and #expect(log.read(now: now).sessions.first { $0.id == "main" }?.name == "Docs v2").
-    unimplemented!("port with TranscriptLog::read in Task 5");
+    let now = common::now();
+    let at = iso_string(now - 60.0, true);
+    let call = |id: &str| {
+        format!(
+            r#"{{"type":"assistant","timestamp":"{at}","cwd":"/r/demo","message":{{"id":"{id}","usage":{{"input_tokens":10,"output_tokens":5}}}}}}"#
+        )
+    };
+    let home = common::temp_dir("home");
+    let project = home.join(".claude/projects/-r-demo");
+    std::fs::create_dir_all(project.join("sub/subagents")).expect("dirs");
+    // a session with its own call, and one where only a subagent works: its name comes from the main file
+    let main = [
+        r#"{"type":"user","message":{"content":"Write the docs"}}"#.to_owned(),
+        r#"{"type":"ai-title","aiTitle":"Docs pass","sessionId":"main"}"#.to_owned(),
+        call("m1"),
+    ]
+    .join("\n")
+        + "\n";
+    std::fs::write(project.join("main.jsonl"), main).expect("main");
+    std::fs::write(
+        project.join("sub.jsonl"),
+        r#"{"type":"user","message":{"content":"Refactor the parser"}}"#.to_owned() + "\n",
+    )
+    .expect("sub");
+    std::fs::write(
+        project.join("sub/subagents/agent-1.jsonl"),
+        call("a1") + "\n",
+    )
+    .expect("agent");
+    let accounts = [ConnectedAccount::new(
+        "claudeAgent",
+        "claude",
+        home.join(".claude").to_string_lossy(),
+    )];
+    let mut log = TranscriptLog::with_accounts(&accounts, None);
+    let names: HashMap<String, Option<String>> = log
+        .read(now, 60)
+        .sessions
+        .into_iter()
+        .map(|s| (s.id, s.name))
+        .collect();
+    assert_eq!(
+        names,
+        HashMap::from([
+            ("main".to_owned(), s("Docs pass")),
+            ("sub".to_owned(), s("Refactor the parser"))
+        ])
+    );
+    // a rename while running shows at the next reading
+    common::append_raw(
+        &project.join("main.jsonl"),
+        &(r#"{"type":"custom-title","customTitle":"Docs v2","sessionId":"main"}"#.to_owned()
+            + "\n"),
+    );
+    let sessions = log.read(now, 60).sessions;
+    assert_eq!(
+        sessions
+            .iter()
+            .find(|s| s.id == "main")
+            .and_then(|s| s.name.clone()),
+        s("Docs v2")
+    );
 }
 
 #[test]
-#[ignore = "needs Task 5: TokenSources.swift make() and TranscriptLog.Session"]
 fn source_rows_show_the_session_name() {
-    // Swift: Session(account: "claudeAgent", id: "s", cwd: "/r/demo", tokens: 15_000, mainActive: true,
-    // activeSubagents: 0, name: "Docs pass").steady → TokenSources.make(sessions: [session], threads: [:]);
-    // #expect(out.first?.detail == "Docs pass"); #expect(out.first?.project == "demo")
-    unimplemented!("port with TokenSources in Task 5");
+    let mut session = Session::new(
+        "claudeAgent",
+        "s",
+        Some("/r/demo".to_owned()),
+        15_000.0,
+        true,
+        0,
+    );
+    session.name = s("Docs pass");
+    session.last_five = session.tokens / 3.0; // steady: as busy in its last 5 minutes as in its last 15
+    let out = token_sources::make(&[session], &HashMap::new(), &[], None);
+    assert_eq!(out.first().map(|o| o.detail.as_str()), Some("Docs pass"));
+    assert_eq!(out.first().map(|o| o.project.as_str()), Some("demo"));
 }

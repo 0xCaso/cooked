@@ -82,10 +82,13 @@ fn nothing_found_is_not_saved() {
 
 #[test]
 fn transcripts_read_only_connected_claude_folders() {
-    let log = TranscriptLog::with_accounts(&[
-        ConnectedAccount::new("claudeAgent", "a", "/h/.claude"),
-        ConnectedAccount::new("codex", "c", "/h/.codex"),
-    ]);
+    let log = TranscriptLog::with_accounts(
+        &[
+            ConnectedAccount::new("claudeAgent", "a", "/h/.claude"),
+            ConnectedAccount::new("codex", "c", "/h/.codex"),
+        ],
+        None,
+    );
     assert_eq!(
         log.dirs,
         HashMap::from([("claudeAgent".to_owned(), "/h/.claude".to_owned())])

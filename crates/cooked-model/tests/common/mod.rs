@@ -47,3 +47,60 @@ pub fn temp_dir(prefix: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("temp dir");
     dir
 }
+
+/// Now, in Unix seconds.
+pub fn now() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_secs_f64()
+}
+
+/// A lowercase id in the shape of `UUID().uuidString.lowercased()`: 36 characters.
+pub fn uuid() -> String {
+    static N: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos() as u64;
+    let n = N.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+        nanos as u32,
+        (nanos >> 32) as u16,
+        std::process::id() as u16,
+        n as u16,
+        nanos ^ (n << 20)
+    )
+}
+
+/// Sets a file's change time to Unix seconds `at`.
+pub fn set_modified(path: &Path, at: f64) {
+    let time = if at >= 0.0 {
+        UNIX_EPOCH + std::time::Duration::from_secs_f64(at)
+    } else {
+        UNIX_EPOCH - std::time::Duration::from_secs_f64(-at)
+    };
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .expect("open")
+        .set_modified(time)
+        .expect("set modified");
+}
+
+/// Appends raw text to a file, creating it.
+pub fn append_raw(path: &Path, text: &str) {
+    use std::io::Write;
+    let mut f = std::fs::File::options()
+        .create(true)
+        .append(true)
+        .open(path)
+        .expect("open");
+    f.write_all(text.as_bytes()).expect("write");
+}
+
+/// Appends lines, each ended by a newline.
+pub fn append(path: &Path, lines: &[String]) {
+    append_raw(path, &(lines.join("\n") + "\n"));
+}
