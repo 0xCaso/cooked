@@ -57,7 +57,7 @@ pub const FIRST_SIZE: (f32, f32) = (
 );
 
 /// The tile grids' marks: the histogram, then a pair per account row (5 hours, week).
-const HISTOGRAM_MARK: u32 = 1;
+pub(crate) const HISTOGRAM_MARK: u32 = 1;
 const FIRST_BAR_MARK: u32 = 10;
 
 /// What a click in the popover asks of the rest of the app: opening a session (Task 18), Setup or Settings (Task

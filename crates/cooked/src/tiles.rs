@@ -72,7 +72,7 @@ impl TileGrid {
     }
 
     /// The cells at the metal's clock `t`: the wave's at `t`, else the fixed ones.
-    fn cells_at(&self, t: f32, out: &mut Vec<TileLevel>) {
+    pub(crate) fn cells_at(&self, t: f32, out: &mut Vec<TileLevel>) {
         out.clear();
         match self.wave {
             Some(w) => out.extend(grids::island_wave_grid(t, w.urgent, self.cols, self.rows)),
@@ -103,6 +103,41 @@ pub fn tile_slot(mark: u32) -> El {
     el().effect(mark)
 }
 
+/// The red tiles' metal (Task 14, F10). `Plain` (A): the chrome params with a red tint, darker than the approved
+/// mockup's red. `Lifted` (B): the same metal with a lighter red tint and a much softer floor, red tiles only; the
+/// chrome tiles and the default metal params do not change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(any(test, feature = "tooling")),
+    allow(
+        dead_code,
+        reason = "the shipped app draws only the variant RED_METAL names"
+    )
+)]
+pub enum RedMetal {
+    Plain,
+    Lifted,
+}
+
+/// `RedMetal::Lifted`: tint and light, and the contrast (chrome's is 0.55; lower lifts the metal's dark floor).
+/// Chosen in Task 14 for a red tile face median near the mockup's (R 227 against the mockup's ~229; A: 165).
+const LIFTED_RED: (u32, u32) = (0xff4f42, 0xffe4e0);
+const LIFTED_RED_CONTRAST: f32 = 0.15;
+
+/// Which red metal the app draws: switch here.
+pub const RED_METAL: RedMetal = RedMetal::Plain;
+
+/// `RED_METAL`; tooling builds take `COOKED_RED_METAL=plain|lifted` to render both for comparison.
+fn red_metal() -> RedMetal {
+    #[cfg(any(test, feature = "tooling"))]
+    match std::env::var("COOKED_RED_METAL").as_deref() {
+        Ok("plain") => return RedMetal::Plain,
+        Ok("lifted") => return RedMetal::Lifted,
+        _ => {}
+    }
+    RED_METAL
+}
+
 /// The metal of each kind of tile.
 #[derive(Clone, Copy)]
 struct Metals {
@@ -123,11 +158,20 @@ impl Metals {
             ..LiquidMetalParams::chrome()
         }
         .anchor(FillAnchor::World);
-        let red = LiquidMetalParams {
+        let plain_red = LiquidMetalParams {
             tint: rgb(0xff453a),
             light: rgb(0xffd6d0),
             iridescence: 0.0,
             ..lit
+        };
+        let red = match red_metal() {
+            RedMetal::Plain => plain_red,
+            RedMetal::Lifted => LiquidMetalParams {
+                tint: rgb(LIFTED_RED.0),
+                light: rgb(LIFTED_RED.1),
+                contrast: LIFTED_RED_CONTRAST,
+                ..plain_red
+            },
         };
         let off = LiquidMetalParams {
             bevel: 0.8,
