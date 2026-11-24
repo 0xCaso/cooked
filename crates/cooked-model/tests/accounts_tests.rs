@@ -96,15 +96,25 @@ fn transcripts_read_only_connected_claude_folders() {
 }
 
 #[test]
-#[ignore = "needs Task 6: LiveSnapshot.swift (and the statusFixture from LiveDataTests)"]
 fn island_shows_only_connected_accounts_in_their_order_with_their_names() {
-    // Swift:
-    // let status = try StatusFile.decode(Data(statusFixture.utf8))
-    // let accounts = [ConnectedAccount(id: "claudeAgent", name: "home", path: "/h/.claude"),
-    //                 ConnectedAccount(id: "claudeAgent_work", name: "job", path: "/h/.claude-work")]
-    // let s = try #require(LiveSnapshot.make(status: status, minutes: .init(), now: Date(), accounts: accounts))
-    // #expect(s.accounts.map(\.short) == ["home", "job"])
-    unimplemented!("port with LiveSnapshot in Task 6");
+    let status = common::status_fixture();
+    let accounts = [
+        ConnectedAccount::new("claudeAgent", "home", "/h/.claude"),
+        ConnectedAccount::new("claudeAgent_work", "job", "/h/.claude-work"),
+    ];
+    let s = cooked_model::live_snapshot::make(
+        &status,
+        &cooked_model::live_snapshot::Minutes::new(),
+        common::now(),
+        &cooked_model::clock::FixedOffset(0),
+        &[],
+        &accounts,
+    )
+    .unwrap();
+    assert_eq!(
+        s.accounts.iter().map(|a| a.short.as_str()).collect::<Vec<_>>(),
+        ["home", "job"]
+    );
 }
 
 /// Not a Swift case: the accounts JSON must be byte-equal to what Swift's `JSONEncoder` stores in UserDefaults

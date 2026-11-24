@@ -166,6 +166,17 @@ impl UsageSnapshot {
         self.accounts.iter().filter(|a| a.is_unused).collect()
     }
 
+    /// The top source of the account the island shows (in urgency, the one that fills), else the top source
+    /// (`IslandView.peakSource`).
+    pub fn peak(&self) -> Option<&TokenSource> {
+        Self::peak_source(&self.sources, self.active().map(|a| a.short.as_str()))
+    }
+
+    /// The thread the island's peak opens; `None` brings T3 Code to the front (`IslandView.peakThread`).
+    pub fn peak_thread(&self) -> Option<&str> {
+        self.peak()?.thread_id.as_deref()
+    }
+
     /// The top source of `account`, else the top source: the popover marks its rate in red in urgency.
     pub fn peak_source<'a>(
         sources: &'a [TokenSource],
