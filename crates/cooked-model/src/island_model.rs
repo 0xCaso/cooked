@@ -177,6 +177,11 @@ impl<D: DefaultsStore> IslandState<D> {
         &self.defaults
     }
 
+    /// For the settings the model doesn't own (the island's position).
+    pub fn defaults_mut(&mut self) -> &mut D {
+        &mut self.defaults
+    }
+
     pub fn into_defaults(self) -> D {
         self.defaults
     }
