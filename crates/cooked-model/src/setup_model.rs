@@ -124,7 +124,12 @@ pub struct SetupModel<D: DefaultsStore, L: LoginItem> {
 }
 
 impl<D: DefaultsStore, L: LoginItem> SetupModel<D, L> {
-    pub fn new(home: impl Into<String>, defaults: D, status_line: StatusLineSetup, login: L) -> Self {
+    pub fn new(
+        home: impl Into<String>,
+        defaults: D,
+        status_line: StatusLineSetup,
+        login: L,
+    ) -> Self {
         let home = home.into();
         let saved = AccountStore::load(&defaults);
         let rows = rows(&accounts::scan(&home), saved.as_deref());
@@ -161,7 +166,17 @@ impl<D: DefaultsStore, L: LoginItem> SetupModel<D, L> {
             .map(|r| {
                 // Swift's `.whitespaces`: spaces and tabs, not line breaks
                 let name = r.name.trim_matches(|c: char| {
-                    c == '\t' || (c.is_whitespace() && !matches!(c, '\n' | '\r' | '\u{b}' | '\u{c}' | '\u{85}' | '\u{2028}' | '\u{2029}'))
+                    c == '\t'
+                        || (c.is_whitespace()
+                            && !matches!(
+                                c,
+                                '\n' | '\r'
+                                    | '\u{b}'
+                                    | '\u{c}'
+                                    | '\u{85}'
+                                    | '\u{2028}'
+                                    | '\u{2029}'
+                            ))
                 });
                 let name = if name.is_empty() {
                     accounts::default_name(&r.found)

@@ -1,7 +1,9 @@
 //! The limits read from T3 Code's provider logs, in place of the watcher script.
 mod common;
 
-use common::{append_raw, claude_line, claude_line_full, codex_line, log_dir, set_modified, temp_dir};
+use common::{
+    append_raw, claude_line, claude_line_full, codex_line, log_dir, set_modified, temp_dir,
+};
 use cooked_model::clock::{FixedOffset, days_from_civil};
 use cooked_model::limit_log::{LimitInput, LimitLog, Sample};
 use cooked_model::status_file::Projection;

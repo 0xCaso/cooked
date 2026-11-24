@@ -19,10 +19,22 @@ fn calm_snapshot() {
     let shorts = |v: Vec<&cooked_model::usage_snapshot::Account>| -> Vec<String> {
         v.iter().map(|a| a.short.clone()).collect()
     };
-    assert_eq!(shorts(s.accounts.iter().collect()), ["work", "team", "personal", "side", "codex"]);
-    assert_eq!(s.accounts.iter().map(|a| a.five_hour_percent).collect::<Vec<_>>(), [4, 11, 0, 12, 6]);
     assert_eq!(
-        s.accounts.iter().map(|a| a.five_hour_reset.as_str()).collect::<Vec<_>>(),
+        shorts(s.accounts.iter().collect()),
+        ["work", "team", "personal", "side", "codex"]
+    );
+    assert_eq!(
+        s.accounts
+            .iter()
+            .map(|a| a.five_hour_percent)
+            .collect::<Vec<_>>(),
+        [4, 11, 0, 12, 6]
+    );
+    assert_eq!(
+        s.accounts
+            .iter()
+            .map(|a| a.five_hour_reset.as_str())
+            .collect::<Vec<_>>(),
         ["00:20", "04:40", "—", "01:55", "03:10"]
     );
     assert_eq!(
@@ -36,7 +48,10 @@ fn calm_snapshot() {
     assert_eq!(s.urgency, None);
     assert!(!s.is_urgent());
     assert_eq!(
-        s.accounts.iter().map(|a| a.week_percent).collect::<Vec<_>>(),
+        s.accounts
+            .iter()
+            .map(|a| a.week_percent)
+            .collect::<Vec<_>>(),
         [Some(74), Some(22), None, Some(41), Some(9)]
     );
     // personal is not used today: hidden
@@ -48,9 +63,18 @@ fn calm_snapshot() {
 fn peak_snapshot() {
     let s = demo_data::peak();
     assert_eq!(s.clock, "23:05");
-    assert_eq!(s.accounts.iter().map(|a| a.five_hour_percent).collect::<Vec<_>>(), [82, 12, 31, 12, 9]);
     assert_eq!(
-        s.accounts.iter().map(|a| a.five_hour_reset.as_str()).collect::<Vec<_>>(),
+        s.accounts
+            .iter()
+            .map(|a| a.five_hour_percent)
+            .collect::<Vec<_>>(),
+        [82, 12, 31, 12, 9]
+    );
+    assert_eq!(
+        s.accounts
+            .iter()
+            .map(|a| a.five_hour_reset.as_str())
+            .collect::<Vec<_>>(),
         ["00:20", "04:40", "02:40", "01:55", "03:10"]
     );
     assert_eq!(
@@ -59,13 +83,21 @@ fn peak_snapshot() {
     );
     assert_eq!(s.rate_now, 184_000);
     assert_eq!(
-        s.accounts.iter().map(|a| a.week_percent).collect::<Vec<_>>(),
+        s.accounts
+            .iter()
+            .map(|a| a.week_percent)
+            .collect::<Vec<_>>(),
         [Some(79), Some(23), Some(64), Some(41), Some(10)]
     );
     assert!(s.unused().is_empty());
     assert_eq!(
         s.urgency,
-        Some(Urgency::new(82, "23:14", "claude-work in 9 min", "184k/min from “Refactor usage page”"))
+        Some(Urgency::new(
+            82,
+            "23:14",
+            "claude-work in 9 min",
+            "184k/min from “Refactor usage page”"
+        ))
     );
     assert!(s.is_urgent());
 }
@@ -77,7 +109,12 @@ fn series_is_deterministic() {
     assert!(peak.iter().rev().take(8).all(|v| *v > 40000.0));
     let calm = demo_data::series(60, false);
     assert!(calm[41] == 47000.0 || (47000.0..=52000.0).contains(&calm[41]));
-    assert!(calm.iter().enumerate().filter(|(i, _)| *i != 41).all(|(_, v)| *v < 40000.0));
+    assert!(
+        calm.iter()
+            .enumerate()
+            .filter(|(i, _)| *i != 41)
+            .all(|(_, v)| *v < 40000.0)
+    );
 }
 
 #[test]
@@ -93,5 +130,8 @@ fn feeds_round_trip_their_raw_values() {
     }
     assert_eq!(Feed::DemoPeak.raw(), "demoPeak");
     assert_eq!(Feed::Live.demo(), None);
-    assert_eq!(Feed::DemoCalm.demo().map(|s| s.clock), Some("19:28".to_owned()));
+    assert_eq!(
+        Feed::DemoCalm.demo().map(|s| s.clock),
+        Some("19:28".to_owned())
+    );
 }

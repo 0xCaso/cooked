@@ -4,8 +4,8 @@
 mod common;
 
 use common::{
-    ROME, append_raw, claude_line, log_dir, rome, source, status_fixture, temp_dir,
-    test_accounts, token_source, uuid,
+    ROME, append_raw, claude_line, log_dir, rome, source, status_fixture, temp_dir, test_accounts,
+    token_source, uuid,
 };
 use cooked_model::clock::{self, FixedOffset, iso_date, iso_string};
 use cooked_model::histogram_clock::LiveHistogram;
@@ -64,7 +64,10 @@ fn decodes_the_watcher_file() {
     let work = &s.accounts["claudeAgent_work"];
     assert_eq!(work.five_hour_pct, Some(48));
     assert_eq!(
-        work.tokens_fresh.as_ref().and_then(|t| t.get("15m")).copied(),
+        work.tokens_fresh
+            .as_ref()
+            .and_then(|t| t.get("15m"))
+            .copied(),
         Some(250_660)
     );
     assert_eq!(work.spike_threshold_15m, Some(617_094));
@@ -93,12 +96,20 @@ fn calm_snapshot_from_the_fixture() {
     let m = minute_now();
     let minutes = Minutes::from([(
         "claudeAgent_work".to_owned(),
-        HashMap::from([(m, 4189.0), (m - 1, 27004.0), (m - 59, 100.0), (m - 60, 999.0)]),
+        HashMap::from([
+            (m, 4189.0),
+            (m - 1, 27004.0),
+            (m - 59, 100.0),
+            (m - 60, 999.0),
+        ]),
     )]);
     let s = make(&status(|_| {}), &minutes).unwrap();
     // only accounts with 5h data, work first
     assert_eq!(
-        s.accounts.iter().map(|a| a.short.as_str()).collect::<Vec<_>>(),
+        s.accounts
+            .iter()
+            .map(|a| a.short.as_str())
+            .collect::<Vec<_>>(),
         ["work", "personal"]
     );
     let mut work = s.accounts[0].clone();
@@ -117,7 +128,10 @@ fn calm_snapshot_from_the_fixture() {
     // both live: only work has minutes in the last 15
     assert_eq!(s.active_id, "claudeAgent_work");
     // the chart's last 4 whole minutes and the 51 s of this one
-    assert_eq!(s.rate_now, ((4189.0 + 27004.0) / (4.0 + 51.0 / 60.0)) as i64);
+    assert_eq!(
+        s.rate_now,
+        ((4189.0 + 27004.0) / (4.0 + 51.0 / 60.0)) as i64
+    );
     assert_eq!(s.threshold, 617_094 / 15);
     assert_eq!(s.series.len(), 1440); // a day, for the 1d range
     assert_eq!(s.series.last(), Some(&4189.0));
@@ -176,8 +190,24 @@ fn urgent_when_full_within_twenty_minutes() {
     let st = status(|s| entry(s, "claudeAgent_work").projection = projection("5 min", "15:40"));
     // the card names the thread its button opens: work's top source, not the overall top one
     let sources = [
-        token_source("p", Some("tp"), "p", "Other account", "personal", 300_000.0, None),
-        token_source("w", Some("tw"), "p", "Refactor usage page", "work", 184_000.0, None),
+        token_source(
+            "p",
+            Some("tp"),
+            "p",
+            "Other account",
+            "personal",
+            300_000.0,
+            None,
+        ),
+        token_source(
+            "w",
+            Some("tw"),
+            "p",
+            "Refactor usage page",
+            "work",
+            184_000.0,
+            None,
+        ),
     ];
     let s = live_snapshot::make(&st, &none(), now(), &ROME, &sources, &test_accounts()).unwrap();
     let u = s.urgency.clone().unwrap();
@@ -229,9 +259,8 @@ fn urgent_when_the_week_fills_soon() {
 fn urgent_when_the_limit_is_hit() {
     let st = status(|s| entry(s, "claudeAgent_work").limit_status = Some("rejected".to_owned()));
     assert!(make(&st, &none()).unwrap().urgency.is_some());
-    let warn = status(|s| {
-        entry(s, "claudeAgent_work").limit_status = Some("allowed_warning".to_owned())
-    });
+    let warn =
+        status(|s| entry(s, "claudeAgent_work").limit_status = Some("allowed_warning".to_owned()));
     assert_eq!(make(&warn, &none()).unwrap().urgency, None);
 }
 
@@ -269,11 +298,17 @@ fn full_at_comes_from_the_projection() {
     let s = make(&st, &none()).unwrap();
     // no projection: not expected to fill up; at 100% and over: already full
     assert_eq!(
-        s.accounts.iter().map(|a| a.full_at.as_deref()).collect::<Vec<_>>(),
+        s.accounts
+            .iter()
+            .map(|a| a.full_at.as_deref())
+            .collect::<Vec<_>>(),
         [None, Some("now")]
     );
     let with_projection = make(&status(|_| {}), &none()).unwrap();
-    assert_eq!(with_projection.accounts[0].full_at.as_deref(), Some("18:04"));
+    assert_eq!(
+        with_projection.accounts[0].full_at.as_deref(),
+        Some("18:04")
+    );
 }
 
 /// A projection after the reset says nothing: the row leaves "full at" empty.
@@ -297,7 +332,10 @@ fn active_account_is_the_one_the_minutes_show_burning() {
     });
     let m = minute_now();
     let minutes = Minutes::from([
-        ("claudeAgent".to_owned(), HashMap::from([(m - 3, 500_000.0)])),
+        (
+            "claudeAgent".to_owned(),
+            HashMap::from([(m - 3, 500_000.0)]),
+        ),
         (
             "claudeAgent_work".to_owned(),
             HashMap::from([(m - 3, 100_000.0)]),
@@ -333,7 +371,15 @@ fn blocked_peak_says_blocked_until() {
         e.five_hour_pct = Some(103);
         e.limit_status = Some("rejected".to_owned());
     });
-    let slow = [token_source("o", None, "p", "Old thread", "personal", 0.2, None)];
+    let slow = [token_source(
+        "o",
+        None,
+        "p",
+        "Old thread",
+        "personal",
+        0.2,
+        None,
+    )];
     let u = live_snapshot::make(&st, &none(), now(), &ROME, &slow, &test_accounts())
         .unwrap()
         .urgency
@@ -402,7 +448,10 @@ fn unused_accounts_fold() {
         e.live = Some(false);
         e.tokens_fresh = Some([("15m".to_owned(), 0)].into());
     });
-    assert_eq!(shorts(make(&quiet, &none()).unwrap().unused()), ["personal"]);
+    assert_eq!(
+        shorts(make(&quiet, &none()).unwrap().unused()),
+        ["personal"]
+    );
     let busy = status(|s| {
         let e = entry(s, "claudeAgent");
         e.last_event_at = None;
@@ -429,7 +478,8 @@ fn active_account_never_folds() {
 /// A week that reset with no new data shows no week %.
 #[test]
 fn stale_week_has_no_percent() {
-    let st = status(|s| entry(s, "claudeAgent").seven_day_resets_at = Some("16/10 16:00".to_owned()));
+    let st =
+        status(|s| entry(s, "claudeAgent").seven_day_resets_at = Some("16/10 16:00".to_owned()));
     assert_eq!(make(&st, &none()).unwrap().accounts[1].week_percent, None);
 }
 
@@ -461,10 +511,17 @@ fn week_percent_whole_on_reset_day() {
     assert_eq!(personal.week_reset.as_deref(), Some("18:00"));
     assert!(personal.week_elapsed.is_some_and(|e| e > 0.98 && e < 1.0));
     // a later day shows the day
-    let tomorrow = status(|s| entry(s, "claudeAgent").seven_day_resets_at = Some("30/10 18:00".to_owned()));
-    assert_eq!(make(&tomorrow, &none()).unwrap().accounts[1].week_reset.as_deref(), Some("Fri"));
+    let tomorrow =
+        status(|s| entry(s, "claudeAgent").seven_day_resets_at = Some("30/10 18:00".to_owned()));
+    assert_eq!(
+        make(&tomorrow, &none()).unwrap().accounts[1]
+            .week_reset
+            .as_deref(),
+        Some("Fri")
+    );
     // right after the reset, with no new data: no week % and no reset text
-    let gone = status(|s| entry(s, "claudeAgent").seven_day_resets_at = Some("29/10 15:20".to_owned()));
+    let gone =
+        status(|s| entry(s, "claudeAgent").seven_day_resets_at = Some("29/10 15:20".to_owned()));
     let g = make(&gone, &none()).unwrap();
     assert_eq!(g.accounts[1].week_percent, None);
     assert_eq!(g.accounts[1].week_reset, None);
@@ -580,7 +637,11 @@ fn make_database(turns: &[(&str, &str, &str, i64, i64, i64)]) -> String {
 fn session_threads() {
     let path = make_database(&[("claudeAgent", "c", "2026-10-29T14:22:00.000Z", 300, 0, 0)]);
     let threads = TokenLog::new(path)
-        .threads(&["session-c".to_owned(), "session-x".to_owned(), "it's".to_owned()])
+        .threads(&[
+            "session-c".to_owned(),
+            "session-x".to_owned(),
+            "it's".to_owned(),
+        ])
         .unwrap();
     assert_eq!(
         threads,
@@ -618,7 +679,8 @@ fn line(id: &str, at: &str, input: i64, write: i64, read: i64, output: i64) -> S
 
 fn make_home() -> (String, PathBuf) {
     let home = temp_dir("home").to_string_lossy().into_owned();
-    let dir = PathBuf::from(TranscriptLog::dir("claudeAgent_work", &home) + "/projects/p/s/subagents");
+    let dir =
+        PathBuf::from(TranscriptLog::dir("claudeAgent_work", &home) + "/projects/p/s/subagents");
     std::fs::create_dir_all(&dir).unwrap();
     (home, dir.join("agent-1.jsonl"))
 }
@@ -626,8 +688,14 @@ fn make_home() -> (String, PathBuf) {
 #[test]
 fn config_dirs() {
     assert_eq!(TranscriptLog::dir("claudeAgent", "/h"), "/h/.claude");
-    assert_eq!(TranscriptLog::dir("claudeAgent_team", "/h"), "/h/.claude-team");
-    assert_eq!(TranscriptLog::dir("claudeAgent_side", "/h"), "/h/.claude-side");
+    assert_eq!(
+        TranscriptLog::dir("claudeAgent_team", "/h"),
+        "/h/.claude-team"
+    );
+    assert_eq!(
+        TranscriptLog::dir("claudeAgent_side", "/h"),
+        "/h/.claude-side"
+    );
 }
 
 #[test]
@@ -650,11 +718,17 @@ fn counts_new_tokens_per_minute_once_and_reads_only_new_lines() {
                 "claudeAgent_work".to_owned(),
                 TranscriptLog::dir("claudeAgent_work", &home),
             ),
-            ("claudeAgent".to_owned(), TranscriptLog::dir("claudeAgent", &home)),
+            (
+                "claudeAgent".to_owned(),
+                TranscriptLog::dir("claudeAgent", &home),
+            ),
         ]),
         None,
     );
-    let mut read = || log.read(transcript_now(), TranscriptLog::DEFAULT_MINUTES).minutes;
+    let mut read = || {
+        log.read(transcript_now(), TranscriptLog::DEFAULT_MINUTES)
+            .minutes
+    };
     let first = read();
     assert_eq!(
         first.get("claudeAgent_work"),
@@ -681,7 +755,16 @@ fn first_read_starts_near_the_window() {
     // 300 lines, one per minute from 10:00; each about 200 bytes
     let start = iso_date("2026-10-29T10:00:00.000Z").unwrap();
     let lines: Vec<String> = (0..300)
-        .map(|i| line(&format!("m{i}"), &iso_string(start + i as f64 * 60.0, true), 1, 0, 0, 0))
+        .map(|i| {
+            line(
+                &format!("m{i}"),
+                &iso_string(start + i as f64 * 60.0, true),
+                1,
+                0,
+                0,
+                0,
+            )
+        })
         .collect();
     std::fs::write(&file, lines.join("\n") + "\n").unwrap();
     let since = start + 240.0 * 60.0;
@@ -700,16 +783,35 @@ fn first_read_starts_near_the_window() {
 #[test]
 fn groups_subagents_under_their_session() {
     let (home, sub) = make_home(); // projects/p/s/subagents/agent-1.jsonl
-    let main = sub.parent().unwrap().parent().unwrap().parent().unwrap().join("s.jsonl");
+    let main = sub
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("s.jsonl");
     let call = |id: &str, at: &str, tokens: i64, cwd: &str| {
         format!(
             r#"{{"type":"assistant","timestamp":"{at}","cwd":"{cwd}","message":{{"id":"{id}","usage":{{"input_tokens":{tokens},"output_tokens":0}}}}}}"#
         ) + "\n"
     };
-    std::fs::write(&main, call("m1", "2026-10-29T14:24:00.000Z", 3000, "/r/cooked")).unwrap();
-    std::fs::write(&sub, call("s1", "2026-10-29T14:25:00.000Z", 1500, "/tmp/wt")).unwrap();
+    std::fs::write(
+        &main,
+        call("m1", "2026-10-29T14:24:00.000Z", 3000, "/r/cooked"),
+    )
+    .unwrap();
+    std::fs::write(
+        &sub,
+        call("s1", "2026-10-29T14:25:00.000Z", 1500, "/tmp/wt"),
+    )
+    .unwrap();
     let other = sub.parent().unwrap().join("agent-2.jsonl");
-    std::fs::write(&other, call("s2", "2026-10-29T14:15:00.000Z", 1500, "/tmp/wt")).unwrap();
+    std::fs::write(
+        &other,
+        call("s2", "2026-10-29T14:15:00.000Z", 1500, "/tmp/wt"),
+    )
+    .unwrap();
     let r = TranscriptLog::new(
         HashMap::from([(
             "claudeAgent_work".to_owned(),
@@ -767,7 +869,10 @@ fn with_no_data_the_notice_says_why() {
 fn reports_no_accounts() {
     let mut s = source(log_dir(&[]));
     s.accounts = Vec::new();
-    assert_eq!(s.read(common::now(), &FixedOffset(0)).notices, [Notice::NoAccounts]);
+    assert_eq!(
+        s.read(common::now(), &FixedOffset(0)).notices,
+        [Notice::NoAccounts]
+    );
 }
 
 // MARK: - LiveHistogramTests
@@ -816,7 +921,14 @@ fn steady(mut s: Session) -> Session {
     s
 }
 
-fn session(account: &str, id: &str, cwd: Option<&str>, tokens: f64, main: bool, subs: i64) -> Session {
+fn session(
+    account: &str,
+    id: &str,
+    cwd: Option<&str>,
+    tokens: f64,
+    main: bool,
+    subs: i64,
+) -> Session {
     Session::new(account, id, cwd.map(str::to_owned), tokens, main, subs)
 }
 
@@ -845,8 +957,22 @@ fn thread() -> Thread {
 #[test]
 fn names_sessions_by_their_t3_thread_in_rate_order() {
     let sessions = [
-        session("claudeAgent_work", "s1", Some("/r/cooked"), 1_695_000.0, true, 3),
-        session("claudeAgent_team", "s2", Some("/Users/m/.t3/scratch/2026-x"), 60_000.0, false, 0),
+        session(
+            "claudeAgent_work",
+            "s1",
+            Some("/r/cooked"),
+            1_695_000.0,
+            true,
+            3,
+        ),
+        session(
+            "claudeAgent_team",
+            "s2",
+            Some("/Users/m/.t3/scratch/2026-x"),
+            60_000.0,
+            false,
+            0,
+        ),
         session("claudeAgent", "s3", None, 10.0, true, 0), // under 1/min
         session("claudeAgent", "s4", Some("/r/atlas"), 15_000.0, false, 2),
     ];
@@ -867,9 +993,33 @@ fn names_sessions_by_their_t3_thread_in_rate_order() {
     assert_eq!(
         out,
         [
-            token_source("t1", Some("t1"), "cooked", "popover data", "work", 113_000.0, Some("1 agent + 3 sub")),
-            token_source("s2", None, "t3 scratch", "Claude Code session", "team", 4000.0, None),
-            token_source("s4", None, "atlas", "Claude Code session", "personal", 1000.0, Some("2 sub")),
+            token_source(
+                "t1",
+                Some("t1"),
+                "cooked",
+                "popover data",
+                "work",
+                113_000.0,
+                Some("1 agent + 3 sub")
+            ),
+            token_source(
+                "s2",
+                None,
+                "t3 scratch",
+                "Claude Code session",
+                "team",
+                4000.0,
+                None
+            ),
+            token_source(
+                "s4",
+                None,
+                "atlas",
+                "Claude Code session",
+                "personal",
+                1000.0,
+                Some("2 sub")
+            ),
         ]
     );
     assert!(token_sources::make(&[], &HashMap::new(), &test_accounts(), None).is_empty());
@@ -879,7 +1029,16 @@ fn names_sessions_by_their_t3_thread_in_rate_order() {
 #[test]
 fn keeps_up_to_eight_sources() {
     let sessions: Vec<Session> = (1..=10)
-        .map(|i| steady(session("claudeAgent", &format!("s{i}"), None, i as f64 * 1500.0, true, 0)))
+        .map(|i| {
+            steady(session(
+                "claudeAgent",
+                &format!("s{i}"),
+                None,
+                i as f64 * 1500.0,
+                true,
+                0,
+            ))
+        })
         .collect();
     let out = token_sources::make(&sessions, &HashMap::new(), &test_accounts(), None);
     assert_eq!(
@@ -897,7 +1056,10 @@ fn merges_sessions_of_one_thread() {
     let threads = HashMap::from([("a".to_owned(), thread()), ("b".to_owned(), thread())]);
     let out = token_sources::make(&sessions, &threads, &test_accounts(), None);
     assert_eq!(out.iter().map(|s| s.rate).collect::<Vec<_>>(), [3000.0]);
-    assert_eq!(out.first().and_then(|s| s.agents.as_deref()), Some("1 agent"));
+    assert_eq!(
+        out.first().and_then(|s| s.agents.as_deref()),
+        Some("1 agent")
+    );
 }
 
 /// A live line's rate is its last 5 minutes on the popover's "now" divisor, so the lines add up to "now"; an ended
@@ -909,7 +1071,10 @@ fn live_lines_use_the_last_five_minutes() {
     live.last_five = 45_000.0;
     let ended = session_at("claudeAgent", "ended", None, 15_000.0, false, 0, 993);
     let out = token_sources::make(&[live, ended], &HashMap::new(), &test_accounts(), Some(now));
-    assert_eq!(out.iter().map(|s| s.rate).collect::<Vec<_>>(), [10_000.0, 1000.0]);
+    assert_eq!(
+        out.iter().map(|s| s.rate).collect::<Vec<_>>(),
+        [10_000.0, 1000.0]
+    );
 }
 
 /// A thread with no call in the last 5 minutes goes under "Ended", newest first, after the live ones.
@@ -918,12 +1083,33 @@ fn ended_threads_come_last_with_their_minutes() {
     let now = 1_000.0 * 60.0;
     let sessions = [
         session_at("claudeAgent", "big", Some("/r/a"), 90_000.0, false, 0, 991),
-        session_at("claudeAgent", "live", Some("/r/b"), 15_000.0, true, 0, 1_000),
-        session_at("claudeAgent", "recent", Some("/r/c"), 30_000.0, false, 0, 994),
+        session_at(
+            "claudeAgent",
+            "live",
+            Some("/r/b"),
+            15_000.0,
+            true,
+            0,
+            1_000,
+        ),
+        session_at(
+            "claudeAgent",
+            "recent",
+            Some("/r/c"),
+            30_000.0,
+            false,
+            0,
+            994,
+        ),
         session_at("claudeAgent", "subs", Some("/r/d"), 3_000.0, false, 1, 999),
     ];
     let steady_sessions: Vec<Session> = sessions.iter().cloned().map(steady).collect();
-    let out = token_sources::make(&steady_sessions, &HashMap::new(), &test_accounts(), Some(now));
+    let out = token_sources::make(
+        &steady_sessions,
+        &HashMap::new(),
+        &test_accounts(),
+        Some(now),
+    );
     assert_eq!(
         out.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
         ["live", "subs", "recent", "big"]
@@ -935,11 +1121,17 @@ fn ended_threads_come_last_with_their_minutes() {
     // two sessions of one thread: ended only when both are, at the newer one's minute
     let merged = token_sources::make(
         &[sessions[0].clone(), sessions[2].clone()],
-        &HashMap::from([("big".to_owned(), thread()), ("recent".to_owned(), thread())]),
+        &HashMap::from([
+            ("big".to_owned(), thread()),
+            ("recent".to_owned(), thread()),
+        ]),
         &test_accounts(),
         Some(now),
     );
-    assert_eq!(merged.iter().map(|s| s.ended_ago).collect::<Vec<_>>(), [Some(6)]);
+    assert_eq!(
+        merged.iter().map(|s| s.ended_ago).collect::<Vec<_>>(),
+        [Some(6)]
+    );
     let one = token_sources::make(
         &[sessions[0].clone(), sessions[1].clone()],
         &HashMap::from([("big".to_owned(), thread()), ("live".to_owned(), thread())]),
@@ -952,7 +1144,10 @@ fn ended_threads_come_last_with_their_minutes() {
 #[test]
 fn agent_labels() {
     assert_eq!(token_sources::agents(true, 0).as_deref(), Some("1 agent"));
-    assert_eq!(token_sources::agents(true, 3).as_deref(), Some("1 agent + 3 sub"));
+    assert_eq!(
+        token_sources::agents(true, 3).as_deref(),
+        Some("1 agent + 3 sub")
+    );
     assert_eq!(token_sources::agents(false, 2).as_deref(), Some("2 sub"));
     assert_eq!(token_sources::agents(false, 0), None);
     assert_eq!(

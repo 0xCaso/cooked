@@ -24,12 +24,18 @@ impl LoginItem for FakeLogin {
     }
 }
 
-const SETTINGS_TEXT: &str = "{\n  \"statusLine\": {\"type\": \"command\", \"command\": \"my-line\"}\n}\n";
+const SETTINGS_TEXT: &str =
+    "{\n  \"statusLine\": {\"type\": \"command\", \"command\": \"my-line\"}\n}\n";
 
 /// A home with two Claude folders sharing one settings file (a symlink), Codex, and a Claude folder with no sessions.
 fn make_home() -> String {
     let home = common::temp_dir("setup").to_string_lossy().into_owned();
-    for dir in [".claude/projects/p", ".claude-work/projects/p", ".codex/sessions/2026/11/04", ".claude-empty"] {
+    for dir in [
+        ".claude/projects/p",
+        ".claude-work/projects/p",
+        ".codex/sessions/2026/11/04",
+        ".claude-empty",
+    ] {
         std::fs::create_dir_all(format!("{home}/{dir}")).unwrap();
     }
     std::fs::write(format!("{home}/.claude/settings.json"), SETTINGS_TEXT).unwrap();
@@ -72,14 +78,24 @@ fn a_fresh_user_gets_through_setup() {
     let files = m.settings_files();
     assert_eq!(files.len(), 1);
     assert_eq!(
-        files[0].readers.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(),
+        files[0]
+            .readers
+            .iter()
+            .map(|r| r.name.as_str())
+            .collect::<Vec<_>>(),
         ["personal", "work"]
     );
-    assert_eq!(files[0].readers.iter().map(|r| r.is_link).collect::<Vec<_>>(), [false, true]);
-    assert!(
-        m.remove_sentence()
-            .starts_with("Your old status line comes back in both accounts, Cooked stops opening at login")
+    assert_eq!(
+        files[0]
+            .readers
+            .iter()
+            .map(|r| r.is_link)
+            .collect::<Vec<_>>(),
+        [false, true]
     );
+    assert!(m.remove_sentence().starts_with(
+        "Your old status line comes back in both accounts, Cooked stops opening at login"
+    ));
 
     m.connect();
     assert_eq!(m.percent(), State::Connected);
@@ -129,10 +145,20 @@ fn no_claude_account_no_percent_step() {
 fn saved_accounts_keep_their_tick_and_name() {
     let home = make_home();
     let found = accounts::scan(&home);
-    let saved = [ConnectedAccount::new("claudeAgent_work", "job", format!("{home}/.claude-work"))];
+    let saved = [ConnectedAccount::new(
+        "claudeAgent_work",
+        "job",
+        format!("{home}/.claude-work"),
+    )];
     let rows = setup_model::rows(&found, Some(&saved));
-    assert_eq!(rows.iter().map(|r| r.ticked).collect::<Vec<_>>(), [false, true, false]);
-    assert_eq!(rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["claude", "job", "codex"]);
+    assert_eq!(
+        rows.iter().map(|r| r.ticked).collect::<Vec<_>>(),
+        [false, true, false]
+    );
+    assert_eq!(
+        rows.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(),
+        ["claude", "job", "codex"]
+    );
 }
 
 #[test]
@@ -166,6 +192,9 @@ fn last_use_reads_short() {
     let now = iso_date("2026-11-04T17:00:00.000Z").unwrap();
     assert_eq!(LastUse::text(Some(now - 3600.0), now, &rome), "today 17:00");
     assert_eq!(LastUse::text(Some(now - 86400.0), now, &rome), "yesterday");
-    assert_eq!(LastUse::text(Some(now - 4.0 * 86400.0), now, &rome), "Sat 31 Oct");
+    assert_eq!(
+        LastUse::text(Some(now - 4.0 * 86400.0), now, &rome),
+        "Sat 31 Oct"
+    );
     assert_eq!(LastUse::text(None, now, &rome), "never");
 }

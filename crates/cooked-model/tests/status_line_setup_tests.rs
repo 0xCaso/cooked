@@ -16,7 +16,9 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let root = common::temp_dir("statusline").to_string_lossy().into_owned();
+        let root = common::temp_dir("statusline")
+            .to_string_lossy()
+            .into_owned();
         std::fs::create_dir_all(format!("{root}/.claude")).unwrap();
         let setup = StatusLineSetup::new(format!("{root}/Cooked"));
         Self { root, setup }
@@ -72,10 +74,16 @@ fn an_old_command_is_kept_and_given_back() {
     write(&settings, old);
     f.setup.connect(&settings).unwrap();
     let now = text(&settings);
-    assert!(now.starts_with(r#"{"model":"opus","statusLine":{"#) && now.ends_with(r#"},"theme":"dark"}"#));
+    assert!(
+        now.starts_with(r#"{"model":"opus","statusLine":{"#)
+            && now.ends_with(r#"},"theme":"dark"}"#)
+    );
     let line = status_line(&settings);
     let key = StatusLineSetup::key(&StatusLineSetup::real(&settings));
-    assert_eq!(line["command"].as_str(), Some(f.setup.command(&key).as_str()));
+    assert_eq!(
+        line["command"].as_str(),
+        Some(f.setup.command(&key).as_str())
+    );
     assert!(line["padding"].as_i64() == Some(0) && line["refreshInterval"].as_i64() == Some(5));
     assert_eq!(
         text(&format!("{}/{key}.command", f.setup.saved_dir())),
@@ -121,7 +129,10 @@ fn a_changed_key_is_not_touched() {
     // connect again wraps the new command
     f.setup.connect(&settings).unwrap();
     let key = StatusLineSetup::key(&StatusLineSetup::real(&settings));
-    assert_eq!(text(&format!("{}/{key}.command", f.setup.saved_dir())), "claude-hud");
+    assert_eq!(
+        text(&format!("{}/{key}.command", f.setup.saved_dir())),
+        "claude-hud"
+    );
     f.setup.disconnect(&settings).unwrap();
     assert_eq!(text(&settings), changed);
 }
@@ -141,7 +152,10 @@ fn not_an_object_is_not_written() {
     let f = Fixture::new();
     let settings = f.settings();
     write(&settings, "[1, 2]");
-    assert!(matches!(f.setup.connect(&settings), Err(Failure::NotAnObject)));
+    assert!(matches!(
+        f.setup.connect(&settings),
+        Err(Failure::NotAnObject)
+    ));
     assert_eq!(text(&settings), "[1, 2]");
 }
 
@@ -164,7 +178,10 @@ fn run(command: &str, input: &str) -> (String, i32) {
         .unwrap();
     p.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
     let out = p.wait_with_output().unwrap();
-    (String::from_utf8_lossy(&out.stdout).into_owned(), out.status.code().unwrap_or(-1))
+    (
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        out.status.code().unwrap_or(-1),
+    )
 }
 
 /// The script saves the JSON for the account in `transcript_path`, then prints the old status line's output.
@@ -182,7 +199,10 @@ fn the_bridge_saves_the_json_and_runs_the_old_line() {
     let (out, status) = run(line["command"].as_str().unwrap(), input);
     assert_eq!(status, 0);
     assert_eq!(out, "old line {\"t\n");
-    assert_eq!(text(&format!("{}/claudeAgent_team.json", f.setup.bridge_dir())), input);
+    assert_eq!(
+        text(&format!("{}/claudeAgent_team.json", f.setup.bridge_dir())),
+        input
+    );
     assert_eq!(
         status_line_bridge::samples(Path::new(&f.setup.bridge_dir()))
             .get("claudeAgent_team")

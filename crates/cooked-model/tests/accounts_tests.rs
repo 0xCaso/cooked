@@ -112,7 +112,10 @@ fn island_shows_only_connected_accounts_in_their_order_with_their_names() {
     )
     .unwrap();
     assert_eq!(
-        s.accounts.iter().map(|a| a.short.as_str()).collect::<Vec<_>>(),
+        s.accounts
+            .iter()
+            .map(|a| a.short.as_str())
+            .collect::<Vec<_>>(),
         ["home", "job"]
     );
 }
