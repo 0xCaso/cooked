@@ -245,6 +245,18 @@ impl ChromeTiles {
         self.sites.clear();
         let t = self.t as f32;
         let rt = &f.rt;
+        // An `FxLayer` is about 2 KB: sized to the tiles, not doubled past them, the popover's ~2400 layers hold
+        // ~5 MB instead of the 9 MB a growing Vec ends at.
+        let tiles = rt
+            .instances
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| i.params[1] == KIND_EFFECT)
+            .filter_map(|(n, _)| rt.state.tile_grid(rt.marks.get(n).copied().unwrap_or(0)))
+            .map(|g| g.cols * g.rows)
+            .sum::<usize>();
+        fit(&mut self.layers, tiles);
+        fit(&mut self.slots, tiles);
         for (n, i) in rt.instances.iter().enumerate() {
             if i.params[1] != KIND_EFFECT {
                 continue;
@@ -300,6 +312,10 @@ impl<S: TileGrids + 'static> Compositor<S> for ChromeTiles {
 
     fn release_gpu(&mut self) {
         self.fx = None;
+        // The frame's layers go with the renderer: ~5 MB for the popover's grids, rebuilt at the next show.
+        self.layers = Vec::new();
+        self.slots = Vec::new();
+        self.sites = Vec::new();
     }
 
     fn render(&mut self, f: &mut Frame<'_, S>) {
@@ -361,6 +377,16 @@ impl<S: TileGrids + 'static> Compositor<S> for ChromeTiles {
     }
 }
 
+/// Gives the empty `v` room for exactly `n` items: grows it to `n`, or shrinks it when it holds far more (the
+/// popover's grids got smaller).
+fn fit<T>(v: &mut Vec<T>, n: usize) {
+    if v.capacity() < n {
+        v.reserve_exact(n);
+    } else if v.capacity() > n.saturating_mul(2).max(64) {
+        v.shrink_to(n);
+    }
+}
+
 /// `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`.
 pub fn system_reduce_motion() -> bool {
     use objc2::runtime::{AnyClass, AnyObject, Bool};
@@ -417,6 +443,17 @@ mod tests {
         assert_ne!(a, b, "moves with t");
         assert!(a.contains(&TileLevel::Red) && !a.contains(&TileLevel::Lit));
         assert_eq!(a, grids::island_wave_grid(0.0, true, 16, 5));
+    }
+
+    #[test]
+    fn fit_sizes_to_the_tiles() {
+        let mut v: Vec<u64> = Vec::new();
+        fit(&mut v, 2400);
+        assert_eq!(v.capacity(), 2400, "exact, not the next power of two");
+        fit(&mut v, 2000);
+        assert_eq!(v.capacity(), 2400, "kept when a bit smaller");
+        fit(&mut v, 100);
+        assert!(v.capacity() < 2400, "shrunk when far smaller");
     }
 
     #[test]
