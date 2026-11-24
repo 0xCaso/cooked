@@ -117,6 +117,32 @@ impl TideScale {
     }
 }
 
+impl TideScale {
+    /// `targets`, except where a minute spans `FINE_SPAN` columns or more (10m, 30m): there the columns follow a
+    /// line between the minutes' centres, so the chart varies column by column (the approved mockup) instead of
+    /// standing in flat steps one minute wide (Swift). Coarser ranges keep `targets` as is.
+    pub fn fine_targets(minutes: &[f64], cols: usize, rows: usize, top: f64) -> Vec<f64> {
+        let n = minutes.len();
+        if n == 0 || (cols as f64) < Self::FINE_SPAN * n as f64 {
+            return Self::targets(minutes, cols, rows, top);
+        }
+        let span = n as f64 / cols as f64;
+        (0..cols)
+            .map(|c| {
+                let x = ((c as f64 + 0.5) * span - 0.5).clamp(0.0, (n - 1) as f64);
+                let i = x.floor() as usize;
+                let j = (i + 1).min(n - 1);
+                let f = x - i as f64;
+                let v = minutes[i] * (1.0 - f) + minutes[j] * f;
+                (Self::y(v, top) * rows as f64).max(0.4)
+            })
+            .collect()
+    }
+
+    /// Columns per minute from which `fine_targets` draws lines between minutes.
+    pub const FINE_SPAN: f64 = 2.0;
+}
+
 /// How bright the liquid under the meniscus is: `base + gain·e^(−depth/scale)`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LiquidBody {
@@ -347,6 +373,10 @@ impl Motion {
 /// reaches into the body: the dots under a moving surface rise and sink with it, less with depth.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TideHistogram {
+    cols: usize,
+    rows: usize,
+    /// `TideScale::fine_targets` instead of `targets`.
+    fine: bool,
     water: Water,
     ripple: Water,
     stepper: FixedStepper,
@@ -361,6 +391,8 @@ pub struct TideHistogram {
     field: LiquidField,
     /// The column heights in rows as drawn, ripples included.
     shown_heights: Vec<f64>,
+    /// Per column, whether its real value is over the threshold row.
+    reaches: Vec<bool>,
 }
 
 impl Default for TideHistogram {
@@ -379,9 +411,18 @@ impl TideHistogram {
     pub const LIFT_DEPTH: f64 = 6.0;
 
     pub fn new() -> Self {
+        Self::sized(Self::COLS, Self::ROWS, false)
+    }
+
+    /// The same liquid on `cols` x `rows` (the Rune popover's 72 x 26 tiles); `fine`: lines between minutes where
+    /// one spans two columns or more (`TideScale::fine_targets`).
+    pub fn sized(cols: usize, rows: usize, fine: bool) -> Self {
         Self {
-            water: Water::new(Self::COLS, 120.0, 110.0, 9.0, 0.0),
-            ripple: Water::new(Self::COLS, 30.0, 900.0, 5.0, 0.0),
+            cols,
+            rows,
+            fine,
+            water: Water::new(cols, 120.0, 110.0, 9.0, 0.0),
+            ripple: Water::new(cols, 30.0, 900.0, 5.0, 0.0),
             stepper: FixedStepper::default(),
             target: Vec::new(),
             primed: false,
@@ -390,8 +431,9 @@ impl TideHistogram {
             level: 0.0,
             seed: 5,
             threshold_row: 0,
-            field: LiquidField::new(Self::COLS, Self::ROWS),
-            shown_heights: vec![0.0; Self::COLS],
+            field: LiquidField::new(cols, rows),
+            shown_heights: vec![0.0; cols],
+            reaches: vec![false; cols],
         }
     }
 
@@ -413,6 +455,11 @@ impl TideHistogram {
         &self.water.height
     }
 
+    /// Per column, whether its real value is over the threshold row (where red may show).
+    pub fn reaches(&self) -> &[bool] {
+        &self.reaches
+    }
+
     /// Coral above the threshold row in every column whose real value is over it, past minutes included: the
     /// chart shows when usage went over, not only whether it is over now. The island's tank keeps the `urgent` rule.
     pub fn frame(
@@ -422,17 +469,49 @@ impl TideHistogram {
         still: bool,
         motion: Motion,
     ) -> &LiquidField {
+        let shown = self.flow(history, t, still, motion);
+        self.field.pour(
+            &shown,
+            self.threshold_row,
+            true,
+            still,
+            Some(&self.reaches),
+            LiquidBody::CHART,
+        );
+        for c in 0..self.cols {
+            let moved = shown.height[c] - self.water.height[c];
+            for r in 0..self.rows {
+                let depth = shown.height[c] - ((self.rows - 1 - r) as f64 + 0.5);
+                self.field.lift[r * self.cols + c] =
+                    Self::lift(moved, depth, motion.max_ripple) as f32;
+            }
+        }
+        &self.field
+    }
+
+    /// The liquid at `t` without its dots: the surface as drawn, ripples included (`shown_heights`), and which
+    /// columns reach the threshold row (`reaches`). The chrome tiles need only these.
+    pub fn surface(&mut self, history: &MinuteHistory, t: f64, still: bool, motion: Motion) {
+        self.flow(history, t, still, motion);
+    }
+
+    fn flow(&mut self, history: &MinuteHistory, t: f64, still: bool, motion: Motion) -> Water {
+        let (cols, rows) = (self.cols, self.rows);
         self.motion = motion;
         // the last minutes' rate as the island's level: the busier, the more drops
         let recent = &history.values[history.values.len().saturating_sub(3)..];
         let rate = recent.iter().sum::<f64>() / recent.len().max(1) as f64;
         self.level = TideIsland::level(rate, history.threshold);
-        self.target = TideScale::targets(&history.values, Self::COLS, Self::ROWS, history.top);
-        self.threshold_row = TideScale::threshold_row(Self::ROWS, history.threshold, history.top);
+        self.target = if self.fine {
+            TideScale::fine_targets(&history.values, cols, rows, history.top)
+        } else {
+            TideScale::targets(&history.values, cols, rows, history.top)
+        };
+        self.threshold_row = TideScale::threshold_row(rows, history.threshold, history.top);
         if still || !self.primed {
             self.water.height = self.target.clone();
-            self.water.velocity = vec![0.0; Self::COLS];
-            self.ripple = Water::new(Self::COLS, self.ripple.k, self.ripple.c, self.ripple.d, 0.0);
+            self.water.velocity = vec![0.0; cols];
+            self.ripple = Water::new(cols, self.ripple.k, self.ripple.c, self.ripple.d, 0.0);
             self.primed = true;
             self.stepper.advance(t, |_| {});
         } else {
@@ -440,9 +519,9 @@ impl TideHistogram {
             stepper.advance(t, |dt| self.step(dt));
             self.stepper = stepper;
         }
-        let line = (Self::ROWS - self.threshold_row) as f64;
+        let line = (rows - self.threshold_row) as f64;
         let mut shown = self.water.clone();
-        for c in 0..Self::COLS {
+        for c in 0..cols {
             let h = self.water.height[c];
             let r = self.ripple.height[c].clamp(-motion.max_ripple, motion.max_ripple);
             // a ripple never lifts a column into the threshold row, and never below the floor
@@ -454,25 +533,10 @@ impl TideHistogram {
             .max(0.0);
             shown.velocity[c] += self.ripple.velocity[c] * motion.slow * 0.1;
         }
-        self.shown_heights = shown.height.clone();
-        let reaches: Vec<bool> = self.target.iter().map(|t| *t > line).collect();
-        self.field.pour(
-            &shown,
-            self.threshold_row,
-            true,
-            still,
-            Some(&reaches),
-            LiquidBody::CHART,
-        );
-        for c in 0..Self::COLS {
-            let moved = shown.height[c] - self.water.height[c];
-            for r in 0..Self::ROWS {
-                let depth = shown.height[c] - ((Self::ROWS - 1 - r) as f64 + 0.5);
-                self.field.lift[r * Self::COLS + c] =
-                    Self::lift(moved, depth, motion.max_ripple) as f32;
-            }
-        }
-        &self.field
+        self.shown_heights.clone_from(&shown.height);
+        self.reaches.clear();
+        self.reaches.extend(self.target.iter().map(|t| *t > line));
+        shown
     }
 
     /// Points a dot `depth` rows under the surface rises (negative: sinks) when its column's surface moved by `moved`
@@ -497,10 +561,11 @@ impl TideHistogram {
                 park_miller(&mut self.seed)
             };
             let hit = m.kick.0 + m.kick.1 * share;
-            let c = (park_miller(&mut self.seed) * Self::COLS as f64) as usize;
-            self.ripple.velocity[c.min(Self::COLS - 1)] -= hit;
+            let c = (park_miller(&mut self.seed) * self.cols as f64) as usize;
+            self.ripple.velocity[c.min(self.cols - 1)] -= hit;
         }
-        self.ripple.step(slowed, &[0.0; Self::COLS]);
+        // no target: the ripples settle back to zero
+        self.ripple.step(slowed, &[]);
     }
 }
 
