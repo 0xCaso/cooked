@@ -98,6 +98,12 @@ pub fn app() -> App<Snap> {
     .compositor(ChromeTiles::still_at(SNAP_T))
 }
 
+/// Whether `args` ask for one of the island's scenes (`island::scenes`).
+pub fn wanted_island(args: &[String]) -> bool {
+    args.windows(2)
+        .any(|w| w[0] == "--scene" && crate::island::scenes::SCENES.contains(&w[1].as_str()))
+}
+
 /// Whether `args` ask for one of these scenes (or the list of them).
 pub fn wanted(args: &[String]) -> bool {
     args.iter().any(|a| a == "--list-scenes")
@@ -157,6 +163,18 @@ mod tests {
         assert!(wanted(&args(&["cooked", "--list-scenes"])));
         assert!(!wanted(&args(&["cooked", "--scene", "other"])));
         assert!(!wanted(&args(&["cooked", "--feed", "demoPeak"])));
+        assert!(wanted_island(&args(&[
+            "cooked",
+            "--tree",
+            "t.json",
+            "--scene",
+            "island-urgent"
+        ])));
+        assert!(!wanted_island(&args(&[
+            "cooked",
+            "--scene",
+            "tiles-demo-peak"
+        ])));
     }
 
     /// Renders `tiles-demo-peak` headless and compares it with the PNG in `tests/snaps/`. `COOKED_UPDATE_SNAPS=1`
