@@ -81,6 +81,29 @@ pub fn wave_grid(
     grid
 }
 
+/// The Rune island's wave at time `t` (seconds), as the approved mockup draws it
+/// (`design/mockups/2026-11-24-rune-look/scene.js`, decision 2026-11-24-rune-island-width): mirrored around the
+/// centre row, each column's half-height `1.2 + 1.1 |sin(0.55 c + 1.3 t)|` rows, so 3 to 5 of 5 rows lit and swaying.
+/// Chrome when calm, red when `urgent`; the shape is the same in both.
+pub fn island_wave_grid(t: f32, urgent: bool, cols: usize, rows: usize) -> Vec<TileLevel> {
+    let mid = rows.saturating_sub(1) as f32 / 2.0;
+    let on = if urgent {
+        TileLevel::Red
+    } else {
+        TileLevel::Lit
+    };
+    let mut grid = vec![TileLevel::Off; cols * rows];
+    for c in 0..cols {
+        let amp = 1.2 + 1.1 * (c as f32 * 0.55 + t * 1.3).sin().abs();
+        for r in 0..rows {
+            if (r as f32 - mid).abs() <= amp {
+                grid[r * cols + c] = on;
+            }
+        }
+    }
+    grid
+}
+
 /// An account bar: the left `fraction_left` lit, every row alike. `time_left` (0...1, the share of the window still
 /// to go) puts the pace line in its column, which stays off. When the window runs out before its reset, the dark
 /// tiles between the lit front and the line are the overspend, red: the Swift `PaceStrip` rule, which the mockup

@@ -38,15 +38,14 @@ pub struct TileGrid {
     pub gap: f32,
     /// Tile corner radius, points.
     pub radius: f32,
-    /// A swaying wave instead of fixed cells: its level and whether it is red. The compositor draws it at the
+    /// A swaying wave instead of fixed cells: whether it is red. The compositor draws it at the
     /// metal's clock, so it sways with the metal and stands still with it (Reduce Motion).
     pub wave: Option<Wave>,
 }
 
-/// The island wave's inputs (`cooked_model::tiles::wave_grid`).
+/// The island wave's inputs (`cooked_model::tiles::island_wave_grid`, the mockup's sway).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Wave {
-    pub level: f32,
     pub urgent: bool,
 }
 
@@ -76,7 +75,7 @@ impl TileGrid {
     fn cells_at(&self, t: f32, out: &mut Vec<TileLevel>) {
         out.clear();
         match self.wave {
-            Some(w) => out.extend(grids::wave_grid(t, w.level, w.urgent, self.cols, self.rows)),
+            Some(w) => out.extend(grids::island_wave_grid(t, w.urgent, self.cols, self.rows)),
             None => out.extend_from_slice(&self.cells),
         }
         out.resize(self.cols * self.rows, TileLevel::Off);
@@ -409,21 +408,14 @@ mod tests {
 
     #[test]
     fn a_wave_sways_with_the_clock() {
-        let grid = TileGrid::wave(
-            16,
-            5,
-            Wave {
-                level: 0.3,
-                urgent: true,
-            },
-        );
+        let grid = TileGrid::wave(16, 5, Wave { urgent: true });
         let (mut a, mut b) = (Vec::new(), Vec::new());
         grid.cells_at(0.0, &mut a);
         grid.cells_at(0.7, &mut b);
         assert_eq!(a.len(), 80);
         assert_ne!(a, b, "moves with t");
         assert!(a.contains(&TileLevel::Red) && !a.contains(&TileLevel::Lit));
-        assert_eq!(a, grids::wave_grid(0.0, 0.3, true, 16, 5));
+        assert_eq!(a, grids::island_wave_grid(0.0, true, 16, 5));
     }
 
     #[test]

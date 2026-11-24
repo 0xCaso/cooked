@@ -1,7 +1,7 @@
 //! The island under the menu bar, as `Views/IslandView.swift` and `IslandPanel.swift` draw and move it, in the
-//! "B · Chrome tiles" look (`design/mockups/2026-11-24-rune-look/`): one 240 x 40 pt glass capsule with the wave
+//! "B · Chrome tiles" look (`design/mockups/2026-11-24-rune-look/`): one 290 x 40 pt glass capsule with the wave
 //! (16 x 5 chrome tiles) in a well, the active account's 5-hour % left in a well, the account and the rate. In
-//! urgency it keeps its shape: the percentage and the hairline turn red and the wave widens.
+//! urgency it keeps its shape: the percentage, the hairline and the wave turn red.
 //!
 //! A tap toggles the popover (Task 13), a drag past 3 pt moves the island and saves `islandPosition` as Swift
 //! does, a right-click opens the menu (Data, Glass, Show in, Settings…, Quit).
@@ -14,7 +14,7 @@ use cooked_model::demo_data::Feed;
 use cooked_model::island_model::{DisplayMode, GlassStyle, IslandState};
 use cooked_model::island_placement::{self as placement, OVERHANG, Point, Rect, ScreenInfo, Size};
 use cooked_model::position_store::{self, IslandPosition};
-use cooked_model::{tiles as grids, token_format};
+use cooked_model::token_format;
 use rune::{
     Color, Cx, Drag, El, OverlayHandle, OverlayPlacement, Phase, PointerPress, PopupItem,
     PopupMenu, Shadow, SystemMaterial, Tx, el, row, text,
@@ -28,8 +28,9 @@ use crate::tiles::{TileGrid, TileGrids, Wave, tile_slot};
 /// The settings store: `UserDefaults` in the app, `MemoryDefaults` in scenes and tests.
 pub type Prefs = Box<dyn DefaultsStore>;
 
-/// The capsule, points: one row, 240 at most (DESIGN.md); the mockup's 40 pt height.
-pub const ISLAND: (f32, f32) = (240.0, 40.0);
+/// The capsule, points: the approved mockup's 290 x 40 (DESIGN.md's Rune island exception, decision
+/// 2026-11-24-rune-island-width).
+pub const ISLAND: (f32, f32) = (290.0, 40.0);
 /// The overlay: the capsule and its margin.
 pub const WINDOW: (f32, f32) = (
     ISLAND.0 + 2.0 * OVERHANG as f32,
@@ -38,8 +39,10 @@ pub const WINDOW: (f32, f32) = (
 /// The island wave's tiles (spec, "Chrome tiles").
 const WAVE: (usize, usize) = (16, 5);
 const WAVE_MARK: u32 = 1;
-/// The wave well's width: it takes the row's free space, between these.
+/// The wave well's width: the mockup's 112, narrower only when a long account name needs the room.
 const WAVE_WIDTH: (f32, f32) = (56.0, 112.0);
+/// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt, as the mockup.
+const WAVE_GAP: f32 = 1.2;
 /// Past this many points a press is a drag, not a tap (`PressableIsland.dragThreshold`).
 pub const DRAG_THRESHOLD: f64 = 3.0;
 
@@ -103,18 +106,14 @@ impl Island {
         self.refresh_wave();
     }
 
-    /// The wave for the model's rate and urgency; it sways in the compositor.
+    /// The wave for the model's urgency; it sways in the compositor (the mockup's formula).
     pub fn refresh_wave(&mut self) {
-        let level = grids::wave_level(
-            self.model.rate_now as f64,
-            self.model.snapshot.threshold as f64,
-        );
         let (cols, rows) = WAVE;
         let wave = Wave {
-            level,
             urgent: self.model.snapshot.is_urgent(),
         };
-        self.wave = TileGrid::wave(cols, rows, wave).spacing(1.0, 0.8);
+        // the mockup rounds tiles at 0.28 of their short side
+        self.wave = TileGrid::wave(cols, rows, wave).spacing(WAVE_GAP, 0.95);
     }
 
     /// The connected accounts changed (Setup, Settings): the reader reads again at once with a new source.
@@ -389,7 +388,7 @@ fn capsule(s: &Island) -> El {
     let style = s.model.glass_style();
     let urgent = s.model.snapshot.is_urgent();
     let ring = if urgent {
-        Some(Palette::red().alpha(0.55))
+        Some(Palette::red().alpha(0.7))
     } else if s.solid {
         Some(Color::WHITE.alpha(0.16))
     } else if style.draws_rim() {
@@ -465,7 +464,7 @@ fn content(s: &Island) -> El {
             .grow(1.0)
             .min_w(WAVE_WIDTH.0)
             .max_w(WAVE_WIDTH.1)
-            .px(6.0)
+            .px(9.0)
             .py(4.0)
             .child(tile_slot(WAVE_MARK).key("tiles").w_full().h_full()),
         15.0,
@@ -511,14 +510,22 @@ fn content(s: &Island) -> El {
                 .color(Palette::ink2()),
         );
     }
+    // The number at the rate ink, its unit at 55% as the mockup.
     line.child(
-        text(format!(
-            "{}/min",
-            token_format::short(s.model.rate_now as f64)
-        ))
-        .key("rate")
-        .font(TextStyle::Number.font())
-        .color(rate_ink),
+        row()
+            .key("rate-row")
+            .child(
+                text(token_format::short(s.model.rate_now as f64))
+                    .key("rate")
+                    .font(TextStyle::Number.font())
+                    .color(rate_ink),
+            )
+            .child(
+                text("/min")
+                    .key("rate-unit")
+                    .font(TextStyle::Number.font())
+                    .color(Palette::ink3()),
+            ),
     )
 }
 
@@ -599,8 +606,8 @@ mod tests {
 
     #[test]
     fn window_is_the_island_and_its_margin() {
-        assert_eq!(WINDOW, (288.0, 88.0));
-        assert!(ISLAND.0 <= 240.0);
+        assert_eq!(ISLAND, (290.0, 40.0));
+        assert_eq!(WINDOW, (338.0, 88.0));
     }
 
     #[test]
@@ -625,12 +632,11 @@ mod tests {
     }
 
     #[test]
-    fn urgent_wave_is_red_and_wider() {
+    fn urgent_wave_is_red() {
         let calm = island(Feed::DemoCalm);
         let peak = island(Feed::DemoPeak);
         let (c, p) = (calm.wave.wave.unwrap(), peak.wave.wave.unwrap());
         assert!(!c.urgent && p.urgent);
-        assert!(p.level > c.level);
         assert_eq!((peak.wave.cols, peak.wave.rows), WAVE);
     }
 
@@ -682,7 +688,7 @@ mod tests {
             screen(1, 0.0, 1440.0, 900.0),
             screen(2, 1440.0, 1920.0, 1200.0),
         ];
-        let frame = Rect::new(576.0, 812.0, 288.0, 88.0);
+        let frame = Rect::new(576.0, 812.0, 338.0, 88.0);
         let press = Press {
             mouse: Point::new(720.0, 850.0),
             origin: Point::new(frame.x, frame.y),
@@ -704,13 +710,13 @@ mod tests {
             screen(1, 0.0, 1440.0, 900.0),
             screen(2, 1440.0, 1920.0, 1200.0),
         ];
-        let frame = Rect::new(2000.0, 900.0, 288.0, 88.0);
+        let frame = Rect::new(2000.0, 900.0, 338.0, 88.0);
         let saved = saved_position(frame, &screens[1]);
         assert_eq!(saved.display_id, 2);
-        assert_eq!(saved.top_center, [2144.0, 988.0]);
+        assert_eq!(saved.top_center, [2169.0, 988.0]);
         let json = String::from_utf8(position_store::encode(&saved)).unwrap();
-        assert_eq!(json, r#"{"displayID":2,"topCenter":[2144.0,988.0]}"#);
-        let size = Size::new(288.0, 88.0);
+        assert_eq!(json, r#"{"displayID":2,"topCenter":[2169.0,988.0]}"#);
+        let size = Size::new(338.0, 88.0);
         assert_eq!(
             placement::restored_frame(size, Some(&saved), &screens, &screens[0]),
             frame
@@ -726,13 +732,13 @@ mod tests {
 
     #[test]
     fn overlay_rect_flips_to_rune_points() {
-        let frame = Rect::new(576.0, 800.0, 288.0, 88.0);
+        let frame = Rect::new(576.0, 800.0, 338.0, 88.0);
         assert_eq!(
             overlay_rect(frame, 900.0),
             OverlayPlacement::Rect {
                 x: 576.0,
                 y: 12.0,
-                width: 288.0,
+                width: 338.0,
                 height: 88.0
             }
         );
@@ -795,7 +801,7 @@ mod tests {
         assert_eq!(field(&t, "account", "color"), "#f4f1eab8");
         assert_eq!(
             field(&t, "rate", "text"),
-            format!("{}/min", token_format::short(calm.rate_now as f64))
+            token_format::short(calm.rate_now as f64)
         );
         let family = |key| {
             node(&t, key)
@@ -826,7 +832,13 @@ mod tests {
         );
         assert_eq!(field(&t, "percent-text", "color"), "#ff453aff");
         assert_eq!(field(&t, "percent", "fill"), "#080808ff");
-        assert_eq!(field(&t, "rate", "text"), "184k/min");
+        assert_eq!(field(&t, "rate", "text"), "184k");
+        assert_eq!(field(&t, "rate-unit", "text"), "/min");
+        assert_eq!(field(&t, "rate-unit", "color"), "#f4f1ea8c");
+        // the mockup's wave well, ~4.75 pt tiles
+        assert_eq!(width(&t, "wave"), WAVE_WIDTH.1 as f64);
+        let tile = (width(&t, "tiles") - 15.0 * WAVE_GAP as f64) / 16.0;
+        assert!((tile - 4.75).abs() < 0.05, "tile width {tile}");
         assert_eq!(width(&t, "island"), ISLAND.0 as f64);
     }
 }
