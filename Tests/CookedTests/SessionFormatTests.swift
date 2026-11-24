@@ -6,7 +6,7 @@ import Testing
 /// run that script again: these tests show what changed.
 enum Fixture {
     static func url(_ name: String) -> URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/\(name)")
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../crates/cooked-model/tests/fixtures/\(name)")
     }
 
     static func lines(_ name: String) throws -> [Data] {
