@@ -32,8 +32,12 @@ trap 'rm -rf "$tmp"' EXIT
 printf 'app\tstate\trun\tcpu_pct\tws_cpu_pct\tfootprint_mb\tenergy_impact\tpkg_mw\tgpu_mw\n'
 for ((r = 1; r <= runs; r++)); do
   out="$tmp/run$r.plist"
-  sudo_run powermetrics --samplers cpu_power,gpu_power,tasks --show-process-energy \
-    -f plist -i 1000 -n "$secs" >"$out" 2>/dev/null
+  # powermetrics now and then exits non-zero: skip that run instead of letting `set -e` end them all.
+  if ! sudo_run powermetrics --samplers cpu_power,gpu_power,tasks --show-process-energy \
+    -f plist -i 1000 -n "$secs" >"$out" 2>/dev/null; then
+    echo "measure.sh: run $r: powermetrics failed, skipped" >&2
+    continue
+  fi
   fp=0
   if [[ -n "$pid" ]]; then
     fp=$(footprint -p "$pid" 2>/dev/null | sed -nE 's/.*Footprint: ([0-9.]+) (KB|MB|GB).*/\1 \2/p' | head -1 |
