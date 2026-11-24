@@ -138,3 +138,34 @@ pub fn iso_date(s: &str) -> Option<f64> {
     let days = days_from_civil(year, month, day);
     Some((days * 86_400 + hour * 3600 + minute * 60 + second - offset) as f64 + fraction)
 }
+
+/// A moment as `ISO8601DateFormatter` writes it, in UTC: `2026-10-08T16:46:11.683Z` with `fractional` (milliseconds),
+/// `2026-10-08T16:46:11Z` without.
+pub fn iso_string(unix: f64, fractional: bool) -> String {
+    let ms = (unix * 1000.0).floor() as i64;
+    let secs = ms.div_euclid(1000);
+    let (y, m, d) = civil_from_days(secs.div_euclid(86_400));
+    let rest = secs.rem_euclid(86_400);
+    let (hh, mm, ss) = (rest / 3600, rest % 3600 / 60, rest % 60);
+    if fractional {
+        format!(
+            "{y:04}-{m:02}-{d:02}T{hh:02}:{mm:02}:{ss:02}.{:03}Z",
+            ms.rem_euclid(1000)
+        )
+    } else {
+        format!("{y:04}-{m:02}-{d:02}T{hh:02}:{mm:02}:{ss:02}Z")
+    }
+}
+
+/// Unix seconds of a file time.
+pub fn unix(t: std::time::SystemTime) -> f64 {
+    match t.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => d.as_secs_f64(),
+        Err(e) => -e.duration().as_secs_f64(),
+    }
+}
+
+/// Now, in Unix seconds.
+pub fn now() -> f64 {
+    unix(std::time::SystemTime::now())
+}
