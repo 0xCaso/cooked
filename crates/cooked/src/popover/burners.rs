@@ -1,5 +1,5 @@
 //! What burns tokens (mockup B `.burn`, Swift `SourcesCard`): the top sources of the last 5 minutes, project and
-//! rate over thread and account. A click opens the source's thread (`Request::OpenSession`, Task 18). The first
+//! rate over thread and account. A click opens the source where it runs (`Request::OpenSession`). The first
 //! three show; "N more" opens the rest. In urgency the rate of the account that fills is red.
 
 use cooked_model::token_format;
@@ -74,7 +74,7 @@ fn hairline(i: usize) -> El {
 /// One source: project and tokens/min, then the thread and its account; an ended one, one quiet line.
 fn line(source: &TokenSource, hot: bool) -> El {
     let target = source.target();
-    let mut line = row()
+    let line = row()
         .key(format!("source-{}", source.id))
         .w_full()
         .px(2.0)
@@ -83,12 +83,9 @@ fn line(source: &TokenSource, hot: bool) -> El {
         .radius(10.0)
         .hit()
         .hover(Color::WHITE.alpha(0.04))
-        .label(source.project.clone());
-    if let Some(target) = target {
-        line = line
-            .cursor(Cursor::Pointer)
-            .on_press(move |s: &mut Popover| s.request(Request::OpenSession(target.clone())));
-    }
+        .label(source.project.clone())
+        .cursor(Cursor::Pointer)
+        .on_press(move |s: &mut Popover| s.request(Request::OpenSession(target.clone())));
     match source.ended_ago {
         Some(ago) => line
             .center_y()

@@ -12,12 +12,13 @@ use cooked_model::histogram_clock::LiveHistogram;
 use cooked_model::live_snapshot::{self, Minutes};
 use cooked_model::notice::Notice;
 use cooked_model::status_file::{Entry, Projection, StatusFile, WatcherTime};
+use cooked_model::t3_code;
 use cooked_model::token_log::{Thread, TokenLog};
 use cooked_model::token_sources;
 use cooked_model::transcript_log::{Session, TranscriptLog};
 use cooked_model::usage_snapshot::{Account, UsageSnapshot};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // MARK: - LiveDataTests
 
@@ -1160,13 +1161,17 @@ fn agent_labels() {
 // MARK: - T3CodeTests
 
 #[test]
-#[ignore = "needs Task 18: T3Code.link (T3Code.swift), with opening sessions"]
 fn thread_link() {
-    // Swift: environment-id file "6ee1c3a6-fb6a\n"
-    // #expect(T3Code.link(thread: "0c24a363", environmentFile: file)?.absoluteString == "t3code://threads/6ee1c3a6-fb6a/0c24a363")
-    // #expect(T3Code.link(thread: "x", environmentFile: "/nonexistent") == nil)
-    // // a delegated thread: its ":" and "%3A" reach T3 Code as written
-    // #expect(T3Code.link(thread: "thread:delegated-task:command%3Amcp%3A37e7", environmentFile: file)?.absoluteString
-    //         == "t3code://threads/6ee1c3a6-fb6a/thread%3Adelegated-task%3Acommand%253Amcp%253A37e7")
-    unimplemented!("port with T3Code in Task 18");
+    let file = temp_dir("t3").join("environment-id");
+    std::fs::write(&file, "6ee1c3a6-fb6a\n").unwrap();
+    assert_eq!(
+        t3_code::link("0c24a363", &file).as_deref(),
+        Some("t3code://threads/6ee1c3a6-fb6a/0c24a363")
+    );
+    assert_eq!(t3_code::link("x", Path::new("/nonexistent")), None);
+    // a delegated thread: its ":" and "%3A" reach T3 Code as written
+    assert_eq!(
+        t3_code::link("thread:delegated-task:command%3Amcp%3A37e7", &file).as_deref(),
+        Some("t3code://threads/6ee1c3a6-fb6a/thread%3Adelegated-task%3Acommand%253Amcp%253A37e7")
+    );
 }

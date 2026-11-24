@@ -1,9 +1,12 @@
 //! The macOS calls the model keeps behind traits: settings (`NSUserDefaults`), the login item (`SMAppService`) and
-//! the local time zone; the app's own AppKit glue (windows, events, the menu bar item, the reopen event).
+//! the local time zone; the app's own AppKit glue (windows, events, the menu bar item, the reopen event, opening
+//! sessions, the clipboard).
 
 pub mod defaults;
 pub mod events;
 pub mod login;
+pub mod open;
+pub mod pasteboard;
 pub mod reopen;
 pub mod status_item;
 pub mod window;

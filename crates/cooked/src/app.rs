@@ -13,6 +13,8 @@ use rune::{App, AppSpec, Cx, El, KeyPolicy, OverlayInput, OverlayOptions, Overla
 
 use crate::island::{self, Island, Prefs, shared};
 use crate::mac::defaults::UserDefaults;
+use crate::mac::open;
+use crate::mac::pasteboard::Pasteboard;
 use crate::mac::reopen::Reopen;
 use crate::mac::window::Displays;
 #[cfg(feature = "tooling")]
@@ -129,8 +131,8 @@ pub fn run() {
             Request::OpenPercentSettings => {
                 requests.open(setup::Mode::Settings, setup::Tab::Percent)
             }
-            // Opening sessions and the clipboard are Task 18.
-            Request::OpenSession(_) | Request::Copy(_) => {}
+            Request::OpenSession(target) => open::open(target.as_ref()),
+            Request::Copy(text) => Pasteboard::general().copy(&text),
         });
     });
     let sink = island.clone();
