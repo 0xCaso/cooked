@@ -366,10 +366,14 @@ impl<D: DefaultsStore> IslandState<D> {
         }
     }
 
-    /// The mockup's demo feed: one minute lasts 4 s, each new minute takes a value from the series, ±15%.
+    /// The mockup's demo feed: one minute lasts 4 s, each new minute takes a value from the series' last
+    /// `DEMO_TAIL` minutes, ±15%, so the demo goes on at the level it shows. Swift drew from minutes 5...n-5, the
+    /// calm start of the peak series, and the chart dropped to a fifth after launch.
     pub fn demo_clock(s: &UsageSnapshot) -> HistogramClock {
+        const DEMO_TAIL: usize = 10;
         let source = s.series.clone();
         let n = source.len();
+        let tail = n.clamp(1, DEMO_TAIL);
         let mut feed = 0usize;
         HistogramClock::new(
             source.clone(),
@@ -377,7 +381,7 @@ impl<D: DefaultsStore> IslandState<D> {
             4.0,
             Box::new(move || {
                 let v = source
-                    .get((feed * 7) % n.saturating_sub(10).max(1) + 5)
+                    .get(n.saturating_sub(tail) + (feed * 7) % tail)
                     .copied()
                     .unwrap_or(0.0);
                 feed += 1;

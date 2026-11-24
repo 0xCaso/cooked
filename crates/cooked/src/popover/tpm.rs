@@ -3,7 +3,8 @@
 
 use cooked_model::histogram_clock::{ChartRange, MinuteHistory};
 use cooked_model::island_model::IslandState;
-use cooked_model::tiles::history_grid;
+use cooked_model::tide::{Motion as Flow, TideHistogram};
+use cooked_model::tiles::surface_grid;
 use cooked_model::token_format;
 use rune::{Color, Cursor, El, Shadow, col, el, row, text};
 
@@ -20,10 +21,36 @@ const WELL_HEIGHT: f32 = 150.0;
 const WELL_PADDING: f32 = 8.0;
 const WELL_FILL: u32 = 0x050505;
 
-/// The histogram for `range` of the chart's minutes.
-pub fn histogram(history: &MinuteHistory, range: ChartRange) -> TileGrid {
-    let cells = history_grid(&history.window(range.minutes()), COLS, ROWS);
+/// The histogram for `range` of the chart's minutes at chart time `t`: Swift's liquid (`TideHistogram`, lively at
+/// 10 minutes, calm on the longer ranges) on the tiles, with lines between minutes where one spans two columns or
+/// more, so the chart moves at 60 fps column by column (DESIGN.md) instead of in one-minute steps. `still`: the
+/// liquid stands at its targets (Reduce Motion, scenes).
+pub fn histogram(
+    tide: &mut TideHistogram,
+    history: &MinuteHistory,
+    range: ChartRange,
+    t: f64,
+    still: bool,
+) -> TileGrid {
+    let motion = if range == ChartRange::TenMinutes {
+        Flow::LIVELY
+    } else {
+        Flow::CALM
+    };
+    tide.surface(&history.window(range.minutes()), t, still, motion);
+    let cells = surface_grid(
+        tide.shown_heights(),
+        tide.reaches(),
+        tide.threshold_row(),
+        COLS,
+        ROWS,
+    );
     TileGrid::new(COLS, ROWS, cells)
+}
+
+/// The popover's liquid, on the histogram's tiles.
+pub fn tide() -> TideHistogram {
+    TideHistogram::sized(COLS, ROWS, true)
 }
 
 pub fn card_for(m: &IslandState<Prefs>) -> El {

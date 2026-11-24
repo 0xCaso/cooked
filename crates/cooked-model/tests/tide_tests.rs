@@ -374,3 +374,55 @@ fn shade_fades_the_rim_and_caps_the_glow() {
     let off = LiquidShade::shade(&f, 18, 0.06, 3);
     assert_eq!(off.alpha, 0.06);
 }
+
+/// Task 14 (F10): at 10 minutes a minute spans 7 of the popover's 72 columns. Swift's targets stand in flat steps;
+/// the fine targets draw a line between the minutes' centres, so neighbouring columns differ, as in the mockup.
+#[test]
+fn fine_targets_vary_inside_a_minute_at_ten_minutes() {
+    let minutes: Vec<f64> = (0..10).map(|i| 8000.0 + 3000.0 * i as f64).collect();
+    let flat = TideScale::targets(&minutes, 72, 26, 64000.0);
+    let fine = TideScale::fine_targets(&minutes, 72, 26, 64000.0);
+    let steps = |h: &[f64]| h.windows(2).filter(|w| (w[1] - w[0]).abs() > 1e-9).count();
+    // Swift: flat inside a minute, a change only at its edges (a column across two minutes averages them)
+    assert!(steps(&flat) <= 2 * 9, "Swift: {} changes", steps(&flat));
+    assert!(steps(&fine) > 60, "fine: {} changes", steps(&fine));
+    // never past the minutes' own range, and rising with them
+    let (lo, hi) = (flat[0], flat[71]);
+    assert!(fine.iter().all(|h| *h >= lo - 1e-9 && *h <= hi + 1e-9));
+    assert!(fine.windows(2).all(|w| w[1] >= w[0]));
+}
+
+#[test]
+fn fine_targets_keep_the_hour_as_swift_draws_it() {
+    let mut minutes = vec![2000.0; 60];
+    minutes[30] = 64000.0;
+    assert_eq!(
+        TideScale::fine_targets(&minutes, 72, 26, 64000.0),
+        TideScale::targets(&minutes, 72, 26, 64000.0)
+    );
+}
+
+/// The popover's 72 x 26 liquid: still, its surface is the fine targets; moving, ripples keep it alive and never
+/// lift a column into the threshold row.
+#[test]
+fn sized_tide_surface_follows_fine_targets() {
+    let minutes: Vec<f64> = (0..10).map(|i| 8000.0 + 3000.0 * i as f64).collect();
+    let h = history(minutes.clone());
+    let mut tide = TideHistogram::sized(72, 26, true);
+    tide.surface(&h, 0.0, true, Motion::LIVELY);
+    assert_eq!(
+        tide.shown_heights(),
+        TideScale::fine_targets(&minutes, 72, 26, 64000.0).as_slice()
+    );
+    assert_eq!(tide.reaches().len(), 72);
+    let line = (26 - tide.threshold_row()) as f64;
+    let mut moved = false;
+    for frame in 1..=300 {
+        tide.surface(&h, frame as f64 / 60.0, false, Motion::LIVELY);
+        moved |= max_abs_diff(tide.shown_heights(), tide.heights()) > 0.05;
+        for (s, w) in tide.shown_heights().iter().zip(tide.heights()) {
+            assert!(*s <= w.max(line - 1.0) + 1e-9);
+        }
+    }
+    assert!(moved, "ripples move the surface");
+}

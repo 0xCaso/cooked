@@ -120,6 +120,8 @@ pub struct Popover {
     /// The page's measured height, points.
     height: f32,
     histogram: TileGrid,
+    /// The histogram's liquid: its surface moves between the minutes' heights.
+    tide: cooked_model::tide::TideHistogram,
     /// Two per account row: its 5 hours, its week.
     bars: Vec<TileGrid>,
     /// "N more" opened the full list of sources; closing the popover folds it again.
@@ -154,6 +156,7 @@ impl Popover {
             anchor: None,
             height: FIRST_HEIGHT,
             histogram: TileGrid::new(0, 0, Vec::new()),
+            tide: tpm::tide(),
             bars: Vec::new(),
             expanded: false,
             copied: false,
@@ -262,7 +265,7 @@ impl Popover {
         };
         let range = m.chart_range();
         let history = m.histogram().history(t, still);
-        self.histogram = tpm::histogram(&history, range);
+        self.histogram = tpm::histogram(&mut self.tide, &history, range, t, still);
     }
 
     /// The page's measured height: the overlay follows it.

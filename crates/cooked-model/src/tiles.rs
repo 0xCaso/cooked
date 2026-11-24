@@ -31,15 +31,29 @@ pub fn histogram_grid(
     history_grid(&all.window(range.minutes()), cols, rows)
 }
 
-/// `histogram_grid` for a history already cut to its range (a `LiveHistogram` or demo clock frame).
+/// `histogram_grid` for a history already cut to its range (a `LiveHistogram` or demo clock frame), standing
+/// still: each column at its target (`TideScale::fine_targets`).
 pub fn history_grid(history: &MinuteHistory, cols: usize, rows: usize) -> Vec<TileLevel> {
-    let heights = TideScale::targets(&history.values, cols, rows, history.top);
+    let heights = TideScale::fine_targets(&history.values, cols, rows, history.top);
     let threshold_row = TideScale::threshold_row(rows, history.threshold, history.top);
     let line = (rows - threshold_row) as f64;
+    let reaches: Vec<bool> = heights.iter().map(|h| *h > line).collect();
+    surface_grid(&heights, &reaches, threshold_row, cols, rows)
+}
+
+/// Column heights in rows (a `TideHistogram`'s surface, or targets) as tiles: each column lit from the bottom to
+/// its height rounded to the nearest row; the lit tiles above `threshold_row` red in the columns that `reaches`.
+pub fn surface_grid(
+    heights: &[f64],
+    reaches: &[bool],
+    threshold_row: usize,
+    cols: usize,
+    rows: usize,
+) -> Vec<TileLevel> {
     let mut grid = vec![TileLevel::Off; cols * rows];
-    for (c, h) in heights.iter().enumerate() {
-        let lit = (h.round() as usize).min(rows);
-        let over = *h > line;
+    for (c, h) in heights.iter().take(cols).enumerate() {
+        let lit = (h.round().max(0.0) as usize).min(rows);
+        let over = reaches.get(c).copied().unwrap_or(false);
         for r in rows - lit..rows {
             grid[r * cols + c] = if over && r < threshold_row {
                 TileLevel::Red

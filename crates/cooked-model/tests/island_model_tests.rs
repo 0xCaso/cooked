@@ -157,3 +157,27 @@ fn closing_by_a_click_elsewhere_swallows_that_same_click() {
     model.dismiss_popover(DismissReason::Escape, 200.0);
     assert!(!model.closed_by_this_click(200.1));
 }
+
+/// The demo peak's new minutes carry on at the level the series ends on: before, the feed drew them from the calm
+/// start of the series (minutes 5...54), so the chart's right side dropped to a fifth after launch.
+#[test]
+fn demo_minutes_after_launch_keep_the_series_level() {
+    for snapshot in [demo_data::peak(), demo_data::calm()] {
+        let last: Vec<f64> = snapshot.series[snapshot.series.len() - 10..].to_vec();
+        let before = last.iter().sum::<f64>() / last.len() as f64;
+        let mut clock = IslandState::<MemoryDefaults>::demo_clock(&snapshot);
+        // 12 demo minutes of 4 s: the last 10 closed minutes are all new
+        let mut history = clock.history(0.0, false);
+        for k in 1..=48 {
+            history = clock.history(k as f64, false);
+        }
+        let n = history.values.len();
+        let fresh = &history.values[n - 11..n - 1];
+        let after = fresh.iter().sum::<f64>() / fresh.len() as f64;
+        assert!(
+            after > 0.6 * before && after < 1.4 * before,
+            "{}: new minutes average {after:.0}, the series ended at {before:.0}",
+            snapshot.clock
+        );
+    }
+}
