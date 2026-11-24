@@ -120,6 +120,8 @@ pub struct Setup {
     /// The island's model, for "Show Cooked in". `None` in scenes.
     pub(crate) island: Option<island::Model>,
     on_accounts: Option<OnAccounts>,
+    /// Tells the island that "Show Cooked in" changed. `None` in scenes.
+    pub on_display_mode: Option<Box<dyn Fn()>>,
     /// Scenes: the clock stopped here (Unix seconds), for "today 11:50".
     pub(crate) still_at: Option<f64>,
     pub(crate) tz: Box<dyn TimeZone>,
@@ -141,6 +143,7 @@ impl Setup {
             reduce_motion: false,
             island: None,
             on_accounts: None,
+            on_display_mode: None,
             still_at: None,
             tz,
         };
@@ -337,6 +340,9 @@ impl Setup {
     pub(crate) fn set_display_mode(&mut self, mode: DisplayMode) {
         if let Some(m) = &self.island {
             m.borrow_mut().set_display_mode(mode);
+        }
+        if let Some(changed) = &self.on_display_mode {
+            changed();
         }
     }
 

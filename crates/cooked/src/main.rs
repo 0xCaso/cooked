@@ -3,6 +3,7 @@
 mod app;
 mod island;
 mod mac;
+mod menu_bar;
 mod paths;
 mod popover;
 #[cfg(test)]

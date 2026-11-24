@@ -2,6 +2,7 @@
 
 pub mod defaults;
 pub mod events;
+pub mod status_item;
 pub mod window;
 
 use cooked_model::clock::TimeZone;

@@ -7,11 +7,15 @@ use cooked_model::accounts::AccountStore;
 use cooked_model::demo_data::{self, Feed};
 use cooked_model::island_model::IslandState;
 use cooked_model::{clock, legacy_defaults};
+#[cfg(feature = "tooling")]
+use rune::OverlayHandle;
 use rune::{App, AppSpec, Cx, El, KeyPolicy, OverlayInput, OverlayOptions, OverlaySpec, el};
 
 use crate::island::{self, Island, Prefs, shared};
 use crate::mac::defaults::UserDefaults;
 use crate::mac::window::Displays;
+#[cfg(feature = "tooling")]
+use crate::menu_bar;
 use crate::popover::Request;
 use crate::popover::{self, Popover};
 use crate::scheduler::{self, LiveReader};
@@ -103,16 +107,18 @@ pub fn run() {
     );
     // Setup and Settings: an ordinary window, created on its first open. New accounts go to the island's reader.
     let sink = island.clone();
-    let opener = setup::install(
-        &mut app,
-        Setup::for_app(
-            model.clone(),
-            Box::new(move |accounts| {
-                sink.update(move |s, _| s.accounts_changed(accounts));
-            }),
-            &args,
-        ),
+    let mut settings = Setup::for_app(
+        model.clone(),
+        Box::new(move |accounts| {
+            sink.update(move |s, _| s.accounts_changed(accounts));
+        }),
+        &args,
     );
+    let sink = island.clone();
+    settings.on_display_mode = Some(Box::new(move || {
+        sink.update(|s, _| s.sync_display_mode());
+    }));
+    let opener = setup::install(&mut app, settings);
     let handle = popover.clone();
     let requests = opener.clone();
     popover.update(move |p, _| {
@@ -142,11 +148,15 @@ pub fn run() {
     let open = args.iter().any(|a| a == OPEN_FLAG);
     let launch = setup::launch_mode(&args, setup_done);
     let menu_opener = opener.clone();
+    #[cfg(feature = "tooling")]
+    let probe = probe_after(&args);
     island.update(move |s, _| {
         s.reader = Some(reader);
         s.setup = Some(menu_opener);
         s.overlay = Some(handle);
         s.popover = Some(popover);
+        // shows the island, or the menu bar item
+        s.sync_display_mode();
         if let Some(feed) = feed {
             s.select_feed(feed);
         }
@@ -164,7 +174,10 @@ pub fn run() {
                 std::thread::sleep(TICK);
             }
         });
-    island.show();
+    #[cfg(feature = "tooling")]
+    if let Some(after) = probe {
+        probe_item_clicks(after, island.clone());
+    }
     // First launch, or `--setup`: the Setup window. `--settings`: the Settings window.
     match launch {
         Some(setup::Mode::Setup) => opener.open(setup::Mode::Setup, setup::Tab::Accounts),
@@ -172,6 +185,45 @@ pub fn run() {
         None => {}
     }
     app.run();
+}
+
+/// `--probe-item-click <s>` (feature `tooling`): the menu bar item's left click, run by the app itself `s` seconds
+/// in and again `s` later (open, then close), with each step's time logged. No mouse event: the click handler runs
+/// from an island turn instead of AppKit's action, so the time is the app's own path from the click to the
+/// popover's first poll, just before its first frame is drawn.
+#[cfg(feature = "tooling")]
+fn probe_after(args: &[String]) -> Option<Duration> {
+    let i = args.iter().position(|a| a == "--probe-item-click")?;
+    let secs: f64 = args.get(i + 1)?.parse().ok()?;
+    menu_bar::start_probe();
+    Some(Duration::from_secs_f64(secs))
+}
+
+#[cfg(feature = "tooling")]
+fn probe_item_clicks(after: Duration, island: OverlayHandle<Island>) {
+    struct NoMenu;
+    impl menu_bar::MenuHost for NoMenu {
+        fn pop_up(&self, _: &rune::PopupMenu) -> Option<String> {
+            None
+        }
+    }
+    let _ = std::thread::Builder::new()
+        .name("cooked-probe".into())
+        .spawn(move || {
+            for _ in 0..2 {
+                std::thread::sleep(after);
+                island.update(|s, _| {
+                    let Some(handle) = s.overlay.clone() else {
+                        return;
+                    };
+                    let model = s.model.clone();
+                    let click = cooked_model::menu_bar::ItemClick::Primary;
+                    menu_bar::item_clicked(click, &model, &NoMenu, &move |command| {
+                        handle.update(move |s, tx| s.command(command, tx));
+                    });
+                });
+            }
+        });
 }
 
 #[cfg(test)]
