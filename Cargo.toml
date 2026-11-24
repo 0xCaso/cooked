@@ -1,0 +1,31 @@
+[workspace]
+resolver = "3"
+members = ["crates/cooked-model", "crates/cooked"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+rune = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
+rune-fx = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cooked-model = { path = "crates/cooked-model" }
+
+# Non-incremental, no debug info: the dev Mac has little disk. Build with `--profile perf`.
+[profile.perf]
+inherits = "release"
+opt-level = 3
+codegen-units = 16
+lto = false
+debug = false
+incremental = false
+
+# Rune builds on patched copies of these crates (its `vendor/`); apps that build Rune patch them too.
+[patch.crates-io]
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
+naga = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
+accesskit_macos = { git = "https://github.com/anomalyco/rune", rev = "09cf4b9cf73b8db23cc702df501d8204f46ac542" }
