@@ -18,6 +18,8 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 # Info.plist names the executable `Cooked`.
 cp "$bin" "$app/Contents/MacOS/Cooked"
+# Local symbols only cost size (about 4 MB); panics keep their messages.
+strip -x "$app/Contents/MacOS/Cooked"
 cp "$root/Resources/Info.plist" "$app/Contents/Info.plist"
 # The binary embeds its TTF fonts; the bundle keeps the folder Info.plist's ATSApplicationFontsPath names, and the
 # fonts' licence.
