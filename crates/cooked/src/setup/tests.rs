@@ -151,15 +151,20 @@ fn disclosures_toggle() {
 
 #[test]
 fn launch_flags() {
-    let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    assert_eq!(launch_mode(&args(&["cooked"]), false), Some(Mode::Setup));
-    assert_eq!(launch_mode(&args(&["cooked"]), true), None);
+    let launch = |a: &[&str]| match crate::cli::parse(
+        &a.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+    ) {
+        crate::cli::Command::App(launch) => launch,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(launch_mode(&launch(&["cooked"]), false), Some(Mode::Setup));
+    assert_eq!(launch_mode(&launch(&["cooked"]), true), None);
     assert_eq!(
-        launch_mode(&args(&["cooked", "--setup"]), true),
+        launch_mode(&launch(&["cooked", "--setup"]), true),
         Some(Mode::Setup)
     );
     assert_eq!(
-        launch_mode(&args(&["cooked", "--settings"]), true),
+        launch_mode(&launch(&["cooked", "--settings"]), true),
         Some(Mode::Settings)
     );
 }

@@ -19,8 +19,6 @@ use rune_fx::{
     FillAnchor, Fx, FxFrame, FxLayer, FxOptions, FxRenderer, FxSlot, LiquidMetalParams, Shape, rgb,
 };
 
-/// The flag that stops the metal, as the Swift app's.
-pub const REDUCE_MOTION_FLAG: &str = "--reduce-motion";
 /// Off tiles: gunmetal this faint, so the grid reads without competing with the lit tiles.
 const OFF_OPACITY: f32 = 0.06;
 /// The longest step the metal's clock takes in one frame: a frame after a pause doesn't jump.
@@ -187,9 +185,9 @@ pub struct ChromeTiles {
 }
 
 impl ChromeTiles {
-    /// Moving metal, unless `args` has `--reduce-motion` or the system asks for reduced motion.
-    pub fn new(args: &[String]) -> Self {
-        let motion = if args.iter().any(|a| a == REDUCE_MOTION_FLAG) {
+    /// Moving metal, unless `reduce_motion` (`--reduce-motion`) or the system asks for reduced motion.
+    pub fn new(reduce_motion: bool) -> Self {
+        let motion = if reduce_motion {
             Motion::Still
         } else {
             Motion::System {
@@ -423,17 +421,16 @@ mod tests {
 
     #[test]
     fn reduce_motion_flag_stops_the_metal() {
-        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let mut still = ChromeTiles::new(&args(&["cooked", "--reduce-motion"]));
+        let mut still = ChromeTiles::new(true);
         assert!(still.still(0.0));
         assert!(still.still(10.0));
-        let mut system = ChromeTiles::new(&args(&["cooked"]));
+        let mut system = ChromeTiles::new(false);
         assert_eq!(system.still(0.0), system_reduce_motion());
     }
 
     #[test]
     fn system_setting_is_read_again_after_a_second() {
-        let mut tiles = ChromeTiles::new(&[]);
+        let mut tiles = ChromeTiles::new(false);
         tiles.still(5.0);
         tiles.motion = Motion::System {
             reduced: true,

@@ -7,9 +7,11 @@ use cooked_model::accounts::AccountStore;
 use cooked_model::demo_data::{self, Feed};
 use cooked_model::island_model::IslandState;
 use cooked_model::{clock, legacy_defaults};
-#[cfg(feature = "tooling")]
-use rune::OverlayHandle;
-use rune::{App, AppSpec, Cx, El, KeyPolicy, OverlayInput, OverlayOptions, OverlaySpec, el};
+use rune::{
+    App, AppSpec, Cx, El, KeyPolicy, OverlayHandle, OverlayInput, OverlayOptions, OverlaySpec, el,
+};
+
+use crate::cli::Launch;
 
 use crate::island::{self, Island, Prefs, shared};
 use crate::mac::defaults::UserDefaults;
@@ -31,21 +33,13 @@ const TICK: Duration = Duration::from_secs(3);
 /// The first tick, soon after the overlay's first frame made Rune's glass view.
 const FIRST_TICK: Duration = Duration::from_millis(500);
 
-/// `--open`: start with the popover open (as the Swift app's flag), for checks and measurements.
-pub const OPEN_FLAG: &str = "--open";
-
-/// `--feed demoCalm|demoPeak|live`: start on that feed, as the Swift app.
-fn launch_feed(args: &[String]) -> Option<Feed> {
-    let i = args.iter().position(|a| a == "--feed")?;
-    Feed::from_raw(args.get(i + 1)?)
-}
-
 /// The app has no window of its own; everything is an overlay.
 fn no_window(_: &(), _: &mut Cx<()>) -> El {
     el()
 }
 
-pub fn run() {
+/// Runs the app as `launch` (`cli`) asks.
+pub fn run(launch: Launch) {
     let mut defaults = UserDefaults::app();
     // Before the model reads its settings, as Swift's `LegacyDefaults.migrate()`.
     let legacy = UserDefaults::suite(legacy_defaults::DOMAIN);
@@ -60,8 +54,7 @@ pub fn run() {
         prefs,
         clock::now(),
     ));
-    let args: Vec<String> = std::env::args().collect();
-    let feed = launch_feed(&args);
+    let feed = launch.feed;
 
     let mut state = Island::new(model.clone());
     state.solid = crate::mac::window::reduce_transparency();
@@ -87,7 +80,7 @@ pub fn run() {
         OverlaySpec::new("Cooked island", island::WINDOW, island::view)
             .options(options)
             .srgb_blend(true)
-            .compositor(ChromeTiles::new(&args)),
+            .compositor(ChromeTiles::new(launch.reduce_motion)),
         state,
     );
     // The popover: its own overlay under the island, sharing the model. Hidden until a tap; it takes the keyboard
@@ -105,8 +98,8 @@ pub fn run() {
             .poll(popover::poll)
             .on_key(popover::on_key)
             .on_focus(popover::on_focus)
-            .compositor(ChromeTiles::new(&args)),
-        Popover::new(model.clone(), &args),
+            .compositor(ChromeTiles::new(launch.reduce_motion)),
+        Popover::new(model.clone(), &launch),
     );
     // Setup and Settings: an ordinary window, created on its first open. New accounts go to the island's reader.
     let sink = island.clone();
@@ -115,7 +108,7 @@ pub fn run() {
         Box::new(move |accounts| {
             sink.update(move |s, _| s.accounts_changed(accounts));
         }),
-        &args,
+        &launch,
     );
     let sink = island.clone();
     settings.on_display_mode = Some(Box::new(move || {
@@ -148,11 +141,11 @@ pub fn run() {
         },
     );
     let handle = island.clone();
-    let open = args.iter().any(|a| a == OPEN_FLAG);
-    let launch = setup::launch_mode(&args, setup_done);
+    let open = launch.open;
+    let mode = setup::launch_mode(&launch, setup_done);
     let menu_opener = opener.clone();
     #[cfg(feature = "tooling")]
-    let probe = probe_after(&args);
+    let probe = launch.probe_item_click.inspect(|_| menu_bar::start_probe());
     let reopened = island.clone();
     island.update(move |s, _| {
         // The loop runs, so AppKit has installed its own reopen handler: Cooked's replaces it.
@@ -180,12 +173,15 @@ pub fn run() {
                 std::thread::sleep(TICK);
             }
         });
+    if let Some(every) = launch.toggle_every {
+        toggle_every(every, island.clone());
+    }
     #[cfg(feature = "tooling")]
     if let Some(after) = probe {
         probe_item_clicks(after, island.clone());
     }
     // First launch, or `--setup`: the Setup window. `--settings`: the Settings window.
-    match launch {
+    match mode {
         Some(setup::Mode::Setup) => opener.open(setup::Mode::Setup, setup::Tab::Accounts),
         Some(setup::Mode::Settings) => opener.open(setup::Mode::Settings, setup::Tab::Accounts),
         None => {}
@@ -193,18 +189,29 @@ pub fn run() {
     app.run();
 }
 
+/// `--toggle-every <s>`: opens and closes the popover every `s` seconds, as Swift's timer, to record the transitions
+/// without clicking.
+fn toggle_every(every: Duration, island: OverlayHandle<Island>) {
+    let _ = std::thread::Builder::new()
+        .name("cooked-toggle".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(every);
+                island.update(|s, _| {
+                    if s.model.borrow().is_open {
+                        s.close_popover();
+                    } else {
+                        s.open_popover();
+                    }
+                });
+            }
+        });
+}
+
 /// `--probe-item-click <s>` (feature `tooling`): the menu bar item's left click, run by the app itself `s` seconds
 /// in and again `s` later (open, then close), with each step's time logged. No mouse event: the click handler runs
 /// from an island turn instead of AppKit's action, so the time is the app's own path from the click to the
 /// popover's first poll, just before its first frame is drawn.
-#[cfg(feature = "tooling")]
-fn probe_after(args: &[String]) -> Option<Duration> {
-    let i = args.iter().position(|a| a == "--probe-item-click")?;
-    let secs: f64 = args.get(i + 1)?.parse().ok()?;
-    menu_bar::start_probe();
-    Some(Duration::from_secs_f64(secs))
-}
-
 #[cfg(feature = "tooling")]
 fn probe_item_clicks(after: Duration, island: OverlayHandle<Island>) {
     struct NoMenu;
@@ -230,20 +237,4 @@ fn probe_item_clicks(after: Duration, island: OverlayHandle<Island>) {
                 });
             }
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn launch_feed_reads_the_flag() {
-        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert_eq!(
-            launch_feed(&args(&["cooked", "--feed", "demoPeak"])),
-            Some(Feed::DemoPeak)
-        );
-        assert_eq!(launch_feed(&args(&["cooked", "--feed"])), None);
-        assert_eq!(launch_feed(&args(&["cooked"])), None);
-    }
 }

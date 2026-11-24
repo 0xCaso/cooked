@@ -178,7 +178,7 @@ pub struct Popover {
 }
 
 impl Popover {
-    pub fn new(model: Model, args: &[String]) -> Self {
+    pub fn new(model: Model, launch: &crate::cli::Launch) -> Self {
         let mut popover = Self {
             model,
             overlay: None,
@@ -192,11 +192,11 @@ impl Popover {
             expanded: false,
             copied: false,
             copies: 0,
-            reduce_motion_flag: args.iter().any(|a| a == tiles::REDUCE_MOTION_FLAG),
+            reduce_motion_flag: launch.reduce_motion,
             reduce_motion: false,
             solid: false,
             had_keys: false,
-            pinned: args.iter().any(|a| a == crate::app::OPEN_FLAG),
+            pinned: launch.open,
             still_at: None,
             outside: None,
             first_frame: false,
@@ -208,7 +208,7 @@ impl Popover {
     /// Shown at once with the chart stopped at `t`: the headless scenes.
     #[cfg(any(test, feature = "tooling"))]
     pub fn still(model: Model, t: f64) -> Self {
-        let mut popover = Self::new(model, &[]);
+        let mut popover = Self::new(model, &crate::cli::Launch::default());
         popover.still_at = Some(t);
         popover.reduce_motion = true;
         popover.shown = true;
