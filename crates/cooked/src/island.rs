@@ -49,7 +49,7 @@ pub const WINDOW: (f32, f32) = (
 );
 /// The island wave's tiles (spec, "Chrome tiles").
 const WAVE: (usize, usize) = (16, 5);
-const WAVE_MARK: u32 = 1;
+pub(crate) const WAVE_MARK: u32 = 1;
 /// The wave well's width: the mockup's 112, narrower only when a long account name needs the room.
 const WAVE_WIDTH: (f32, f32) = (56.0, 112.0);
 /// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt, as the mockup.
@@ -620,7 +620,7 @@ pub mod scenes {
 
     pub const SCENES: &[&str] = &["island-calm", "island-urgent"];
 
-    fn init() -> Island {
+    pub(crate) fn init() -> Island {
         let prefs: Prefs = Box::<MemoryDefaults>::default();
         Island::new(shared(IslandState::new(
             demo_data::calm(),

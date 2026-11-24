@@ -5,6 +5,8 @@ mod island;
 mod mac;
 mod paths;
 mod popover;
+#[cfg(test)]
+mod readability;
 mod scheduler;
 #[cfg(any(test, feature = "tooling"))]
 mod snaps;
