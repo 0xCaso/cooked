@@ -13,6 +13,7 @@ use rune::{App, AppSpec, Cx, El, KeyPolicy, OverlayInput, OverlayOptions, Overla
 
 use crate::island::{self, Island, Prefs, shared};
 use crate::mac::defaults::UserDefaults;
+use crate::mac::reopen::Reopen;
 use crate::mac::window::Displays;
 #[cfg(feature = "tooling")]
 use crate::menu_bar;
@@ -150,7 +151,10 @@ pub fn run() {
     let menu_opener = opener.clone();
     #[cfg(feature = "tooling")]
     let probe = probe_after(&args);
+    let reopened = island.clone();
     island.update(move |s, _| {
+        // The loop runs, so AppKit has installed its own reopen handler: Cooked's replaces it.
+        s.reopen = Reopen::install(move || reopened.update(|s, _| s.reopen()));
         s.reader = Some(reader);
         s.setup = Some(menu_opener);
         s.overlay = Some(handle);

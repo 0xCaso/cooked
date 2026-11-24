@@ -177,11 +177,18 @@ fn every_scene_is_ours() {
 }
 
 #[test]
-fn pending_login_keeps_the_choice() {
-    let mut login = PendingLogin::default();
+fn kept_login_keeps_the_choice() {
+    let mut login = KeptLogin::default();
     assert!(!login.is_enabled());
     assert_eq!(login.set(true), Ok(()));
     assert!(login.clone().is_enabled());
+}
+
+#[test]
+fn only_the_app_uses_the_real_login_item() {
+    assert!(matches!(Login::default(), Login::Kept(_)));
+    let s = scenes::setup("test-kept-login", Mode::Settings, Tab::General);
+    assert!(matches!(s.model.login, Login::Kept(_)));
 }
 
 #[test]

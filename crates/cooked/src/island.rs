@@ -102,6 +102,8 @@ pub struct Island {
     status_item: Option<StatusItem>,
     /// The display mode the overlay and the item follow now; `None` before the first `sync_display_mode`.
     shown_mode: Option<DisplayMode>,
+    /// The reopen event's handler, while the app runs. `None` in scenes and tests.
+    pub reopen: Option<crate::mac::reopen::Reopen>,
     /// Menu bar mode, and macOS hid the item (a full menu bar): the island shows instead, so Cooked stays in reach.
     item_hidden: bool,
     /// Checks in a row that found the item hidden: it slides in below the menu bar for a moment when added.
@@ -125,6 +127,7 @@ impl Island {
             solid: false,
             status_item: None,
             shown_mode: None,
+            reopen: None,
             item_hidden: false,
             hidden_checks: 0,
         };
@@ -290,6 +293,14 @@ impl Island {
         let anchor = self.popover_anchor();
         if let Some(popover) = &self.popover {
             popover.update(move |p, tx| p.show(anchor, tx));
+        }
+    }
+
+    /// Opening the app again while it runs (Swift `applicationShouldHandleReopen`): the popover opens, under the menu
+    /// bar item in menu bar mode; an open one stays as it is.
+    pub fn reopen(&mut self) {
+        if !self.model.borrow().is_open {
+            self.open_popover();
         }
     }
 
@@ -828,6 +839,17 @@ mod tests {
     fn window_is_the_island_and_its_margin() {
         assert_eq!(ISLAND, (290.0, 40.0));
         assert_eq!(WINDOW, (338.0, 88.0));
+    }
+
+    /// `ReopenTests.reopeningShowsThePopover`.
+    #[test]
+    fn reopening_shows_the_popover() {
+        let mut s = island(Feed::DemoCalm);
+        assert!(!s.model.borrow().is_open);
+        s.reopen();
+        assert!(s.model.borrow().is_open);
+        s.reopen();
+        assert!(s.model.borrow().is_open, "a second reopen leaves it open");
     }
 
     #[test]

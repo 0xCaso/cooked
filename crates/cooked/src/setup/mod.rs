@@ -26,6 +26,7 @@ use cooked_model::status_line_setup::StatusLineSetup;
 use rune::{App, AppHandle, AppSpec, Chrome, TextEdit, Tx, WindowOptions, WindowSpec};
 
 use crate::island::{self, Prefs};
+use crate::mac::login::MainAppLogin;
 use crate::theme::PlexFont;
 
 pub use views::view;
@@ -38,14 +39,14 @@ pub const TITLEBAR: f32 = 40.0;
 pub const SETUP_FLAG: &str = "--setup";
 pub const SETTINGS_FLAG: &str = "--settings";
 
-/// Open at login until Task 17 registers `SMAppService.mainApp`: the toggle's choice, kept for this run only.
-/// Task 17 replaces this type with the real login item; `SetupModel` sees only `LoginItem`.
+/// Open at login kept for this run only: the login item of tests, scenes and the blank window, which must never
+/// register the real one.
 #[derive(Debug, Clone, Default)]
-pub struct PendingLogin {
+pub struct KeptLogin {
     on: Rc<Cell<bool>>,
 }
 
-impl LoginItem for PendingLogin {
+impl LoginItem for KeptLogin {
     fn is_enabled(&self) -> bool {
         self.on.get()
     }
@@ -56,8 +57,36 @@ impl LoginItem for PendingLogin {
     }
 }
 
-/// The login item the window uses.
-pub type Login = PendingLogin;
+/// The login item the window uses: `SMAppService.mainApp` in the app (`for_app`), a kept choice everywhere else
+/// (the default).
+#[derive(Debug, Clone)]
+pub enum Login {
+    MainApp(MainAppLogin),
+    Kept(KeptLogin),
+}
+
+impl Default for Login {
+    fn default() -> Self {
+        Self::Kept(KeptLogin::default())
+    }
+}
+
+impl LoginItem for Login {
+    fn is_enabled(&self) -> bool {
+        match self {
+            Self::MainApp(l) => l.is_enabled(),
+            Self::Kept(l) => l.is_enabled(),
+        }
+    }
+
+    fn set(&mut self, on: bool) -> Result<(), String> {
+        match self {
+            Self::MainApp(l) => l.set(on),
+            Self::Kept(l) => l.set(on),
+        }
+    }
+}
+
 pub type Model = SetupModel<Prefs, Login>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,9 +181,9 @@ impl Setup {
     }
 
     /// The app's window: `UserDefaults`, the real home and Cooked's real folder (the one the reader's bridge
-    /// reads), the pending login item.
+    /// reads), the app's login item.
     pub fn for_app(island: island::Model, on_accounts: OnAccounts, args: &[String]) -> Self {
-        let login = Login::default();
+        let login = Login::MainApp(MainAppLogin);
         let make: MakeModel = Box::new(move || {
             let home = std::env::var("HOME").unwrap_or_default();
             let defaults: Prefs = Box::new(crate::mac::defaults::UserDefaults::app());
