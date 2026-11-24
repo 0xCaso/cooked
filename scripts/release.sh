@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds the zip for a GitHub release: build/Cooked-<version>.zip and its SHA-256.
-# Signed ad hoc: no Developer ID, so macOS asks for "Open Anyway".
+# Builds the zip for a GitHub release: build/Cooked-<version>.zip and its SHA-256, from a perf build (bundle.sh).
+# Signed ad hoc: no Developer ID, so macOS asks for "Open Anyway". Nothing is uploaded: the GitHub release is made
+# by hand from the zip.
 # Usage: scripts/release.sh <version>   (e.g. 0.1.0)
 set -euo pipefail
 
@@ -11,7 +12,7 @@ app="$root/build/Cooked.app"
 zip="$root/build/Cooked-$version.zip"
 
 cd "$root"
-"$root/scripts/bundle.sh" release
+"$root/scripts/bundle.sh"
 
 # The version goes in the bundle only; the build number counts the commits, so each release is higher.
 plist="$app/Contents/Info.plist"

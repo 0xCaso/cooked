@@ -75,25 +75,33 @@ deletes the bridge script. Then quit Cooked (right-click the island) and move it
 
 ## Build and run
 
-Needs macOS 26 or later and Xcode 26 or later (Swift 6.2+).
+Needs macOS 26 or later on Apple silicon, Rust (stable, edition 2024) and Xcode 26 or later (`actool` for the icon).
 
 ```sh
-scripts/run.sh                 # builds in debug, creates build/Cooked.app and launches it
-scripts/run.sh release         # the same in release
-scripts/install.sh             # release build installed as /Applications/Cooked.app, then launched
+scripts/run.sh                 # builds, creates build/Cooked.app and launches it
+scripts/install.sh             # installed as /Applications/Cooked.app, then launched
 scripts/release.sh 0.1.0       # build/Cooked-0.1.0.zip for a GitHub release, and its SHA-256
-swift test                     # tests
+cargo test --profile perf -p cooked -p cooked-model   # tests
 ```
+
+Every build uses the Cargo `perf` profile (`target/perf/`): optimised, non-incremental, no debug info.
+`COOKED_FEATURES=tooling scripts/bundle.sh` builds Rune's agent tooling (`--snap`, `--tree`) into the app, for checks.
+`scripts/install.sh --no-launch` installs without opening the app; `COOKED_INSTALL_DIR=<dir>` installs into another
+folder and quits only a copy running from there. The installed app keeps its settings (`com.0xcaso.Cooked`).
 
 `scripts/run.sh` quits the copy that is already open before it launches the new one. The app has no Dock icon: to
 quit it, right-click the island → "Quit Cooked", or run `pkill -x Cooked`.
 
-For checks from the terminal:
-- `Cooked --limits` prints every account's limits and the notices as the app reads them.
-- `Cooked --snapshots <dir>` renders the island, the popover and every notice from demo data to PNG; add `--live` for
-  the live data.
-- `Cooked --feed demoCalm|demoPeak|live [--open]` starts on that feed (and opens the popover).
-- `Cooked --statusline status|connect|disconnect` shows or changes the status line bridge of each Claude account.
+A bare binary (`target/perf/cooked`) never touches the installed app's settings and files: it uses the suite
+`com.0xcaso.Cooked.dev` and `~/Library/Application Support/Cooked.dev`. `COOKED_SUITE=<suite>` and
+`COOKED_DATA_DIR=<dir>` choose others, also inside the bundle.
+
+For checks from the terminal (`Cooked.app/Contents/MacOS/Cooked` or `target/perf/cooked`):
+- `--limits` prints every account's limits and the notices as the app reads them.
+- `--statusline status|connect|disconnect` shows or changes the status line bridge of each Claude account.
+- `--feed demoCalm|demoPeak|live [--open]` starts on that feed (and opens the popover).
+- `--setup`, `--settings` open that window at launch; `--reduce-motion` keeps the metal still.
+- `--toggle-every <s>` opens and closes the popover every `s` seconds, to record the transitions.
 
 Design rules: `design/DESIGN.md`.
 
@@ -102,7 +110,7 @@ Design rules: `design/DESIGN.md`.
 - `Package.swift`: SwiftPM package, one executable and the tests.
 - `Sources/Cooked/`: `CookedApp` (launch, no Dock), `IslandPanel` (borderless window under the menu bar, click-through, drag), `IslandPlacement` and `PositionStore` (where the window goes), `Views/` (island, popover, surfaces, motion), `Dots/` (the dot-matrix charts), `Model/` (usage snapshot, session file readers, status line bridge, notices, live mapping, demo data), `Style/` (palette, type, contrast).
 - `Resources/Info.plist`: `LSUIElement` for the app with no Dock icon.
-- `scripts/`: `bundle.sh` (builds the .app), `run.sh` (bundle + launch), `install.sh` (release into /Applications), `release.sh` (the release zip).
+- `scripts/`: `bundle.sh` (builds the .app), `run.sh` (bundle + launch), `install.sh` (perf build into /Applications), `release.sh` (the release zip).
 
 ## License
 

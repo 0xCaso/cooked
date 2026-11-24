@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Builds Cooked.app in build/ and launches it (closing any copy already running).
-# Usage: scripts/run.sh [debug|release]   (default: debug)
+# Usage: scripts/run.sh
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/build/Cooked.app"
-"$root/scripts/bundle.sh" "${1:-debug}"
+"$root/scripts/bundle.sh"
 
 # UsageIsland: the executable before the rename to Cooked.
 pkill -x Cooked 2>/dev/null || true
