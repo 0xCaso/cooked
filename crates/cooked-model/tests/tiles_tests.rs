@@ -9,7 +9,7 @@ use cooked_model::histogram_clock::ChartRange;
 use cooked_model::island_model::IslandState;
 use cooked_model::notice::Notice;
 use cooked_model::tide::TideScale;
-use cooked_model::tiles::{TileLevel, bar_grid, histogram_grid, wave_grid};
+use cooked_model::tiles::{TileLevel, bar_grid, histogram_grid, island_wave_grid, wave_grid};
 use cooked_model::transcript_log::TranscriptLog;
 use cooked_model::usage_snapshot::UsageSnapshot;
 
@@ -206,5 +206,44 @@ fn no_log_roots_gives_dash_and_notice() {
             TileLevel::Red
         ),
         0
+    );
+}
+
+/// The mockup's island wave: every column lights 3 or 5 of 5 rows, mirrored, and it sways with `t`.
+#[test]
+fn island_wave_sways_three_to_five_rows_like_the_mockup() {
+    for t in [0.0, 0.4, 1.7, 3.0] {
+        let grid = island_wave_grid(t, false, 16, 5);
+        assert_eq!(grid.len(), 80);
+        for c in 0..16 {
+            let lit: Vec<bool> = (0..5).map(|r| grid[r * 16 + c] == TileLevel::Lit).collect();
+            let n = lit.iter().filter(|&&l| l).count();
+            assert!(n == 3 || n == 5, "column {c} at {t}: {n} rows");
+            assert_eq!(
+                lit,
+                lit.iter().rev().copied().collect::<Vec<_>>(),
+                "mirrored"
+            );
+        }
+        assert!(!grid.contains(&TileLevel::Red));
+    }
+    // column 0 at t = 0: half-height 1.2, three rows; and the columns differ
+    let calm = island_wave_grid(0.0, false, 16, 5);
+    let lit =
+        |g: &[TileLevel], c: usize| (0..5).filter(|r| g[r * 16 + c] != TileLevel::Off).count();
+    assert_eq!(lit(&calm, 0), 3);
+    assert!((0..16).any(|c| lit(&calm, c) == 5));
+    assert_ne!(calm, island_wave_grid(0.8, false, 16, 5));
+    let urgent = island_wave_grid(0.0, true, 16, 5);
+    assert!(urgent.iter().all(|&l| l != TileLevel::Lit));
+    assert_eq!(
+        urgent
+            .iter()
+            .map(|&l| l == TileLevel::Off)
+            .collect::<Vec<_>>(),
+        calm.iter()
+            .map(|&l| l == TileLevel::Off)
+            .collect::<Vec<_>>(),
+        "same shape calm and urgent"
     );
 }

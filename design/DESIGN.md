@@ -31,7 +31,7 @@ warning light only when needed.
 
 | Component | What it shows | Rule |
 |---|---|---|
-| Calm island | active account, 5h %, pace | one row, 240 px at most |
+| Calm island | active account, 5h %, pace | one row, 240 px at most (Rune island: 290 pt, as the 2026-11-24 mockup) |
 | Urgent island | the calm island, 5h % and hairline red | same size as calm; details only in the popover |
 | Histogram (popover) | tokens/min for the last 60 min, the alert threshold (p99) | monochrome columns; red only above the threshold; small idle drops keep it moving, never into the threshold row |
 | Notice card (popover) | what is missing, one sentence, and its one fix | one at a time, at the top; title in emphasis, body in ink2, both wrap; one primary button at most; the missing number shows "—" |
