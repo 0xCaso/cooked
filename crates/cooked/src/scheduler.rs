@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 use cooked_model::accounts::ConnectedAccount;
@@ -18,6 +17,10 @@ use crate::paths;
 
 /// The wait after each reading.
 pub const INTERVAL: Duration = Duration::from_secs(5);
+/// How long Quit waits for the reader to stop. A waiting reader stops at once; one in the middle of a reading (the
+/// first launch reads 14 days) is left behind: the process ends under it, as Swift's `terminate` did, and its cache
+/// writes are atomic, so nothing is left half-written.
+pub const STOP_GRACE: Duration = Duration::from_millis(250);
 
 /// What the UI asks of the reader thread.
 #[derive(Debug, Clone, PartialEq)]
@@ -119,7 +122,8 @@ impl Ticker for ChannelTicker {
 /// The UI's side of the reader thread. Dropping it stops the thread after its current reading.
 pub struct Control {
     tx: Sender<Command>,
-    thread: Option<JoinHandle<()>>,
+    /// Closed when the thread ends.
+    done: Receiver<()>,
 }
 
 impl Control {
@@ -131,12 +135,10 @@ impl Control {
         let _ = self.tx.send(Command::Accounts(accounts));
     }
 
-    /// Stops the thread and waits for it: quitting lets the reading in progress finish its cache writes.
-    pub fn stop(mut self) {
+    /// Stops the thread, waiting for it at most `STOP_GRACE`: Quit never waits for a long reading.
+    pub fn stop(self) {
         let _ = self.tx.send(Command::Stop);
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
+        let _ = self.done.recv_timeout(STOP_GRACE);
     }
 }
 
@@ -151,11 +153,15 @@ where
     R: Reader + Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
-    let thread = std::thread::Builder::new()
+    let (done_tx, done) = mpsc::channel::<()>();
+    let _ = std::thread::Builder::new()
         .name("cooked-reader".into())
-        .spawn(move || run(&mut reader, &mut ChannelTicker(rx), live, &mut push))
-        .ok();
-    Control { tx, thread }
+        .spawn(move || {
+            // dropped when the loop ends, or on a panic: `stop` stops waiting
+            let _done = done_tx;
+            run(&mut reader, &mut ChannelTicker(rx), live, &mut push);
+        });
+    Control { tx, done }
 }
 
 #[cfg(test)]
@@ -279,6 +285,39 @@ mod tests {
         run(&mut reader, &mut ticker, true, &mut |_| {});
         assert_eq!(reader.accounts, vec![accounts]);
         assert_eq!(reader.reads, vec![0.0, 3.0, 8.0]);
+    }
+
+    /// A reading that takes `hold` (the first launch's 14 days).
+    struct SlowReader {
+        hold: Duration,
+    }
+
+    impl Reader for SlowReader {
+        fn read(&mut self, now: f64) -> Reading {
+            std::thread::sleep(self.hold);
+            reading((now / 60.0) as i64)
+        }
+
+        fn set_accounts(&mut self, _: Vec<ConnectedAccount>) {}
+    }
+
+    #[test]
+    fn quit_does_not_wait_for_a_long_reading() {
+        let (started_tx, started) = mpsc::channel();
+        let control = spawn(
+            SlowReader {
+                hold: Duration::from_secs(5),
+            },
+            true,
+            move |_| {
+                let _ = started_tx.send(());
+            },
+        );
+        // the first reading is under way (nothing pushed yet)
+        assert!(started.recv_timeout(Duration::from_millis(200)).is_err());
+        let t = std::time::Instant::now();
+        control.stop();
+        assert!(t.elapsed() < Duration::from_secs(1), "{:?}", t.elapsed());
     }
 
     #[test]
