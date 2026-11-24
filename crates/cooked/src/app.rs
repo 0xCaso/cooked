@@ -95,6 +95,9 @@ pub fn run(launch: Launch) {
             })
             .srgb_blend(true)
             .animate_reveal()
+            // Closed, the popover holds no window, drawables or effect renderer (~20 MB); a show makes them again,
+            // its first frame ~20 ms later than with them kept (Task 21).
+            .release_gpu_when_hidden()
             .poll(popover::poll)
             .on_key(popover::on_key)
             .on_focus(popover::on_focus)
