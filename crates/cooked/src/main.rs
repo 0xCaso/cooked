@@ -2,6 +2,7 @@
 
 mod app;
 mod mac;
+mod paths;
 mod scheduler;
 #[cfg(any(test, feature = "tooling"))]
 mod snaps;
