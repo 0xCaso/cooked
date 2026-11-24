@@ -3,7 +3,7 @@
 //! (16 x 5 chrome tiles) in a well, the active account's 5-hour % left in a well, the account and the rate. In
 //! urgency it keeps its shape: the percentage, the hairline and the wave turn red.
 //!
-//! A tap toggles the popover (Task 13), a drag past 3 pt moves the island and saves `islandPosition` as Swift
+//! A tap toggles the popover (`popover`), a drag past 3 pt moves the island and saves `islandPosition` as Swift
 //! does, a right-click opens the menu (Data, Glass, Show in, Settings…, Quit).
 //!
 //! The overlay is the island plus a transparent `OVERHANG` margin on every side, as Swift's panel was, so the saved
@@ -19,14 +19,25 @@ use rune::{
     Color, Cx, Drag, El, OverlayHandle, OverlayPlacement, Phase, PointerPress, PopupItem,
     PopupMenu, Shadow, SystemMaterial, Tx, el, row, text,
 };
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::mac::window::{self as mac, Displays};
+use crate::popover::{Anchor, Popover};
 use crate::scheduler;
 use crate::theme::{GlassLook, Motion, Palette, TextStyle, well};
 use crate::tiles::{TileGrid, TileGrids, Wave, tile_slot};
 
 /// The settings store: `UserDefaults` in the app, `MemoryDefaults` in scenes and tests.
 pub type Prefs = Box<dyn DefaultsStore>;
+/// The one model the island and the popover share. Both overlays run on the event thread, each callback on its
+/// own, so a borrow never outlives the callback that takes it.
+pub type Model = Rc<RefCell<IslandState<Prefs>>>;
+
+/// A model to share, from its state.
+pub fn shared(model: IslandState<Prefs>) -> Model {
+    Rc::new(RefCell::new(model))
+}
 
 /// The capsule, points: the approved mockup's 290 x 40 (DESIGN.md's Rune island exception, decision
 /// 2026-11-24-rune-island-width).
@@ -62,11 +73,13 @@ pub enum MenuAction {
 
 /// The island overlay's state.
 pub struct Island {
-    pub model: IslandState<Prefs>,
+    pub model: Model,
     /// Set once the overlay exists; `set_live` / `set_accounts` follow the feed and the accounts.
     pub reader: Option<scheduler::Control>,
     /// The overlay itself, to move it. `None` in scenes.
     pub overlay: Option<OverlayHandle<Island>>,
+    /// The popover's overlay, which a tap opens and closes. `None` in scenes.
+    pub popover: Option<OverlayHandle<Popover>>,
     /// The wave for the current rate and urgency.
     wave: TileGrid,
     /// The overlay's frame in AppKit screen coordinates (margin included), as Swift's panel frame.
@@ -80,12 +93,13 @@ pub struct Island {
 }
 
 impl Island {
-    pub fn new(model: IslandState<Prefs>) -> Self {
+    pub fn new(model: Model) -> Self {
         let size = WINDOW;
         let mut island = Self {
             model,
             reader: None,
             overlay: None,
+            popover: None,
             wave: TileGrid::new(0, 0, Vec::new()),
             frame: Rect::new(0.0, 0.0, size.0 as f64, size.1 as f64),
             displays: None,
@@ -99,18 +113,19 @@ impl Island {
 
     /// Switches the feed; the reader reads only while it is live.
     pub fn select_feed(&mut self, feed: Feed) {
-        self.model.select(feed);
+        self.model.borrow_mut().select(feed);
         if let Some(reader) = &self.reader {
             reader.set_live(feed == Feed::Live);
         }
         self.refresh_wave();
+        self.sync_popover();
     }
 
     /// The wave for the model's urgency; it sways in the compositor (the mockup's formula).
     pub fn refresh_wave(&mut self) {
         let (cols, rows) = WAVE;
         let wave = Wave {
-            urgent: self.model.snapshot.is_urgent(),
+            urgent: self.model.borrow().snapshot.is_urgent(),
         };
         // the mockup rounds tiles at 0.28 of their short side
         self.wave = TileGrid::wave(cols, rows, wave).spacing(WAVE_GAP, 0.95);
@@ -119,29 +134,86 @@ impl Island {
     /// The connected accounts changed (Setup, Settings): the reader reads again at once with a new source.
     #[expect(dead_code, reason = "the Setup window (Task 15) calls it")]
     pub fn accounts_changed(&mut self, accounts: Vec<cooked_model::accounts::ConnectedAccount>) {
-        self.model.accounts_changed();
+        self.model.borrow_mut().accounts_changed();
         if let Some(reader) = &self.reader {
             reader.set_accounts(accounts);
         }
     }
 
-    /// A tap: opens or closes the popover. The popover itself is Task 13; for now only the model's flag moves.
+    /// A tap: opens or closes the popover. A click that just closed it from outside (the island is outside the
+    /// popover) leaves it closed.
     pub fn toggle_popover(&mut self) {
-        if self.model.is_open {
-            self.model.close();
-        } else {
-            self.model.open();
+        let (open, just_closed) = {
+            let m = self.model.borrow();
+            (
+                m.is_open,
+                m.closed_by_this_click(cooked_model::clock::now()),
+            )
+        };
+        if open {
+            self.close_popover();
+        } else if !just_closed {
+            self.open_popover();
         }
+    }
+
+    /// Opens the popover under the capsule.
+    pub fn open_popover(&mut self) {
+        self.model.borrow_mut().open();
+        let anchor = self.popover_anchor();
+        if let Some(popover) = &self.popover {
+            popover.update(move |p, tx| p.show(anchor, tx));
+        }
+    }
+
+    /// Closes the popover (a tap, a drag); Esc and clicks outside close it from its own side.
+    pub fn close_popover(&mut self) {
+        let was_open = std::mem::replace(&mut self.model.borrow_mut().is_open, false);
+        if let Some(popover) = self.popover.as_ref().filter(|_| was_open) {
+            popover.update(|p, _| p.hide());
+        }
+    }
+
+    /// The model changed under an open popover: it draws again with it.
+    pub fn sync_popover(&self) {
+        if let Some(popover) = &self.popover {
+            popover.update_if(|p, _| p.refresh());
+        }
+    }
+
+    /// Where the popover hangs: the capsule, where its window really is, and the display that holds its centre.
+    fn popover_anchor(&self) -> Option<Anchor> {
+        let displays = self.displays.as_ref()?;
+        let frame = self
+            .overlay
+            .as_ref()
+            .and_then(|o| o.window_number())
+            .and_then(mac::window_frame)
+            .unwrap_or(self.frame);
+        let capsule = frame.inset_by(OVERHANG, OVERHANG);
+        let centre = Point::new(capsule.mid_x(), capsule.mid_y());
+        let screen =
+            placement::screen_containing(centre, &displays.screens).unwrap_or(&displays.main);
+        Some(Anchor {
+            capsule,
+            visible: screen.visible_frame,
+            primary_height: displays.primary_height,
+        })
     }
 
     /// Every 3 s (`IslandRoot`'s task): the calm demo's next rate, the displays, Reduce Transparency and the
     /// glass style Rune's views may have lost. True when the view must change.
     pub fn tick(&mut self) -> bool {
-        let rate = self.model.rate_now;
-        self.model.tick_rate();
-        let mut changed = rate != self.model.rate_now;
+        let changed_rate = {
+            let mut m = self.model.borrow_mut();
+            let rate = m.rate_now;
+            m.tick_rate();
+            rate != m.rate_now
+        };
+        let mut changed = changed_rate;
         if changed {
             self.refresh_wave();
+            self.sync_popover();
         }
         let solid = mac::reduce_transparency();
         changed |= solid != self.solid;
@@ -158,7 +230,7 @@ impl Island {
     /// Where the island was left, on the same display; the main display's top centre the first time or when that
     /// display is gone (Review Focus 4).
     pub fn restore_position(&mut self, displays: Displays) {
-        let saved = position_store::load(self.model.defaults());
+        let saved = position_store::load(self.model.borrow().defaults());
         let size = Size::new(WINDOW.0 as f64, WINDOW.1 as f64);
         let frame =
             placement::restored_frame(size, saved.as_ref(), &displays.screens, &displays.main);
@@ -188,7 +260,7 @@ impl Island {
             return;
         }
         if let Some(number) = self.overlay.as_ref().and_then(|o| o.window_number()) {
-            mac::set_glass_style(number, self.model.glass_style().native_style());
+            mac::set_glass_style(number, self.model.borrow().glass_style().native_style());
         }
     }
 
@@ -211,7 +283,7 @@ impl Island {
                 }
                 if !self.dragging {
                     self.dragging = true;
-                    self.model.close();
+                    self.close_popover();
                 }
                 let screens = self
                     .displays
@@ -244,14 +316,15 @@ impl Island {
         let screen =
             placement::screen_containing(centre, &displays.screens).unwrap_or(&displays.main);
         let position = saved_position(self.frame, screen);
-        position_store::save(&position, self.model.defaults_mut());
+        position_store::save(&position, self.model.borrow_mut().defaults_mut());
     }
 
     /// The right-click menu, as `IslandRoot`'s context menu and `MenuBarItem.showMenu`.
     pub fn menu(&self) -> PopupMenu {
-        let feed = self.model.feed();
-        let glass = self.model.glass_style();
-        let mode = self.model.display_mode();
+        let (feed, glass, mode) = {
+            let m = self.model.borrow();
+            (m.feed(), m.glass_style(), m.display_mode())
+        };
         PopupMenu::new()
             .item(PopupItem::new("data", "Data").enabled(false))
             .items(
@@ -288,14 +361,14 @@ impl Island {
             }
             "glass" => {
                 if let Some(style) = GlassStyle::from_raw(value) {
-                    self.model.set_glass_style(style);
+                    self.model.borrow_mut().set_glass_style(style);
                     self.apply_glass_style();
                 }
             }
             // Saved now; the island hides for the status item in Task 16.
             "show" => {
                 if let Some(mode) = DisplayMode::from_raw(value) {
-                    self.model.set_display_mode(mode);
+                    self.model.borrow_mut().set_display_mode(mode);
                 }
             }
             // The Settings window is Task 15.
@@ -385,8 +458,10 @@ pub fn view(s: &Island, _: &mut Cx<Island>) -> El {
 fn capsule(s: &Island) -> El {
     let (w, h) = ISLAND;
     let radius = h / 2.0;
-    let style = s.model.glass_style();
-    let urgent = s.model.snapshot.is_urgent();
+    let (style, urgent) = {
+        let m = s.model.borrow();
+        (m.glass_style(), m.snapshot.is_urgent())
+    };
     let ring = if urgent {
         Some(Palette::red().alpha(0.7))
     } else if s.solid {
@@ -450,7 +525,8 @@ fn capsule(s: &Island) -> El {
 
 /// The row: wave, percentage, account, rate; "Set up Cooked" with no accounts.
 fn content(s: &Island) -> El {
-    let snapshot = &s.model.snapshot;
+    let m = s.model.borrow();
+    let snapshot = &m.snapshot;
     let urgent = snapshot.is_urgent();
     // The rate sits on the glass: ink3 there falls to 4.2:1 over a white window, so one step brighter.
     let rate_ink = if s.solid {
@@ -478,7 +554,7 @@ fn content(s: &Island) -> El {
         .gap(8.0)
         .center_y()
         .child(wave);
-    if s.model.shows_setup() {
+    if m.shows_setup() {
         return line.child(
             text("Set up Cooked")
                 .key("setup")
@@ -490,7 +566,7 @@ fn content(s: &Island) -> El {
     // Calm keeps the well too: calm → urgent changes only color, never shape (DESIGN.md).
     let percent = well(
         row().key("percent").h(24.0).px(7.0).center_y().child(
-            text(s.model.five_hour_label())
+            text(m.five_hour_label())
                 .key("percent-text")
                 .font(TextStyle::NumberEmphasis.font())
                 .color(if urgent {
@@ -515,7 +591,7 @@ fn content(s: &Island) -> El {
         row()
             .key("rate-row")
             .child(
-                text(token_format::short(s.model.rate_now as f64))
+                text(token_format::short(m.rate_now as f64))
                     .key("rate")
                     .font(TextStyle::Number.font())
                     .color(rate_ink),
@@ -546,12 +622,12 @@ pub mod scenes {
 
     fn init() -> Island {
         let prefs: Prefs = Box::<MemoryDefaults>::default();
-        Island::new(IslandState::new(
+        Island::new(shared(IslandState::new(
             demo_data::calm(),
             Some(Feed::DemoCalm),
             prefs,
             0.0,
-        ))
+        )))
     }
 
     pub fn app() -> App<Island> {
@@ -588,12 +664,12 @@ mod tests {
 
     fn scenes_init() -> Island {
         let prefs: Prefs = Box::<MemoryDefaults>::default();
-        Island::new(IslandState::new(
+        Island::new(shared(IslandState::new(
             demo_data::calm(),
             Some(Feed::DemoCalm),
             prefs,
             0.0,
-        ))
+        )))
     }
 
     fn screen(id: u32, x: f64, w: f64, h: f64) -> ScreenInfo {
@@ -614,21 +690,29 @@ mod tests {
     fn tap_toggles_the_popover() {
         let mut s = island(Feed::DemoCalm);
         s.toggle_popover();
-        assert!(s.model.is_open);
+        assert!(s.model.borrow().is_open);
         s.toggle_popover();
-        assert!(!s.model.is_open);
+        assert!(!s.model.borrow().is_open);
+        // a click outside closed it this instant: the same click on the island doesn't open it again
+        s.toggle_popover();
+        s.model
+            .borrow_mut()
+            .dismiss_popover(DismissReason::ClickOutside, cooked_model::clock::now());
+        s.toggle_popover();
+        assert!(!s.model.borrow().is_open);
     }
 
     /// `MotionTests.escapeAndOutsideClickClose`.
     #[test]
     fn escape_and_outside_click_close() {
-        let mut s = island(Feed::DemoCalm);
-        s.model.open();
-        s.model.dismiss_popover(DismissReason::Escape, 0.0);
-        assert!(!s.model.is_open);
-        s.model.open();
-        s.model.dismiss_popover(DismissReason::ClickOutside, 0.0);
-        assert!(!s.model.is_open);
+        let s = island(Feed::DemoCalm);
+        let mut m = s.model.borrow_mut();
+        m.open();
+        m.dismiss_popover(DismissReason::Escape, 0.0);
+        assert!(!m.is_open);
+        m.open();
+        m.dismiss_popover(DismissReason::ClickOutside, 0.0);
+        assert!(!m.is_open);
     }
 
     #[test]
@@ -658,18 +742,18 @@ mod tests {
     fn menu_picks_change_the_settings() {
         let mut s = island(Feed::DemoCalm);
         assert_eq!(s.menu_pick("feed:demoPeak"), MenuAction::None);
-        assert_eq!(s.model.feed(), Feed::DemoPeak);
+        assert_eq!(s.model.borrow().feed(), Feed::DemoPeak);
         assert!(s.wave.wave.unwrap().urgent);
         s.menu_pick("glass:clear");
-        assert_eq!(s.model.glass_style(), GlassStyle::Clear);
+        assert_eq!(s.model.borrow().glass_style(), GlassStyle::Clear);
         s.menu_pick("show:menuBar");
-        assert_eq!(s.model.display_mode(), DisplayMode::MenuBar);
+        assert_eq!(s.model.borrow().display_mode(), DisplayMode::MenuBar);
         assert_eq!(s.menu_pick("settings"), MenuAction::None);
         assert_eq!(s.menu_pick("quit"), MenuAction::Quit);
         assert_eq!(s.menu_pick("nonsense"), MenuAction::None);
         // kept across launches
         let prefs = std::mem::replace(
-            &mut s.model,
+            &mut *s.model.borrow_mut(),
             IslandState::new(
                 demo_data::calm(),
                 None,

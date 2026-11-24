@@ -10,7 +10,7 @@
 )]
 
 use cooked_model::island_model::GlassStyle;
-use rune::{Color, Curve, Easing, Family, Shadow, Spring};
+use rune::{Color, Curve, Easing, Family, Shadow, Spring, SpringPair, Transition, Vec2};
 
 /// An sRGB color as 0...1 components. Shared by the palette and the contrast check.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -234,6 +234,27 @@ pub fn well(el: rune::El, radius: f32) -> rune::El {
         .border(0.5, Color::WHITE.alpha(0.07))
 }
 
+/// A raised card on the popover (mockup B `.pop.tiles .card`): `#1a1b1d` → `#141416`, a short drop shadow, a 16%
+/// hairline and a 6% light on the top edge.
+pub fn card(el: rune::El, radius: f32) -> rune::El {
+    el.radius(radius)
+        .fill(Rgb::hex(0x1A1B1D).color())
+        .gradient(Rgb::hex(0x1A1B1D).color(), Rgb::hex(0x141416).color())
+        .box_shadow(Shadow {
+            y: 1.0,
+            blur: 2.0,
+            color: Color::BLACK.alpha(0.5),
+            ..Shadow::default()
+        })
+        .box_shadow(Shadow {
+            y: 1.0,
+            color: Color::WHITE.alpha(0.06),
+            inset: true,
+            ..Shadow::default()
+        })
+        .border(0.5, Color::WHITE.alpha(0.16))
+}
+
 /// hex's springs (`Spring::new(duration, bounce 0)`): no bounce, durations are settle times (mockup `look.html`).
 pub struct Motion;
 
@@ -255,6 +276,20 @@ impl Motion {
     pub const CONTROL: Curve = Curve::Spring(Spring::new(Self::CONTROL_SECONDS, 0.0));
     pub const POPOVER_IN: Curve = Curve::Spring(Spring::new(Self::POPOVER_IN_SECONDS, 0.0));
     pub const POPOVER_OUT: Curve = Curve::tween(Self::POPOVER_OUT_SECONDS, Easing::EASE_OUT);
+
+    /// The popover's entrance and exit: from `scale(.96)` and transparent, about its top centre; out a little
+    /// faster. Under Reduce Motion it shows and goes at once.
+    pub fn popover(reduce_motion: bool) -> Transition {
+        if reduce_motion {
+            return Transition::none();
+        }
+        Transition::scale_anchor(Self::POPOVER_FROM_SCALE, Vec2::new(0.5, 0.0)).springs(
+            SpringPair::new(
+                Spring::new(Self::POPOVER_IN_SECONDS, 0.0),
+                Spring::new(Self::POPOVER_OUT_SECONDS, 0.0),
+            ),
+        )
+    }
 
     /// No animation under Reduce Motion (the system's, or `--reduce-motion`).
     pub fn animation(curve: Curve, reduce_motion: bool) -> Option<Curve> {

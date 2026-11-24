@@ -613,6 +613,7 @@ checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 name = "cooked"
 version = "0.1.0"
 dependencies = [
+ "block2 0.6.2",
  "cooked-model",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
