@@ -29,6 +29,40 @@ pub trait DefaultsStore {
     }
 }
 
+/// A boxed store is a store: the app keeps `UserDefaults` and its scenes and tests a `MemoryDefaults` behind one type.
+impl<T: DefaultsStore + ?Sized> DefaultsStore for Box<T> {
+    fn get_data(&self, key: &str) -> Option<Vec<u8>> {
+        (**self).get_data(key)
+    }
+    fn set_data(&mut self, key: &str, value: Vec<u8>) {
+        (**self).set_data(key, value)
+    }
+    fn get_bool(&self, key: &str) -> bool {
+        (**self).get_bool(key)
+    }
+    fn set_bool(&mut self, key: &str, value: bool) {
+        (**self).set_bool(key, value)
+    }
+    fn get_string(&self, key: &str) -> Option<String> {
+        (**self).get_string(key)
+    }
+    fn set_string(&mut self, key: &str, value: &str) {
+        (**self).set_string(key, value)
+    }
+    fn get_string_array(&self, key: &str) -> Option<Vec<String>> {
+        (**self).get_string_array(key)
+    }
+    fn set_string_array(&mut self, key: &str, value: Vec<String>) {
+        (**self).set_string_array(key, value)
+    }
+    fn remove(&mut self, key: &str) {
+        (**self).remove(key)
+    }
+    fn get_value(&self, key: &str) -> Option<DefaultsValue> {
+        (**self).get_value(key)
+    }
+}
+
 /// The kinds of value Cooked keeps in its defaults.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DefaultsValue {
