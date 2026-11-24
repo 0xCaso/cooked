@@ -11,7 +11,7 @@
 
 use std::ops::Range;
 
-use cooked_model::tiles::TileLevel;
+use cooked_model::tiles::{self as grids, TileLevel};
 use rune::compose::{Compositor, DeviceKey, Frame};
 use rune::render::KIND_EFFECT;
 use rune::{El, el};
@@ -38,6 +38,16 @@ pub struct TileGrid {
     pub gap: f32,
     /// Tile corner radius, points.
     pub radius: f32,
+    /// A swaying wave instead of fixed cells: its level and whether it is red. The compositor draws it at the
+    /// metal's clock, so it sways with the metal and stands still with it (Reduce Motion).
+    pub wave: Option<Wave>,
+}
+
+/// The island wave's inputs (`cooked_model::tiles::wave_grid`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Wave {
+    pub level: f32,
+    pub urgent: bool,
 }
 
 impl TileGrid {
@@ -50,28 +60,38 @@ impl TileGrid {
             cells,
             gap: 1.0,
             radius: 0.8,
+            wave: None,
         }
     }
 
-    #[cfg_attr(
-        not(any(test, feature = "tooling")),
-        expect(
-            dead_code,
-            reason = "the scenes use it; the island and popover views (Tasks 12-13) will"
-        )
-    )]
+    /// The mirrored wave on `cols` x `rows` tiles, swaying with the metal.
+    pub fn wave(cols: usize, rows: usize, wave: Wave) -> Self {
+        Self {
+            wave: Some(wave),
+            ..Self::new(cols, rows, vec![TileLevel::Off; cols * rows])
+        }
+    }
+
+    /// The cells at the metal's clock `t`: the wave's at `t`, else the fixed ones.
+    fn cells_at(&self, t: f32, out: &mut Vec<TileLevel>) {
+        out.clear();
+        match self.wave {
+            Some(w) => out.extend(grids::wave_grid(t, w.level, w.urgent, self.cols, self.rows)),
+            None => out.extend_from_slice(&self.cells),
+        }
+        out.resize(self.cols * self.rows, TileLevel::Off);
+    }
+
     pub fn spacing(mut self, gap: f32, radius: f32) -> Self {
         self.gap = gap;
         self.radius = radius;
         self
     }
+}
 
-    fn level(&self, c: usize, r: usize) -> TileLevel {
-        self.cells
-            .get(r * self.cols + c)
-            .copied()
-            .unwrap_or_default()
-    }
+/// The level of tile `(c, r)` in row-major `cells` of width `cols`; missing cells are off.
+fn level(cells: &[TileLevel], cols: usize, c: usize, r: usize) -> TileLevel {
+    cells.get(r * cols + c).copied().unwrap_or_default()
 }
 
 /// The state's grids, by the mark their slot carries.
@@ -160,6 +180,8 @@ pub struct ChromeTiles {
     slots: Vec<FxSlot>,
     /// Per slot drawn: its instance and its range of `layers`.
     sites: Vec<(u32, Range<usize>)>,
+    /// One grid's cells at this frame's clock.
+    cells: Vec<TileLevel>,
 }
 
 impl ChromeTiles {
@@ -198,6 +220,7 @@ impl ChromeTiles {
             layers: Vec::new(),
             slots: Vec::new(),
             sites: Vec::new(),
+            cells: Vec::new(),
         }
     }
 
@@ -242,6 +265,7 @@ impl ChromeTiles {
                 continue;
             }
             let slot = FxSlot::default().scale(k).clip(i.clip, i.fade);
+            grid.cells_at(t, &mut self.cells);
             let start = self.layers.len();
             for r in 0..grid.rows {
                 for c in 0..grid.cols {
@@ -252,8 +276,11 @@ impl ChromeTiles {
                         th,
                         grid.radius,
                     );
-                    self.layers
-                        .push(self.metals.layer(grid.level(c, r), shape, t));
+                    self.layers.push(self.metals.layer(
+                        level(&self.cells, grid.cols, c, r),
+                        shape,
+                        t,
+                    ));
                     self.slots.push(slot);
                 }
             }
@@ -373,9 +400,30 @@ mod tests {
                 TileLevel::Lit,
             ],
         );
-        assert_eq!(grid.level(0, 1), TileLevel::Red);
-        assert_eq!(grid.level(1, 0), TileLevel::Off);
-        assert_eq!(grid.level(5, 5), TileLevel::Off);
+        let mut cells = Vec::new();
+        grid.cells_at(0.0, &mut cells);
+        assert_eq!(level(&cells, 2, 0, 1), TileLevel::Red);
+        assert_eq!(level(&cells, 2, 1, 0), TileLevel::Off);
+        assert_eq!(level(&cells, 2, 5, 5), TileLevel::Off);
+    }
+
+    #[test]
+    fn a_wave_sways_with_the_clock() {
+        let grid = TileGrid::wave(
+            16,
+            5,
+            Wave {
+                level: 0.3,
+                urgent: true,
+            },
+        );
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        grid.cells_at(0.0, &mut a);
+        grid.cells_at(0.7, &mut b);
+        assert_eq!(a.len(), 80);
+        assert_ne!(a, b, "moves with t");
+        assert!(a.contains(&TileLevel::Red) && !a.contains(&TileLevel::Lit));
+        assert_eq!(a, grids::wave_grid(0.0, 0.3, true, 16, 5));
     }
 
     #[test]
