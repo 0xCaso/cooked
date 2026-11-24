@@ -8,6 +8,8 @@ license.workspace = true
 rune.workspace = true
 rune-fx.workspace = true
 cooked-model.workspace = true
+# Rune's own wgpu (same version): the tile compositor names texture formats.
+wgpu = { version = "30.0", default-features = false }
 objc2 = { version = "0.6", default-features = false, features = ["std"] }
 objc2-foundation = { version = "0.3", default-features = false, features = [
     "std",
@@ -22,6 +24,11 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
     "NSUserDefaults",
     "NSValue",
 ] }
+
+[dev-dependencies]
+# Tests render scenes headless (`snaps.rs`), which needs Rune's tooling in a perf build.
+rune = { workspace = true, features = ["tooling"] }
+png = "0.18"
 
 [features]
 # Rune's agent tooling (`--snap`, `--tree`) in perf builds, for checks. Off in the shipped app.

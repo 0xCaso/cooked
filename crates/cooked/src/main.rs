@@ -3,7 +3,15 @@
 mod app;
 mod mac;
 mod scheduler;
+#[cfg(any(test, feature = "tooling"))]
+mod snaps;
+mod tiles;
 
 fn main() {
+    #[cfg(feature = "tooling")]
+    if snaps::wanted(&std::env::args().collect::<Vec<_>>()) {
+        snaps::app().run();
+        return;
+    }
     app::run();
 }
