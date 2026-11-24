@@ -2,12 +2,16 @@
 //! No AppKit here; settings, clipboard and clock come in through traits.
 #![deny(clippy::unwrap_used, clippy::expect_used)]
 
+pub mod account_bar;
 pub mod accounts;
 pub mod clock;
 pub mod codex_log;
 pub mod defaults;
 pub mod demo_data;
+pub mod dot_shading;
 mod files;
+pub mod histogram_clock;
+pub mod island_model;
 pub mod limit_log;
 pub mod live_snapshot;
 pub mod minute_ledger;
@@ -17,6 +21,8 @@ pub mod setup_model;
 pub mod status_file;
 pub mod status_line_bridge;
 pub mod status_line_setup;
+pub mod tide;
+pub mod tiles;
 pub mod token_format;
 pub mod token_log;
 pub mod token_sources;

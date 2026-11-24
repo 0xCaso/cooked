@@ -1,13 +1,20 @@
 //! `ReviewFixTests.swift`: findings of the final review, each pinned by a test. Every case drives AppKit objects
 //! (`IslandModel`, `IslandPanel`, `AppDelegate`), which `cooked-model` does not have: they wait for the tasks that
-//! port those types.
+//! port those types; `IslandModel` is pure state since Task 7.
+
+use cooked_model::defaults::MemoryDefaults;
+use cooked_model::demo_data;
+use cooked_model::island_model::IslandState;
 
 #[test]
-#[ignore = "needs Task 7: IslandModel (chartEpoch, open/close, toggleDemo)"]
 fn chart_epoch_survives_open_close_and_demo() {
-    // Swift: let epoch = model.chartEpoch; model.open(); model.close(); model.toggleDemo(); model.toggleDemo();
-    // #expect(model.chartEpoch == epoch)
-    unimplemented!("port with IslandModel in Task 7");
+    let mut model = IslandState::new(demo_data::calm(), None, MemoryDefaults::default(), 1234.5);
+    let epoch = model.chart_epoch();
+    model.open();
+    model.close();
+    model.toggle_demo();
+    model.toggle_demo();
+    assert_eq!(model.chart_epoch(), epoch);
 }
 
 #[test]
