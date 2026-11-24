@@ -615,10 +615,12 @@ version = "0.1.0"
 dependencies = [
  "cooked-model",
  "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "png 0.18.1",
  "rune",
  "rune-fx",
+ "serde_json",
  "wgpu",
 ]
 
