@@ -1,6 +1,6 @@
 //! Usage per account: a pill per window, counted as what is left. The 5-hour pill opens with the account name, then the
-//! % and "full HH:MM" (red: it runs out before the reset) and the reset time, or "resets HH:MM"; the week pill its % and
-//! reset day. Under each, a 44 x 2 tile bar. Accounts not used in 5 hours fold into one line (DESIGN.md).
+//! % and "full HH:MM" (red: it runs out before the reset) or "resets HH:MM"; the week pill its % and reset day. Under
+//! each, a 44 x 2 tile bar. Accounts not used in 5 hours fold into one line (DESIGN.md).
 
 use cooked_model::tiles::bar_grid;
 use cooked_model::usage_snapshot::{Account, UsageSnapshot};
@@ -49,35 +49,27 @@ pub fn bars(s: &UsageSnapshot) -> Vec<TileGrid> {
         .collect()
 }
 
-/// The 5-hour pill's times, each with its red: "full 23:14" (red) then the reset time "00:20", as Swift does;
-/// "resets 04:40"; or nothing without a percent. Blocked: the reset in red.
-pub fn five_hour_times(a: &Account) -> Vec<(String, bool)> {
+/// The 5-hour pill's times: "full 23:14" (red), "resets 04:40", or nothing without a percent. Blocked: the reset
+/// in red.
+pub fn five_hour_times(a: &Account) -> Option<(String, bool)> {
     if a.is_blocked {
-        return vec![(format!("resets {}", a.five_hour_reset), true)];
+        return Some((format!("resets {}", a.five_hour_reset), true));
     }
     if let Some(full) = &a.full_at {
-        let mut times = vec![(format!("full {full}"), true)];
-        if a.has_percent {
-            times.push((a.five_hour_reset.clone(), false));
-        }
-        return times;
+        return Some((format!("full {full}"), true));
     }
-    if a.has_percent {
-        vec![(format!("resets {}", a.five_hour_reset), false)]
-    } else {
-        Vec::new()
-    }
+    a.has_percent
+        .then(|| (format!("resets {}", a.five_hour_reset), false))
 }
 
-/// The week pill's times: "full HH:MM" (red) alone, the pill is too narrow for the reset too; or "resets Mon".
-pub fn week_times(a: &Account) -> Vec<(String, bool)> {
+/// The week pill's times: "full HH:MM" (red) or "resets Mon".
+pub fn week_times(a: &Account) -> Option<(String, bool)> {
     if let Some(full) = &a.week_full_at {
-        return vec![(format!("full {full}"), true)];
+        return Some((format!("full {full}"), true));
     }
     a.week_reset
-        .iter()
+        .as_ref()
         .map(|r| (format!("resets {r}"), false))
-        .collect()
 }
 
 /// "personal, side": the accounts folded into one line.
@@ -157,21 +149,13 @@ fn pill(key: &'static str, top: El, mark: u32) -> El {
     )
 }
 
-/// A pill's times on its top line, 8 pt apart; none: nothing.
-fn times(times: Vec<(String, bool)>) -> Option<El> {
-    if times.is_empty() {
-        return None;
-    }
-    let mut line = row().key("times").gap(8.0);
-    for (i, (t, red)) in times.into_iter().enumerate() {
-        line = line.child(
-            text(t)
-                .key(format!("time-{i}"))
-                .font(TextStyle::LabelNumber.font())
-                .color(if red { Palette::red() } else { Palette::ink3() }),
-        );
-    }
-    Some(line)
+fn times(key: &'static str, t: Option<(String, bool)>) -> Option<El> {
+    t.map(|(t, red)| {
+        text(t)
+            .key(key)
+            .font(TextStyle::LabelNumber.font())
+            .color(if red { Palette::red() } else { Palette::ink3() })
+    })
 }
 
 fn percent(key: &'static str, left: Option<i64>, red: bool) -> El {
@@ -205,7 +189,7 @@ fn five_hour_pill(a: &Account, mark: u32) -> El {
         .child(name)
         .child(percent("percent", a.five_hour_left_if_known(), fills(a)))
         .child(el().grow(1.0));
-    if let Some(t) = times(five_hour_times(a)) {
+    if let Some(t) = times("times", five_hour_times(a)) {
         top = top.child(t);
     }
     pill("five-hour", top, mark)
@@ -223,7 +207,7 @@ fn week_pill(a: &Account, mark: u32) -> El {
             a.week_full_at.is_some(),
         ))
         .child(el().grow(1.0));
-    if let Some(t) = times(week_times(a)) {
+    if let Some(t) = times("times", week_times(a)) {
         top = top.child(t);
     }
     pill("week", top, mark)
