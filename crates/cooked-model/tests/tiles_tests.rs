@@ -91,6 +91,33 @@ fn rows_lit_from_the_bottom_rounded_to_the_nearest_row() {
     }
 }
 
+/// `PaceTests.stripLightsTheShareLeftAndPutsTheLineAtTimeLeft`, on whole tiles: team on 30/10 at 13:08, 26% left
+/// and 27% of the window to go on 15 columns. The fill is 3.9 columns (the front tile is lit from half a tile) and
+/// the line, an off tile, is at column 4.
+#[test]
+fn bar_lights_the_share_left_and_puts_the_line_at_time_left() {
+    let row = |g: Vec<TileLevel>| g[..15].to_vec();
+    let lit = |c: usize| {
+        if c < 4 {
+            TileLevel::Lit
+        } else {
+            TileLevel::Off
+        }
+    };
+    let g = bar_grid(0.26, Some(0.27), false, 15, 2);
+    assert_eq!(&g[..15], &g[15..], "every row alike");
+    assert_eq!(row(g), (0..15).map(lit).collect::<Vec<_>>());
+    // the line is off even inside the lit part: at column 4 of a strip lit to 7.5
+    let g = row(bar_grid(0.5, Some(0.27), false, 15, 1));
+    assert_eq!(g[4], TileLevel::Off);
+    assert_eq!(count(&g, TileLevel::Lit), 7);
+    // over 100% left and no time left: all lit, no line
+    assert_eq!(
+        count(&bar_grid(1.4, None, false, 15, 1), TileLevel::Lit),
+        15
+    );
+}
+
 #[test]
 fn bar_runs_out_before_reset_turns_the_overspend_red() {
     let g = bar_grid(0.18, Some(0.5), true, 44, 2);

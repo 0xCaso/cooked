@@ -1,6 +1,5 @@
-//! `ReviewFixTests.swift`: findings of the final review, each pinned by a test. Every case drives AppKit objects
-//! (`IslandModel`, `IslandPanel`, `AppDelegate`), which `cooked-model` does not have: they wait for the tasks that
-//! port those types; `IslandModel` is pure state since Task 7.
+//! `ReviewFixTests.swift`: findings of the final review, each pinned by a test. The cases that drove AppKit objects
+//! (`IslandPanel`, `AppDelegate`) live in `crates/cooked` or no longer apply; `IslandModel` is pure state since Task 7.
 
 use cooked_model::defaults::MemoryDefaults;
 use cooked_model::demo_data;
@@ -17,42 +16,15 @@ fn chart_epoch_survives_open_close_and_demo() {
     assert_eq!(model.chart_epoch(), epoch);
 }
 
-#[test]
-#[ignore = "needs Task 12: the island panel's key handling (IslandPanel.keyDown)"]
-fn typing_closes_the_popover() {
-    // Swift: model.open(); panel.keyDown(with: "a" key event); #expect(!model.isOpen)
-    unimplemented!("port with the island view in Task 12");
-}
-
-#[test]
-#[ignore = "needs Task 12: the island drag (IslandPanel.dragBegan/dragStart)"]
-fn each_press_starts_a_fresh_drag() {
-    // Swift: panel.dragBegan(); first = dragStart.origin; setFrameOrigin(300, 300); panel.dragBegan();
-    // #expect(dragStart.origin == (300, 300)); #expect(first != dragStart.origin)
-    unimplemented!("port with the island view in Task 12");
-}
-
-#[test]
-#[ignore = "needs Task 12: the island drag (IslandPanel.dragChanged/dragEnded)"]
-fn hand_back_waits_for_the_drag_to_end() {
-    // Swift: model.open(); dragBegan(); dragChanged(); #expect(!model.isOpen); #expect(isDragging);
-    // dragEnded(); #expect(!isDragging); #expect(dragStart == nil)
-    unimplemented!("port with the island view in Task 12");
-}
-
-#[test]
-#[ignore = "needs Task 12: bundled fonts (AppDelegate.fontsDirectory)"]
-fn fonts_come_from_the_bundle_when_it_has_them() {
-    // Swift: fontsDirectory(resourceURL: res with Fonts/) == res/Fonts; nil or missing → path ends "Resources/Fonts"
-    unimplemented!("port with the fonts in Task 12");
-}
-
-#[test]
-#[ignore = "needs Task 12: the right-click menu (IslandPanel.updateMouseEvents)"]
-fn panel_keeps_the_mouse_while_a_menu_tracks() {
-    // Swift: menu didBeginTracking → updateMouseEvents → #expect(!ignoresMouseEvents); didEndTracking →
-    // #expect(ignoresMouseEvents)
-    unimplemented!("port with the island view in Task 12");
-}
-
+// ReviewFixTests.typingClosesThePopover: `esc_and_any_key_close_it` in `crates/cooked/src/popover/tests.rs` (the
+// popover's own overlay takes the keys, `popover::on_key`).
+// ReviewFixTests.eachPressStartsAFreshDrag: `each_press_starts_a_fresh_drag` in `crates/cooked/src/island.rs`.
+// ReviewFixTests.handBackWaitsForTheDragToEnd: the wait does not apply (Swift handed the keyboard back by reordering
+// the panel being dragged; the popover is now its own overlay); the drag closing the popover and the release ending
+// it: `a_drag_closes_the_popover_and_the_release_ends_it` in `crates/cooked/src/island.rs`.
+// ReviewFixTests.fontsComeFromTheBundleWhenItHasThem: does not apply, the Plex faces are embedded with
+// `include_bytes!` (`font_files_are_the_four_static_faces` in `crates/cooked/src/theme.rs`).
+// ContextMenuTests.panelKeepsTheMouseWhileAMenuTracks: does not apply, Cooked no longer toggles the panel's
+// `ignoresMouseEvents`: Rune's `OverlayInput::Regions` owns it, and the menu tracks in AppKit's own menu window
+// (`tx.popup_menu`, `popUpMenuPositioningItem`).
 // ReopenTests.reopeningShowsThePopover: `reopening_shows_the_popover` in `crates/cooked/src/island.rs` (Task 17).

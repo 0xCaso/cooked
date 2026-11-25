@@ -1,5 +1,5 @@
-//! `IslandModelTests.swift`: the island's state with no AppKit. The panel-size cases measure SwiftUI views and wait
-//! for the island view.
+//! `IslandModelTests.swift`: the island's state with no AppKit. The panel-size cases measure views: they live in
+//! `crates/cooked`.
 
 use cooked_model::defaults::MemoryDefaults;
 use cooked_model::demo_data;
@@ -56,12 +56,9 @@ fn peak_rate_stays_on_tick() {
     assert_eq!(model.rate_now, 184_000);
 }
 
-#[test]
-#[ignore = "needs Task 12: IslandLayout.panelSize measures the SwiftUI island and popover"]
-fn panel_size_holds_open_peak() {
-    // Swift: let size = IslandLayout.panelSize; #expect(size.width == 404 + 2 * 24)
-    // #expect(size.height >= 900 && size.height <= max(IslandLayout.maxPanelHeight, 945))
-}
+// IslandModelTests.panelSizeHoldsOpenPeak: does not apply, Rune has no SwiftUI panel sized to the open peak: the
+// island overlay is a fixed 338 x 88 (`window_is_the_island_and_its_margin` in `crates/cooked/src/island.rs`) and
+// the popover is its own overlay that follows its page's measured height.
 
 // MARK: - IslandHitTestTests
 
@@ -135,12 +132,8 @@ fn tallest_has_the_full_list_and_every_account() {
     );
 }
 
-#[test]
-#[ignore = "needs Task 12: measures the SwiftUI popover with the sources list open and closed"]
-fn the_open_list_makes_the_panel_taller() {
-    // Swift: height(expanded, accounts) = NSHostingView(IslandRoot(model)).fittingSize.height
-    // #expect(height(true, 5) > height(false, 5) + 100); #expect(height(true, 7) > height(true, 5))
-}
+// PanelSizeTests.theOpenListMakesThePanelTaller: `the_open_list_makes_the_page_taller` in
+// `crates/cooked/src/popover/tests.rs`.
 
 // MARK: - Review fixes and live state
 
