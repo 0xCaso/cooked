@@ -41,7 +41,7 @@ pub fn histogram(
     };
     tide.surface(&history.window(range.minutes()), t, still, motion);
     let mut cells = surface_grid(
-        tide.shown_heights(),
+        tide.lit_rows(),
         tide.reaches(),
         tide.threshold_row(),
         COLS,

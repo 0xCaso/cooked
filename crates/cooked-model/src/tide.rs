@@ -393,6 +393,8 @@ pub struct TideHistogram {
     shown_heights: Vec<f64>,
     /// Per column, whether its real value is over the threshold row.
     reaches: Vec<bool>,
+    lit_rows: Vec<f64>,
+    lit_at: Vec<f64>,
 }
 
 impl Default for TideHistogram {
@@ -409,6 +411,9 @@ impl TideHistogram {
     pub const MAX_LIFT: f64 = 0.5;
     /// Rows under the surface over which a body dot's movement fades by e.
     pub const LIFT_DEPTH: f64 = 6.0;
+    /// Seconds a column's lit rows hold after they change: a ripple rocking the surface around half a row would
+    /// otherwise blink its top tile several times a second.
+    pub const TILE_HOLD: f64 = 0.12;
 
     pub fn new() -> Self {
         Self::sized(Self::COLS, Self::ROWS, false)
@@ -434,11 +439,18 @@ impl TideHistogram {
             field: LiquidField::new(cols, rows),
             shown_heights: vec![0.0; cols],
             reaches: vec![false; cols],
+            lit_rows: vec![0.0; cols],
+            lit_at: vec![f64::NEG_INFINITY; cols],
         }
     }
 
     pub fn threshold_row(&self) -> usize {
         self.threshold_row
+    }
+
+    /// Per column, the whole rows its tiles light.
+    pub fn lit_rows(&self) -> &[f64] {
+        &self.lit_rows
     }
 
     pub fn field(&self) -> &LiquidField {
@@ -508,7 +520,8 @@ impl TideHistogram {
             TideScale::targets(&history.values, cols, rows, history.top)
         };
         self.threshold_row = TideScale::threshold_row(rows, history.threshold, history.top);
-        if still || !self.primed {
+        let settled = still || !self.primed;
+        if settled {
             self.water.height = self.target.clone();
             self.water.velocity = vec![0.0; cols];
             self.ripple = Water::new(cols, self.ripple.k, self.ripple.c, self.ripple.d, 0.0);
@@ -534,6 +547,16 @@ impl TideHistogram {
             shown.velocity[c] += self.ripple.velocity[c] * motion.slow * 0.1;
         }
         self.shown_heights.clone_from(&shown.height);
+        for c in 0..cols {
+            let rows = shown.height[c].round();
+            if settled
+                || (rows != self.lit_rows[c]
+                    && !(0.0..Self::TILE_HOLD).contains(&(t - self.lit_at[c])))
+            {
+                self.lit_rows[c] = rows;
+                self.lit_at[c] = t;
+            }
+        }
         self.reaches.clear();
         self.reaches.extend(self.target.iter().map(|t| *t > line));
         shown

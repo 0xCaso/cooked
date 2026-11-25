@@ -425,3 +425,54 @@ fn sized_tide_surface_follows_fine_targets() {
     }
     assert!(moved, "ripples move the surface");
 }
+
+/// The chrome tiles light whole rows: a ripple that rocks a column's surface around half a row must not blink its top
+/// tile on and off (G11, "lo sfarfallio ... nel bordo del chart"). Waves still move the tiles, only slower.
+#[test]
+fn lively_surface_tiles_do_not_blink() {
+    let h = history(
+        (0..10)
+            .map(|i| 30000.0 + 8000.0 * (i as f64 * 0.7).sin())
+            .collect(),
+    );
+    let mut tide = TideHistogram::sized(72, 26, true);
+    let mut last: Vec<f64> = Vec::new();
+    let mut changed_at = vec![i64::MIN / 2; 72];
+    let (mut changes, mut blinks) = (0usize, 0usize);
+    let seconds = 60;
+    for frame in 0..60 * seconds {
+        tide.surface(&h, frame as f64 / 60.0, false, Motion::LIVELY);
+        let rows = tide.lit_rows().to_vec();
+        for (c, r) in rows.iter().enumerate() {
+            if !last.is_empty() && *r != last[c] {
+                changes += 1;
+                // back within 100 ms: a blink, not a wave
+                if frame - changed_at[c] <= 6 {
+                    blinks += 1;
+                }
+                changed_at[c] = frame;
+            }
+        }
+        last = rows;
+    }
+    let per_col_s = |n: usize| n as f64 / 72.0 / seconds as f64;
+    println!(
+        "tile changes {:.2}/col/s, blinks {:.2}/col/s",
+        per_col_s(changes),
+        per_col_s(blinks)
+    );
+    assert!(per_col_s(blinks) < 0.15);
+    assert!(per_col_s(changes) > 0.3, "the surface still moves");
+}
+
+#[test]
+fn still_surface_tiles_round_to_the_nearest_row() {
+    let h = history(vec![25000.0; 10]);
+    let mut tide = TideHistogram::sized(72, 26, true);
+    for frame in 0..=120 {
+        tide.surface(&h, frame as f64 / 60.0, false, Motion::LIVELY);
+    }
+    tide.surface(&h, 2.1, true, Motion::LIVELY);
+    let rounded: Vec<f64> = tide.shown_heights().iter().map(|h| h.round()).collect();
+    assert_eq!(tide.lit_rows(), rounded.as_slice());
+}
