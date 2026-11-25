@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Makes the format samples in Tests/CookedTests/Fixtures from real Claude Code and Codex files on this Mac.
+"""Makes the format samples in crates/cooked-model/tests/fixtures from real Claude Code and Codex files on this Mac.
 
 Cooked reads files whose format is not documented. When a CLI update changes it, run this script again and see
 which test breaks:
@@ -15,7 +15,7 @@ import os
 import sys
 
 HOME = os.path.expanduser("~")
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Tests", "CookedTests", "Fixtures")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "cooked-model", "tests", "fixtures")
 
 # Strings kept as they are: line kinds, times, ids, model names and enum-like values.
 KEEP = {
