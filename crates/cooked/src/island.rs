@@ -52,8 +52,8 @@ pub const WINDOW: (f32, f32) = (
 /// The island wave's tiles.
 const WAVE: (usize, usize) = (16, 5);
 pub(crate) const WAVE_MARK: u32 = 1;
-/// The wave well's width: 112, narrower only when a long account name needs the room.
-const WAVE_WIDTH: (f32, f32) = (56.0, 112.0);
+/// The wave well's width, the same with any account name: a long name gets the room left and is cut.
+const WAVE_WIDTH: f32 = 112.0;
 /// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt.
 const WAVE_GAP: f32 = 1.2;
 /// Checks in a row that must find the menu bar item hidden before the island shows in its place.
@@ -713,9 +713,8 @@ fn content(s: &Island) -> El {
     let wave = well(
         el().key("wave")
             .h(30.0)
-            .grow(1.0)
-            .min_w(WAVE_WIDTH.0)
-            .max_w(WAVE_WIDTH.1)
+            .w(WAVE_WIDTH)
+            .min_w(WAVE_WIDTH)
             .px(9.0)
             .py(4.0)
             .child(tile_slot(WAVE_MARK).key("tiles").w_full().h_full()),
@@ -796,7 +795,7 @@ pub mod scenes {
     use crate::theme::PlexFont;
     use crate::tiles::ChromeTiles;
 
-    pub const SCENES: &[&str] = &["island-calm", "island-urgent"];
+    pub const SCENES: &[&str] = &["island-calm", "island-urgent", "island-long-name"];
 
     pub(crate) fn init() -> Island {
         let prefs: Prefs = Box::<MemoryDefaults>::default();
@@ -808,6 +807,19 @@ pub mod scenes {
         )))
     }
 
+    /// A 40-character account name.
+    pub(crate) const LONG_NAME: &str = "a-very-long-account-name-for-the-big-tea";
+
+    /// The calm island, its account named `LONG_NAME`.
+    fn long_name(s: &mut Island) {
+        s.select_feed(Feed::DemoCalm);
+        let mut m = s.model.borrow_mut();
+        let id = m.snapshot.active_id.clone();
+        if let Some(account) = m.snapshot.accounts.iter_mut().find(|a| a.id == id) {
+            account.short = LONG_NAME.to_owned();
+        }
+    }
+
     pub fn app() -> App<Island> {
         App::new(AppSpec {
             scenes: &[
@@ -817,6 +829,7 @@ pub mod scenes {
                 ("island-urgent", |s: &mut Island| {
                     s.select_feed(Feed::DemoPeak)
                 }),
+                ("island-long-name", long_name),
             ],
             fonts: PlexFont::FILES,
             families: PlexFont::FAMILIES,
@@ -1121,8 +1134,10 @@ mod tests {
             .unwrap_or_else(|| panic!("no rect at {key}"))
     }
 
-    /// The calm island with a long account name and a wide rate.
-    fn long_name() -> Island {
+    use scenes::LONG_NAME;
+
+    /// The calm island with the account named `name` and a wide rate.
+    fn named(name: &str) -> Island {
         let mut island = scenes::init();
         island.select_feed(Feed::DemoCalm);
         {
@@ -1134,27 +1149,21 @@ mod tests {
                 .iter_mut()
                 .find(|a| a.id == id)
                 .expect("active account");
-            account.short = "a-very-long-account-name-for-the-team".to_owned();
+            account.short = name.to_owned();
             m.rate_now = 12_300_000;
         }
         island
     }
 
-    /// A scene of `long_name` or the calm island through `--tree`, apart from `tree`'s files.
-    fn name_tree(scene: &str) -> serde_json::Value {
-        let dir = std::env::temp_dir().join(format!("cooked-name-{}-{scene}", std::process::id()));
+    /// `app`'s `scene` through `--tree`, apart from `tree`'s files.
+    fn app_tree(app: rune::App<Island>, scene: &str) -> serde_json::Value {
+        static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let run = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("cooked-name-{}-{run}-{scene}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let out = dir.join("tree.json");
-        rune::App::new(rune::AppSpec {
-            scenes: &[
-                ("long-name", |s: &mut Island| *s = long_name()),
-                ("short-name", |s: &mut Island| *s = island(Feed::DemoCalm)),
-            ],
-            fonts: crate::theme::PlexFont::FILES,
-            families: crate::theme::PlexFont::FAMILIES,
-            ..rune::AppSpec::new("Cooked island", WINDOW, long_name, view)
-        })
-        .args([
+        app.args([
             "--tree".to_owned(),
             out.to_string_lossy().into_owned(),
             "--scene".to_owned(),
@@ -1165,6 +1174,51 @@ mod tests {
         let json = std::fs::read_to_string(&out).expect("tree written");
         let _ = std::fs::remove_dir_all(&dir);
         serde_json::from_str(&json).expect("tree json")
+    }
+
+    /// The island with `LONG_NAME` ("long-name") or a 4-character name ("short-name"), the same wide rate.
+    fn name_tree(scene: &str) -> serde_json::Value {
+        let app = rune::App::new(rune::AppSpec {
+            scenes: &[
+                ("long-name", |s: &mut Island| *s = named(LONG_NAME)),
+                ("short-name", |s: &mut Island| *s = named("work")),
+            ],
+            fonts: crate::theme::PlexFont::FILES,
+            families: crate::theme::PlexFont::FAMILIES,
+            ..rune::AppSpec::new("Cooked island", WINDOW, || named(LONG_NAME), view)
+        });
+        app_tree(app, scene)
+    }
+
+    /// `LONG_NAME`'s whole width in the account's font, uncut.
+    fn long_name_width() -> f64 {
+        let app = rune::App::new(rune::AppSpec {
+            scenes: &[("probe", |_: &mut Island| {})],
+            fonts: crate::theme::PlexFont::FILES,
+            families: crate::theme::PlexFont::FAMILIES,
+            ..rune::AppSpec::new("Cooked probe", (800.0, 40.0), scenes::init, |_, _| {
+                row().child(text(LONG_NAME).key("probe").font(TextStyle::Body.font()))
+            })
+        });
+        width(&app_tree(app, "probe"), "probe")
+    }
+
+    /// The wave is one fixed width whatever the name: a 40-character name gets the room left and ends with "…"
+    /// (Rune cuts a `truncate` text narrower than its whole width at the end).
+    #[test]
+    fn the_wave_keeps_its_width_with_a_long_name() {
+        assert_eq!(LONG_NAME.chars().count(), 40);
+        let long = name_tree("long-name");
+        let short = name_tree("short-name");
+        assert_eq!(width(&long, "wave"), WAVE_WIDTH as f64);
+        assert_eq!(width(&long, "wave"), width(&short, "wave"));
+        assert_eq!(width(&long, "island"), ISLAND.0 as f64);
+        let cut = width(&long, "account");
+        let whole = long_name_width();
+        assert!(
+            cut > 0.0 && cut < whole,
+            "the name is cut: {cut} of {whole}"
+        );
     }
 
     /// A long account name is cut with "…": the wave, the percentage and the rate keep their size, and the rate
@@ -1193,12 +1247,8 @@ mod tests {
             account[0] + account[2] <= rect("rate-row")[0],
             "the name runs under the rate"
         );
-        assert!(
-            width(&t, "wave") >= WAVE_WIDTH.0 as f64,
-            "the wave keeps its size"
-        );
         let short = name_tree("short-name");
-        for key in ["percent", "rate-unit"] {
+        for key in ["wave", "percent", "rate-unit"] {
             assert_eq!(width(&t, key), width(&short, key), "{key} keeps its size");
         }
     }
@@ -1228,11 +1278,7 @@ mod tests {
         assert_eq!(family("percent-text").as_deref(), Some("IBM Plex Mono"));
         assert_eq!(family("account").as_deref(), Some("IBM Plex Sans"));
         assert_eq!(width(&t, "island"), ISLAND.0 as f64);
-        let wave = width(&t, "wave");
-        assert!(
-            (WAVE_WIDTH.0 as f64..=WAVE_WIDTH.1 as f64).contains(&wave),
-            "wave {wave}"
-        );
+        assert_eq!(width(&t, "wave"), WAVE_WIDTH as f64);
         // Darker by default: tint and 80% veil
         assert_eq!(field(&t, "veil", "fill"), "#161616cc");
         assert!(node(&t, "tint").is_some());
@@ -1253,7 +1299,7 @@ mod tests {
         assert_eq!(field(&t, "rate-unit", "text"), "/min");
         assert_eq!(field(&t, "rate-unit", "color"), "#f4f1ea8c");
         // the wave well, ~4.75 pt tiles
-        assert_eq!(width(&t, "wave"), WAVE_WIDTH.1 as f64);
+        assert_eq!(width(&t, "wave"), WAVE_WIDTH as f64);
         let tile = (width(&t, "tiles") - 15.0 * WAVE_GAP as f64) / 16.0;
         assert!((tile - 4.75).abs() < 0.05, "tile width {tile}");
         assert_eq!(width(&t, "island"), ISLAND.0 as f64);
