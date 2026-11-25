@@ -170,6 +170,8 @@ pub struct ChromeTiles {
     fx: Option<FxCache>,
     metals: Metals,
     motion: Motion,
+    /// Reads the system's Reduce Motion (a stub in tests).
+    read_reduce_motion: fn() -> bool,
     /// The metal's clock, seconds.
     t: f64,
     /// Whether the last frame drew any tiles.
@@ -214,6 +216,7 @@ impl ChromeTiles {
             fx: None,
             metals: Metals::new(),
             motion,
+            read_reduce_motion: system_reduce_motion,
             t,
             drew: false,
             layers: Vec::new(),
@@ -223,13 +226,15 @@ impl ChromeTiles {
         }
     }
 
-    /// Whether the metal stands still now; reads the system setting again once a second of `clock`.
+    /// Whether the metal stands still now; reads the system setting again once a second of `clock`, and at every
+    /// frame while it is reduced: the metal then draws none of its own, so the next one (the island saw the
+    /// setting change) must find it off.
     fn still(&mut self, clock: f64) -> bool {
         match &mut self.motion {
             Motion::Still => true,
             Motion::System { reduced, read_at } => {
-                if read_at.is_none_or(|at| clock - at >= SETTING_EVERY || clock < at) {
-                    *reduced = system_reduce_motion();
+                if *reduced || read_at.is_none_or(|at| clock - at >= SETTING_EVERY || clock < at) {
+                    *reduced = (self.read_reduce_motion)();
                     *read_at = Some(clock);
                 }
                 *reduced
@@ -446,20 +451,41 @@ mod tests {
         assert_eq!(system.still(0.0), system_reduce_motion());
     }
 
+    /// While reduced the metal draws no frame of its own: the next frame that comes (the island saw the setting
+    /// change) reads it again at once, and the metal moves on.
+    #[test]
+    fn reduced_metal_reads_the_setting_at_its_next_frame() {
+        let mut tiles = ChromeTiles::new(false);
+        tiles.read_reduce_motion = || true;
+        assert!(tiles.still(5.0));
+        tiles.drew = true;
+        assert!(!Compositor::<Grids>::animating(&tiles));
+        tiles.read_reduce_motion = || false;
+        assert!(!tiles.still(5.1), "read again within the second");
+        assert!(Compositor::<Grids>::animating(&tiles));
+    }
+
+    struct Grids;
+
+    impl TileGrids for Grids {
+        fn tile_grid(&self, _: u32) -> Option<&TileGrid> {
+            None
+        }
+    }
+
+    /// While the metal moves, the setting is read once a second.
     #[test]
     fn system_setting_is_read_again_after_a_second() {
         let mut tiles = ChromeTiles::new(false);
-        tiles.still(5.0);
-        tiles.motion = Motion::System {
-            reduced: true,
-            read_at: Some(5.0),
-        };
-        assert!(tiles.still(5.5), "kept within the second");
-        tiles.still(6.0);
+        tiles.read_reduce_motion = || false;
+        assert!(!tiles.still(5.0));
+        tiles.read_reduce_motion = || true;
+        assert!(!tiles.still(5.5), "kept within the second");
+        assert!(tiles.still(6.0));
         assert_eq!(
             tiles.motion,
             Motion::System {
-                reduced: system_reduce_motion(),
+                reduced: true,
                 read_at: Some(6.0)
             }
         );

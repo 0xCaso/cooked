@@ -163,6 +163,29 @@ fn open_flag_pins_it_until_a_key() {
     assert!(!p.is_shown());
 }
 
+/// Reduce Motion going off while the popover is up: the chart moves again, and the page draws a frame so its
+/// metal reads the setting; `--reduce-motion` keeps both still.
+#[test]
+fn reduce_motion_follows_the_system_while_open() {
+    let mut p = open(Feed::DemoCalm);
+    p.still_at = None;
+    p.reduce_motion = true;
+    assert!(p.system_reduce_motion(false), "shown: draw a frame");
+    assert!(!p.reduce_motion);
+    p.hide();
+    assert!(!p.system_reduce_motion(true), "hidden: nothing to draw");
+    assert!(p.reduce_motion);
+    let mut flagged = Popover::new(
+        popover(Feed::DemoCalm).model,
+        &crate::cli::Launch {
+            reduce_motion: true,
+            ..Default::default()
+        },
+    );
+    flagged.system_reduce_motion(false);
+    assert!(flagged.reduce_motion);
+}
+
 #[test]
 fn closing_folds_the_list_again() {
     let mut p = open(Feed::DemoPeak);

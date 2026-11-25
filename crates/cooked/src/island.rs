@@ -29,7 +29,7 @@ use crate::popover::{Anchor, Popover};
 use crate::scheduler;
 use crate::setup;
 use crate::theme::{GlassLook, Motion, Palette, TextStyle, well};
-use crate::tiles::{TileGrid, TileGrids, Wave, tile_slot};
+use crate::tiles::{self, TileGrid, TileGrids, Wave, tile_slot};
 
 /// The settings store: `UserDefaults` in the app, `MemoryDefaults` in scenes and tests.
 pub type Prefs = Box<dyn DefaultsStore>;
@@ -96,6 +96,9 @@ pub struct Island {
     dragging: bool,
     /// Reduce Transparency: an opaque `#161616` capsule instead of glass.
     pub solid: bool,
+    /// Reduce Motion as the last tick read it. The metal stops while it is on and then draws no frame of its own,
+    /// so a change must ask for one.
+    pub reduce_motion: bool,
     /// The menu bar item ("Show in › Menu bar"); made only with an overlay (none in scenes and tests).
     status_item: Option<StatusItem>,
     /// The display mode the overlay and the item follow now; `None` before the first `sync_display_mode`.
@@ -123,6 +126,7 @@ impl Island {
             press: None,
             dragging: false,
             solid: false,
+            reduce_motion: false,
             status_item: None,
             shown_mode: None,
             reopen: None,
@@ -351,7 +355,7 @@ impl Island {
         ))
     }
 
-    /// Every 3 s: the calm demo's next rate, the displays, Reduce Transparency and the
+    /// Every 3 s: the calm demo's next rate, the displays, Reduce Transparency, Reduce Motion and the
     /// glass style Rune's views may have lost. True when the view must change.
     pub fn tick(&mut self) -> bool {
         let changed_rate = {
@@ -368,6 +372,7 @@ impl Island {
         let solid = mac::reduce_transparency();
         changed |= solid != self.solid;
         self.solid = solid;
+        changed |= self.reduce_motion_changed(tiles::system_reduce_motion());
         if let Some(now) = Displays::current()
             && self.displays.as_ref() != Some(&now)
         {
@@ -376,6 +381,19 @@ impl Island {
         self.check_item();
         self.apply_glass_style();
         changed
+    }
+
+    /// Reduce Motion is `reduced` now. True when it changed: the island draws a frame, in which its metal reads the
+    /// setting again; the popover's chart and metal follow.
+    fn reduce_motion_changed(&mut self, reduced: bool) -> bool {
+        if reduced == self.reduce_motion {
+            return false;
+        }
+        self.reduce_motion = reduced;
+        if let Some(popover) = &self.popover {
+            popover.update_if(move |p, _| p.system_reduce_motion(reduced));
+        }
+        true
     }
 
     /// Where the island was left, on the same display; the main display's top centre the first time or when that
@@ -872,6 +890,20 @@ mod tests {
         m.open();
         m.dismiss_popover(DismissReason::ClickOutside, 0.0);
         assert!(!m.is_open);
+    }
+
+    /// The tick sees Reduce Motion go on or off: it asks for a frame then, and only then.
+    #[test]
+    fn a_reduce_motion_change_asks_for_a_frame() {
+        let mut island = island(Feed::DemoCalm);
+        island.reduce_motion = true;
+        assert!(!island.reduce_motion_changed(true));
+        assert!(
+            island.reduce_motion_changed(false),
+            "off: the metal moves again"
+        );
+        assert!(!island.reduce_motion_changed(false));
+        assert!(island.reduce_motion_changed(true));
     }
 
     #[test]
