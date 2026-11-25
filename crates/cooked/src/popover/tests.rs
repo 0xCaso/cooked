@@ -717,3 +717,39 @@ fn a_full_pill_leaves_the_name_whole() {
         "no reset time after full"
     );
 }
+
+/// The lifted line rises 1 pt as a card inside a box that tracks the pointer and does not move: with the hit area on
+/// the rising card, the pointer on its bottom point would leave it, drop it and catch it again.
+#[test]
+fn the_hover_box_is_not_the_lifted_card() {
+    let t = tree("popover-peak-hover");
+    let at = |end: &str| {
+        t["elements"]
+            .as_array()
+            .expect("elements")
+            .iter()
+            .find(|e| e["path"].as_str().is_some_and(|p| p.ends_with(end)))
+            .unwrap_or_else(|| panic!("no {end}"))
+            .clone()
+    };
+    let (hit, card) = (at("/source-t1"), at("/source-t1/line"));
+    assert_eq!(hit["role"], "button");
+    assert_eq!(hit["fill"], "#00000000", "the hit box draws nothing");
+    assert_eq!(card["fill"], "#1a1b1dff", "the card is its child");
+    assert_eq!(hit["rect"], card["rect"]);
+}
+
+/// An ended line with nowhere to open it keeps "9 min ago" under the pointer, not a "↗" that does nothing.
+#[test]
+fn an_ended_line_with_nowhere_to_open_rests() {
+    let mut ended = demo_data::peak().sources[0].clone();
+    ended.ended_ago = Some(9);
+    let nowhere = burners::Lift {
+        id: ended.id.clone(),
+        open: None,
+    };
+    assert_eq!(
+        burners::right(&ended, Some(&nowhere)),
+        burners::right(&ended, None)
+    );
+}
