@@ -1,5 +1,5 @@
-//! `DefaultsStore` over `NSUserDefaults`: the same domain, keys and encodings as the Swift app, so an upgrade keeps
-//! every setting.
+//! `DefaultsStore` over `NSUserDefaults`: the same domain, keys and encodings as earlier versions, so an upgrade
+//! keeps every setting.
 
 use cooked_model::defaults::{DefaultsStore, DefaultsValue};
 use objc2::AnyThread;
@@ -7,7 +7,7 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2_foundation::{NSArray, NSBundle, NSData, NSNumber, NSString, NSUserDefaults};
 
-/// The real domain: the bundle id, where the Swift app keeps its settings.
+/// The real domain: the bundle id.
 pub const DOMAIN: &str = "com.0xcaso.Cooked";
 /// Tests and unbundled runs (`cargo run`): never the real domain.
 pub const DEV_DOMAIN: &str = "com.0xcaso.Cooked.dev";

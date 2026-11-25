@@ -1,6 +1,6 @@
-//! Menu bar mode's clicks (`MenuBarItem.clicked`): what a click on the status item asks of the island, kept apart
-//! from AppKit so it can be tested. The item (`mac::status_item`) calls `item_clicked` from its action, outside
-//! Rune's callbacks; the island runs the `Command`s on its own turn.
+//! Menu bar mode's clicks: what a click on the status item asks of the island, kept apart from AppKit so it can be
+//! tested. The item (`mac::status_item`) calls `item_clicked` from its action, outside Rune's callbacks; the island
+//! runs the `Command`s on its own turn.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};

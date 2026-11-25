@@ -1,4 +1,4 @@
-//! Port of `Model/Notice.swift`: what the popover's notice card says when a number is missing, and its one fix. One
+//! What the popover's notice card says when a number is missing, and its one fix. One
 //! at a time, in the order of the cases.
 
 use crate::accounts::{ConnectedAccount, Kind};

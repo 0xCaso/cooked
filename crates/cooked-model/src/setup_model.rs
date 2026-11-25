@@ -1,4 +1,4 @@
-//! Port of `Model/SetupModel.swift` (and `LastUse` from `Views/SetupViews.swift`): Setup and Settings (release spec,
+//! Setup and Settings (release spec,
 //! section 3): which accounts Cooked reads and their names, the Claude percent through the status line bridge, and
 //! open at login. Nothing outside Cooked's own folder is written before Allow or Connect. The login item
 //! (`SMAppService.mainApp`) is a trait: the app's `mac` module has the real one.
@@ -164,7 +164,7 @@ impl<D: DefaultsStore, L: LoginItem> SetupModel<D, L> {
             .iter()
             .filter(|r| r.ticked)
             .map(|r| {
-                // Swift's `.whitespaces`: spaces and tabs, not line breaks
+                // spaces and tabs, not line breaks
                 let name = r.name.trim_matches(|c: char| {
                     c == '\t'
                         || (c.is_whitespace()
@@ -250,8 +250,6 @@ impl<D: DefaultsStore, L: LoginItem> SetupModel<D, L> {
         self.problem = result.err();
         self.refresh();
     }
-
-    // MARK: - Actions
 
     pub fn save_accounts(&mut self) {
         AccountStore::save(&self.accounts(), &mut self.defaults);
@@ -357,8 +355,6 @@ impl<D: DefaultsStore, L: LoginItem> SetupModel<D, L> {
         )
     }
 
-    // MARK: - Details
-
     /// The newest bridge sample of a ticked account: its name, percent and time (Unix seconds).
     pub fn last_terminal_percent(&self) -> Option<(String, i64, f64)> {
         let samples = status_line_bridge::samples(Path::new(&self.status_line.bridge_dir()));
@@ -398,7 +394,7 @@ impl<D: DefaultsStore, L: LoginItem> SetupModel<D, L> {
     }
 }
 
-/// "today 11:50", "yesterday", "Sat 31 Oct"; "never" for a folder with no sessions (`Views/SetupViews.swift`).
+/// "today 11:50", "yesterday", "Sat 31 Oct"; "never" for a folder with no sessions.
 pub struct LastUse;
 
 impl LastUse {

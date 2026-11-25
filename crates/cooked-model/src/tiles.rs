@@ -1,6 +1,6 @@
 //! The chrome-tile grids the Rune UI draws: one value per tile, row-major from the top (index `r * cols + c`).
-//! The histogram uses the Swift chart's bucketing and square-root scale (`TideScale`), the wave the island tank's
-//! level (`TideIsland`), the bars the pills' pace strip (`AccountPills.swift`, `PaceStrip`).
+//! The histogram uses the chart's bucketing and square-root scale (`TideScale`), the wave the island tank's
+//! level (`TideIsland`), the bars the pills' pace strip.
 
 use crate::histogram_clock::{ChartRange, MinuteHistory};
 use crate::tide::{TideIsland, TideScale};
@@ -119,7 +119,7 @@ pub fn island_wave_grid(t: f32, urgent: bool, cols: usize, rows: usize) -> Vec<T
 
 /// An account bar: the left `fraction_left` lit, every row alike. `time_left` (0...1, the share of the window still
 /// to go) puts the pace line in its column, which stays off. When the window runs out before its reset, the dark
-/// tiles between the lit front and the line are the overspend, red: the Swift `PaceStrip` rule, which the mockup
+/// tiles between the lit front and the line are the overspend, red, a rule the mockup
 /// (red over the last 45% of the lit part) only sketched.
 pub fn bar_grid(
     fraction_left: f32,

@@ -1,6 +1,4 @@
-//! `LiveDataTests.swift`: the live snapshot from the watcher's limits and the minutes, and the readers it builds on
-//! (`TokenLogTests`, `TranscriptLogTests`, `UsageSourceTests`, `LiveHistogramTests`, `TokenSourcesTests`,
-//! `T3CodeTests`).
+//! The live snapshot from the watcher's limits and the minutes, and the readers it builds on.
 mod common;
 
 use common::{
@@ -19,8 +17,6 @@ use cooked_model::transcript_log::{Session, TranscriptLog};
 use cooked_model::usage_snapshot::{Account, UsageSnapshot};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-
-// MARK: - LiveDataTests
 
 fn now() -> f64 {
     rome(29, 10, 15, 25, 51)
@@ -495,7 +491,7 @@ fn short_names() {
     ); // not in the store
 }
 
-/// Not a Swift case (Review Focus 5, commit 391e218): on the day the week resets the pill shows a time, not a day,
+/// On the day the week resets the pill shows a time, not a day,
 /// and the week % stays whole: it is still the week's percent until the reset, and gone after.
 #[test]
 fn week_percent_whole_on_reset_day() {
@@ -529,7 +525,7 @@ fn week_percent_whole_on_reset_day() {
     assert_eq!(g.accounts[1].week_elapsed, None);
 }
 
-/// Not a Swift case (commit e2ee18f): red means a window runs out before its reset. A spike, 99% used or a week
+/// Red means a window runs out before its reset. A spike, 99% used or a week
 /// projection at or after the week's reset are not red.
 #[test]
 fn red_only_when_window_runs_out_before_reset() {
@@ -557,8 +553,6 @@ fn red_only_when_window_runs_out_before_reset() {
     let soon = status(|s| entry(s, "claudeAgent_work").projection = projection("5 min", "15:40"));
     assert!(make(&soon, &none()).unwrap().is_urgent());
 }
-
-// MARK: - TokenLogTests
 
 mod sqlite {
     use std::ffi::{CString, c_char, c_int, c_void};
@@ -665,8 +659,6 @@ fn missing_database_throws() {
             .is_err()
     );
 }
-
-// MARK: - TranscriptLogTests
 
 fn transcript_now() -> f64 {
     iso_date("2026-10-29T14:25:51.000Z").unwrap()
@@ -834,8 +826,6 @@ fn groups_subagents_under_their_session() {
     assert_eq!(r.sessions, [expected]);
 }
 
-// MARK: - UsageSourceTests
-
 #[test]
 fn reads_the_limits_from_the_provider_logs() {
     let now = common::now();
@@ -876,8 +866,6 @@ fn reports_no_accounts() {
     );
 }
 
-// MARK: - LiveHistogramTests
-
 #[test]
 fn shows_the_values_as_they_are() {
     let mut h = LiveHistogram::new(vec![32000.0; 60], 40000.0, 100, 6000.0);
@@ -913,8 +901,6 @@ fn catches_up_after_several_minutes_unseen() {
     assert!(after.values[57..].iter().all(|v| *v == 0.0));
     assert!(after.values[..57].iter().all(|v| *v == 32000.0));
 }
-
-// MARK: - TokenSourcesTests
 
 /// A session as busy in its last 5 minutes as in its last 15: the same rate on both windows.
 fn steady(mut s: Session) -> Session {
@@ -1157,8 +1143,6 @@ fn agent_labels() {
     );
     assert_eq!(token_sources::project_of_cwd(None), "unknown");
 }
-
-// MARK: - T3CodeTests
 
 #[test]
 fn thread_link() {

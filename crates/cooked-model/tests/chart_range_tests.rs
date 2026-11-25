@@ -1,4 +1,4 @@
-//! `ChartRangeTests.swift`: how far back the popover's chart looks.
+//! How far back the popover's chart looks.
 
 use cooked_model::defaults::MemoryDefaults;
 use cooked_model::demo_data;

@@ -1,5 +1,4 @@
-//! Port of `Dots/DotShading.swift`: each dot's level and red flag. The LED radius and glow are dropped: the Rune
-//! look draws chrome tiles, which have neither.
+//! Each dot's level and red flag. No LED radius or glow: the Rune look draws chrome tiles, which have neither.
 
 /// A fixed grid of dots. Each dot has a continuous level (0 off, 1 fully lit) and may be red.
 /// Index is `c * rows + r`, row 0 at the top.

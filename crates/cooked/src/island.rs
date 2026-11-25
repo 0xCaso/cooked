@@ -1,13 +1,12 @@
-//! The island under the menu bar, as `Views/IslandView.swift` and `IslandPanel.swift` draw and move it, in the
-//! "B · Chrome tiles" look: one 290 x 40 pt glass capsule with the wave
-//! (16 x 5 chrome tiles) in a well, the active account's 5-hour % left in a well, the account and the rate. In
-//! urgency it keeps its shape: the percentage, the hairline and the wave turn red.
+//! The island under the menu bar, in the "B · Chrome tiles" look: one 290 x 40 pt glass capsule with the wave (16 x 5
+//! chrome tiles) in a well, the active account's 5-hour % left in a well, the account and the rate. In urgency it keeps
+//! its shape: the percentage, the hairline and the wave turn red.
 //!
-//! A tap toggles the popover (`popover`), a drag past 3 pt moves the island and saves `islandPosition` as Swift
-//! does, a right-click opens the menu (Data, Glass, Show in, Settings…, Quit).
+//! A tap toggles the popover (`popover`), a drag past 3 pt moves the island and saves `islandPosition`, a right-click
+//! opens the menu (Data, Glass, Show in, Settings…, Quit).
 //!
-//! The overlay is the island plus a transparent `OVERHANG` margin on every side, as Swift's panel was, so the saved
-//! position and `island_placement` keep Swift's meaning; clicks on the margin go through (`OverlayInput::Regions`).
+//! The overlay is the island plus a transparent `OVERHANG` margin on every side, the frame the saved position and
+//! `island_placement` measure; clicks on the margin go through (`OverlayInput::Regions`).
 
 use cooked_model::defaults::DefaultsStore;
 use cooked_model::demo_data::Feed;
@@ -43,24 +42,23 @@ pub fn shared(model: IslandState<Prefs>) -> Model {
     Rc::new(RefCell::new(model))
 }
 
-/// The capsule, points: the approved mockup's 290 x 40 (DESIGN.md's Rune island exception, decision
-/// 2026-11-24-rune-island-width).
+/// The capsule, points: 290 x 40 (DESIGN.md's Rune island exception).
 pub const ISLAND: (f32, f32) = (290.0, 40.0);
 /// The overlay: the capsule and its margin.
 pub const WINDOW: (f32, f32) = (
     ISLAND.0 + 2.0 * OVERHANG as f32,
     ISLAND.1 + 2.0 * OVERHANG as f32,
 );
-/// The island wave's tiles (spec, "Chrome tiles").
+/// The island wave's tiles.
 const WAVE: (usize, usize) = (16, 5);
 pub(crate) const WAVE_MARK: u32 = 1;
-/// The wave well's width: the mockup's 112, narrower only when a long account name needs the room.
+/// The wave well's width: 112, narrower only when a long account name needs the room.
 const WAVE_WIDTH: (f32, f32) = (56.0, 112.0);
-/// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt, as the mockup.
+/// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt.
 const WAVE_GAP: f32 = 1.2;
 /// Checks in a row that must find the menu bar item hidden before the island shows in its place.
 const HIDDEN_CHECKS: u8 = 2;
-/// Past this many points a press is a drag, not a tap (`PressableIsland.dragThreshold`).
+/// Past this many points a press is a drag, not a tap.
 pub const DRAG_THRESHOLD: f64 = 3.0;
 
 /// A press on the island: where the pointer and the overlay were.
@@ -90,7 +88,7 @@ pub struct Island {
     pub setup: Option<setup::Opener>,
     /// The wave for the current rate and urgency.
     wave: TileGrid,
-    /// The overlay's frame in AppKit screen coordinates (margin included), as Swift's panel frame.
+    /// The overlay's frame in AppKit screen coordinates (margin included).
     frame: Rect,
     /// The displays the frame was last placed for.
     displays: Option<Displays>,
@@ -145,13 +143,13 @@ impl Island {
         self.sync_popover();
     }
 
-    /// The wave for the model's urgency; it sways in the compositor (the mockup's formula).
+    /// The wave for the model's urgency; it sways in the compositor.
     pub fn refresh_wave(&mut self) {
         let (cols, rows) = WAVE;
         let wave = Wave {
             urgent: self.model.borrow().snapshot.is_urgent(),
         };
-        // the mockup rounds tiles at 0.28 of their short side
+        // tiles rounded at 0.28 of their short side
         self.wave = TileGrid::wave(cols, rows, wave).spacing(WAVE_GAP, 0.95);
         self.refresh_status_item();
     }
@@ -163,7 +161,7 @@ impl Island {
         }
     }
 
-    /// Follows "Show Cooked in" (`AppDelegate.showDisplayMode`): in menu bar mode the item is added and the island
+    /// Follows "Show Cooked in": in menu bar mode the item is added and the island
     /// hides; in island mode the item goes and the island comes back where it was left. The popover closes.
     pub fn sync_display_mode(&mut self) {
         let mode = self.model.borrow().display_mode();
@@ -212,7 +210,7 @@ impl Island {
     }
 
     /// Menu bar mode: whether macOS hid the item. The island shows once two checks in a row (3 s apart) find it
-    /// hidden, and hides again as soon as the item is back. (Swift left nothing on screen with a full menu bar.)
+    /// hidden, and hides again as soon as the item is back.
     fn check_item(&mut self) {
         let Some(item) = &self.status_item else {
             return;
@@ -296,8 +294,8 @@ impl Island {
         }
     }
 
-    /// Opening the app again while it runs (Swift `applicationShouldHandleReopen`): the popover opens, under the menu
-    /// bar item in menu bar mode; an open one stays as it is.
+    /// Opening the app again while it runs: the popover opens, under the menu bar item in menu bar mode; an open one
+    /// stays as it is.
     pub fn reopen(&mut self) {
         if !self.model.borrow().is_open {
             self.open_popover();
@@ -353,7 +351,7 @@ impl Island {
         ))
     }
 
-    /// Every 3 s (`IslandRoot`'s task): the calm demo's next rate, the displays, Reduce Transparency and the
+    /// Every 3 s: the calm demo's next rate, the displays, Reduce Transparency and the
     /// glass style Rune's views may have lost. True when the view must change.
     pub fn tick(&mut self) -> bool {
         let changed_rate = {
@@ -381,7 +379,7 @@ impl Island {
     }
 
     /// Where the island was left, on the same display; the main display's top centre the first time or when that
-    /// display is gone (Review Focus 4).
+    /// display is gone.
     pub fn restore_position(&mut self, displays: Displays) {
         let saved = position_store::load(self.model.borrow().defaults());
         let size = Size::new(WINDOW.0 as f64, WINDOW.1 as f64);
@@ -406,7 +404,7 @@ impl Island {
             .map(|d| overlay_rect(self.frame, d.primary_height))
     }
 
-    /// The style on Rune's glass views: Clear is a style of `NSGlassEffectView` Rune doesn't set (step 0, 1c).
+    /// The style on Rune's glass views: Clear is a style of `NSGlassEffectView` Rune doesn't set.
     /// Rune makes its views at the first frame and may make them again (a new window); each tick checks.
     pub fn apply_glass_style(&self) {
         if self.solid {
@@ -424,7 +422,7 @@ impl Island {
     }
 
     /// `drag` with the pointer (AppKit screen coordinates) given: each press starts afresh from where the frame is
-    /// now, so a cancelled gesture leaves no stale start behind (`ReviewFixTests.eachPressStartsAFreshDrag`).
+    /// now, so a cancelled gesture leaves no stale start behind.
     fn drag_at(&mut self, phase: Phase, mouse: Point, cancelled: bool) {
         match phase {
             Phase::Down => {
@@ -464,7 +462,7 @@ impl Island {
         }
     }
 
-    /// `PositionStore.save`: the frame's top centre on the display that holds the island's centre.
+    /// Saves the frame's top centre on the display that holds the island's centre.
     fn save_position(&mut self) {
         let Some(displays) = &self.displays else {
             return;
@@ -477,7 +475,7 @@ impl Island {
         position_store::save(&position, self.model.borrow_mut().defaults_mut());
     }
 
-    /// The right-click menu, as `IslandRoot`'s context menu and `MenuBarItem.showMenu`.
+    /// The right-click menu, also the menu bar item's.
     pub fn menu(&self) -> PopupMenu {
         menu_for(&self.model.borrow())
     }
@@ -553,7 +551,7 @@ fn moved(a: Point, b: Point) -> f64 {
     (b.x - a.x).hypot(b.y - a.y)
 }
 
-/// `IslandPanel.dragChanged`: the press's frame moved with the pointer, kept on the display under the pointer.
+/// The press's frame moved with the pointer, kept on the display under the pointer.
 fn dragged_frame(press: Press, mouse: Point, frame: Rect, screens: &[ScreenInfo]) -> Rect {
     let moved = Rect::new(
         press.origin.x + mouse.x - press.mouse.x,
@@ -561,7 +559,7 @@ fn dragged_frame(press: Press, mouse: Point, frame: Rect, screens: &[ScreenInfo]
         frame.width,
         frame.height,
     );
-    // Swift: the display under the pointer, else the panel's own (the pointer is in the menu bar or the Dock).
+    // The display under the pointer, else the island's own (the pointer is in the menu bar or the Dock).
     let centre = Point::new(frame.mid_x(), frame.mid_y());
     let screen = placement::screen_containing(mouse, screens)
         .or_else(|| placement::screen_containing(centre, screens));
@@ -571,7 +569,7 @@ fn dragged_frame(press: Press, mouse: Point, frame: Rect, screens: &[ScreenInfo]
     }
 }
 
-/// `SavedPosition(displayID:, topCenter: (frame.midX, frame.maxY))` of the overlay's frame (margin included).
+/// The saved position of the overlay's frame (margin included): its display and top centre.
 fn saved_position(frame: Rect, screen: &ScreenInfo) -> IslandPosition {
     IslandPosition {
         display_id: screen.id,
@@ -746,7 +744,7 @@ fn content(s: &Island) -> El {
                 .color(Palette::ink2()),
         );
     }
-    // The number at the rate ink, its unit at 55% as the mockup.
+    // The number at the rate ink, its unit at 55%.
     line.child(
         row()
             .key("rate-row")
@@ -817,19 +815,9 @@ mod tests {
     use cooked_model::island_model::DismissReason;
 
     fn island(feed: Feed) -> Island {
-        let mut island = scenes_init();
+        let mut island = scenes::init();
         island.select_feed(feed);
         island
-    }
-
-    fn scenes_init() -> Island {
-        let prefs: Prefs = Box::<MemoryDefaults>::default();
-        Island::new(shared(IslandState::new(
-            demo_data::calm(),
-            Some(Feed::DemoCalm),
-            prefs,
-            0.0,
-        )))
     }
 
     fn screen(id: u32, x: f64, w: f64, h: f64) -> ScreenInfo {
@@ -846,7 +834,6 @@ mod tests {
         assert_eq!(WINDOW, (338.0, 88.0));
     }
 
-    /// `ReopenTests.reopeningShowsThePopover`.
     #[test]
     fn reopening_shows_the_popover() {
         let mut s = island(Feed::DemoCalm);
@@ -873,7 +860,6 @@ mod tests {
         assert!(!s.model.borrow().is_open);
     }
 
-    /// `MotionTests.escapeAndOutsideClickClose`.
     #[test]
     fn escape_and_outside_click_close() {
         let s = island(Feed::DemoCalm);
@@ -896,7 +882,7 @@ mod tests {
     }
 
     #[test]
-    fn menu_lists_the_swift_items_with_checks() {
+    fn menu_lists_the_items_with_checks() {
         let s = island(Feed::DemoPeak);
         let menu = s.menu();
         assert!(!menu.find("data").unwrap().is_enabled());
@@ -937,7 +923,6 @@ mod tests {
         assert_eq!(again.glass_style(), GlassStyle::Clear);
     }
 
-    /// `MenuBarTests.displayModeIsKeptAndStartsAsTheIsland`, and the island hides in menu bar mode.
     #[test]
     fn display_mode_starts_as_the_island_and_menu_bar_hides_it() {
         let mut s = island(Feed::DemoCalm);
@@ -981,7 +966,7 @@ mod tests {
         assert!(right.max_x() - OVERHANG <= 3360.0);
     }
 
-    /// `ReviewFixTests.eachPressStartsAFreshDrag`: a press with no release before it (a cancelled gesture) starts
+    /// A press with no release before it (a cancelled gesture) starts
     /// from where the island is now, not from the old press.
     #[test]
     fn each_press_starts_a_fresh_drag() {
@@ -997,10 +982,8 @@ mod tests {
         assert!(!s.dragging);
     }
 
-    /// `ReviewFixTests.handBackWaitsForTheDragToEnd`, the part that still applies: a drag past the threshold closes
-    /// the popover and is a drag until the release, which ends it, clears the press, and doesn't reopen it. (The
-    /// wait itself is Swift's: its panel gave the keyboard back by reordering the window that was being dragged;
-    /// here the popover is its own overlay and takes the keyboard with it.)
+    /// A drag past the threshold closes the popover and is a drag until the release, which ends it, clears the
+    /// press, and doesn't reopen it.
     #[test]
     fn a_drag_closes_the_popover_and_the_release_ends_it() {
         let mut s = island(Feed::DemoCalm);
@@ -1023,7 +1006,7 @@ mod tests {
     }
 
     #[test]
-    fn saved_position_is_swifts_top_centre_and_restores_in_place() {
+    fn saved_position_is_the_top_centre_and_restores_in_place() {
         let screens = [
             screen(1, 0.0, 1440.0, 900.0),
             screen(2, 1440.0, 1920.0, 1200.0),
@@ -1153,7 +1136,7 @@ mod tests {
         assert_eq!(field(&t, "rate", "text"), "184k");
         assert_eq!(field(&t, "rate-unit", "text"), "/min");
         assert_eq!(field(&t, "rate-unit", "color"), "#f4f1ea8c");
-        // the mockup's wave well, ~4.75 pt tiles
+        // the wave well, ~4.75 pt tiles
         assert_eq!(width(&t, "wave"), WAVE_WIDTH.1 as f64);
         let tile = (width(&t, "tiles") - 15.0 * WAVE_GAP as f64) / 16.0;
         assert!((tile - 4.75).abs() < 0.05, "tile width {tile}");

@@ -1,5 +1,4 @@
-//! Clicks in other apps, as `IslandPanel.openChanged` watches them while the popover is open
-//! (`NSEvent.addGlobalMonitorForEvents`). Main thread only.
+//! Clicks in other apps while the popover is open (`NSEvent.addGlobalMonitorForEvents`). Main thread only.
 
 use objc2::rc::Retained;
 use objc2::{ClassType, MainThreadMarker, msg_send};

@@ -23,8 +23,6 @@ fn anchor(capsule_x: f64) -> Anchor {
     )
 }
 
-// ---- placement ----
-
 #[test]
 fn the_page_hangs_centred_under_the_capsule() {
     let a = anchor(575.0);
@@ -36,7 +34,7 @@ fn the_page_hangs_centred_under_the_capsule() {
     assert_eq!(f.height, 600.0 + MARGIN_TOP as f64 + MARGIN_BOTTOM as f64);
 }
 
-/// `MenuBarTests.popoverHangsUnderTheItemAndStaysOnScreen`: centred under the menu bar item, `GAP_BELOW_ITEM`
+/// Centred under the menu bar item, `GAP_BELOW_ITEM`
 /// below it; next to the clock it is pushed left so the page ends at the screen edge.
 #[test]
 fn popover_hangs_under_the_item_and_stays_on_screen() {
@@ -90,8 +88,6 @@ fn placement_flips_to_rune_points() {
     // 24 menu bar + 8 gap + 40 capsule + 10 gap - 8 margin
     assert_eq!(y, 74.0);
 }
-
-// ---- state ----
 
 thread_local! {
     static REQUESTS: RefCell<Vec<Request>> = const { RefCell::new(Vec::new()) };
@@ -224,7 +220,7 @@ fn page_height(scene: &str) -> f64 {
         .expect("the page's rect")
 }
 
-/// `PanelSizeTests.theOpenListMakesThePanelTaller`: the page grows with the open sources list and with more
+/// The page grows with the open sources list and with more
 /// accounts (its overlay follows the measured height, `Popover::measured`).
 #[test]
 fn the_open_list_makes_the_page_taller() {
@@ -318,8 +314,6 @@ fn notice_buttons_per_notice() {
     assert_eq!(notice::buttons(&changed, true), [("Copied", false)]);
 }
 
-// ---- cards ----
-
 #[test]
 fn burners_show_three_until_opened() {
     let mut peak = IslandState::<Prefs>::tallest(5);
@@ -351,7 +345,7 @@ fn opening_a_source_asks_for_its_thread() {
     );
 }
 
-/// `PaceTests`: the pills count what is left.
+/// The pills count what is left.
 #[test]
 fn pills_count_what_is_left() {
     assert_eq!(Account::left(74), 26);
@@ -411,8 +405,6 @@ fn a_bar_that_runs_out_has_red_tiles() {
     assert!(!bars[1].cells.contains(&TileLevel::Red));
     assert!(bars[1].cells.contains(&TileLevel::Lit));
 }
-
-// ---- scenes ----
 
 /// Runs a scene through Rune's `--tree` and returns the tree.
 fn tree(scene: &str) -> serde_json::Value {

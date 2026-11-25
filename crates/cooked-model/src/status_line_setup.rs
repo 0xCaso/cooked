@@ -1,4 +1,4 @@
-//! Port of `Model/StatusLineSetup.swift`: connects Claude Code's status line to Cooked's bridge, and gives it back
+//! Connects Claude Code's status line to Cooked's bridge, and gives it back
 //! (release spec, section 2). Cooked changes only the `statusLine` key of the real `settings.json`, after a click:
 //! every other byte of the file stays as it was. The bridge saves the JSON Claude Code sends for the Claude percent
 //! (`status_line_bridge` reads it), then runs the status line the user had, so it looks the same.
@@ -53,7 +53,7 @@ pub struct Saved {
 }
 
 impl Saved {
-    /// The bytes Swift's `JSONEncoder` writes with `.prettyPrinted, .sortedKeys, .withoutEscapingSlashes`.
+    /// Pretty-printed JSON, keys sorted, `/` not escaped.
     pub fn encode(&self) -> String {
         let mut fields = Vec::new();
         if let Some(previous) = &self.previous {
@@ -137,8 +137,6 @@ impl StatusLineSetup {
         format!("'{}'", s.replace('\'', r"'\''"))
     }
 
-    // MARK: - State
-
     pub fn state(&self, settings: &str) -> State {
         let real = Self::real(settings);
         let key = Self::key(&real);
@@ -164,8 +162,6 @@ impl StatusLineSetup {
     fn bridged(&self, real: &str, key: &str) -> bool {
         status_line_command(real).is_some_and(|c| c == self.command(key))
     }
-
-    // MARK: - Connect
 
     /// Points the file's status line to the bridge. Copies the file once to `settings.json.cooked-backup`, saves the
     /// old `statusLine` object as it is, keeps `padding` and `refreshInterval`, and writes through a temporary file.
@@ -240,8 +236,6 @@ impl StatusLineSetup {
         files::write_atomic(Path::new(&self.script()), BRIDGE_SCRIPT.as_bytes())
     }
 
-    // MARK: - Disconnect
-
     /// Gives the file its old status line back, or removes the key if it had none. When the key changed since Cooked
     /// connected (the user or another tool), the file is not touched. Returns whether the file was written.
     pub fn disconnect(&self, settings: &str) -> Result<bool, Failure> {
@@ -271,8 +265,6 @@ impl StatusLineSetup {
         Ok(true)
     }
 
-    // MARK: - Files
-
     /// Writes a temporary file next to `path`, then renames it: Claude Code never reads a half-written file. The file
     /// keeps its permissions.
     pub fn write(text: &str, path: &str) -> std::io::Result<()> {
@@ -298,7 +290,7 @@ fn status_line_command(real: &str) -> Option<String> {
     value.get("command")?.as_str().map(str::to_owned)
 }
 
-/// A JSON string literal, `/` not escaped (Swift's `JSONEncoder` with `.withoutEscapingSlashes`).
+/// A JSON string literal, `/` not escaped.
 pub fn json_string(s: &str) -> String {
     serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_owned())
 }

@@ -1,4 +1,4 @@
-//! Port of `Dots/HistogramClock.swift`: the popover chart's minutes, from the demo clock or the live data, and how far
+//! The popover chart's minutes, from the demo clock or the live data, and how far
 //! back it looks (`ChartRange`).
 
 /// The last minutes in tokens per minute, oldest first, the minute in progress last.
@@ -52,7 +52,7 @@ impl ChartRange {
     ];
     pub const DEFAULTS_KEY: &'static str = "chartRange";
 
-    /// The Swift raw value, as saved in the defaults.
+    /// The raw value, as saved in the defaults.
     pub fn raw(self) -> &'static str {
         match self {
             ChartRange::TenMinutes => "10m",

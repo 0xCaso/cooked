@@ -1,4 +1,4 @@
-//! Port of `Model/SessionFormat.swift`. Claude Code and Codex do not document their files, so a reader first checks
+//! Claude Code and Codex do not document their files, so a reader first checks
 //! that the lines are ones it knows: a file with lines but none known means the format changed, which the app shows
 //! as "format changed", never as 0 tokens.
 
@@ -108,7 +108,7 @@ impl SessionFormat {
         urls: &[(PathBuf, SystemTime)],
         cache: &mut HashMap<String, SessionFormat>,
     ) -> Option<String> {
-        // the first of equal times, like Swift's `max(by:)`
+        // the first of equal times
         let newest = urls
             .iter()
             .fold(None::<&(PathBuf, SystemTime)>, |best, u| match best {

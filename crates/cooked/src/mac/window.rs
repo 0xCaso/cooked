@@ -1,9 +1,8 @@
 //! The island panel's AppKit side: the displays (`NSScreen`), the pointer, Reduce Transparency, and the Clear
-//! glass style on Rune's `NSGlassEffectView` (step 0, spike 1c). Main thread only.
+//! glass style on Rune's `NSGlassEffectView`. Main thread only.
 
 use cooked_model::island_placement::{Point, Rect, ScreenInfo};
 use objc2::MainThreadMarker;
-use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject};
 use objc2::{msg_send, sel};
 use objc2_app_kit::{NSApplication, NSEvent, NSScreen, NSView, NSWorkspace};
@@ -62,9 +61,7 @@ fn info(screen: &NSScreen) -> ScreenInfo {
 pub fn window_frame(number: u32) -> Option<Rect> {
     let mtm = MainThreadMarker::new()?;
     let app = NSApplication::sharedApplication(mtm);
-    // SAFETY: `windowWithWindowNumber:` returns this app's window with that number, or nil.
-    let window: Option<Retained<objc2_app_kit::NSWindow>> =
-        unsafe { msg_send![&*app, windowWithWindowNumber: number as isize] };
+    let window = app.windowWithWindowNumber(number as isize);
     window.map(|w| rect(w.frame()))
 }
 
@@ -76,11 +73,7 @@ pub fn mouse_location() -> Point {
 
 /// System Settings › Accessibility › Display › Reduce transparency.
 pub fn reduce_transparency() -> bool {
-    let workspace = NSWorkspace::sharedWorkspace();
-    // SAFETY: `accessibilityDisplayShouldReduceTransparency` is a BOOL property of NSWorkspace (macOS 10.10+).
-    let reduced: objc2::runtime::Bool =
-        unsafe { msg_send![&*workspace, accessibilityDisplayShouldReduceTransparency] };
-    reduced.as_bool()
+    NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceTransparency()
 }
 
 /// Sets `style` (0 regular, 1 clear) on every Liquid Glass view Rune made in the window `number`, and returns how
@@ -91,9 +84,7 @@ pub fn set_glass_style(number: u32, style: isize) -> usize {
         return 0;
     };
     let app = NSApplication::sharedApplication(mtm);
-    // SAFETY: `windowWithWindowNumber:` returns this app's window with that number, or nil.
-    let window: Option<Retained<objc2_app_kit::NSWindow>> =
-        unsafe { msg_send![&*app, windowWithWindowNumber: number as isize] };
+    let window = app.windowWithWindowNumber(number as isize);
     let Some(content) = window.and_then(|w| w.contentView()) else {
         return 0;
     };

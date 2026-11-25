@@ -1,5 +1,4 @@
-//! `DotShadingTests.swift`: the per-dot level and red flag. The radius and glow asserts are dropped: chrome tiles
-//! have neither (`unlitDotSitsAtFloor`, `litDotGlows` keep their alpha asserts only).
+//! The per-dot level and red flag. Only alpha is checked: chrome tiles have no radius or glow.
 
 use cooked_model::dot_shading::{DotGrid, DotShade, DotShading};
 

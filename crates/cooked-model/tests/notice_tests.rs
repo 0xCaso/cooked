@@ -1,4 +1,4 @@
-//! `NoticeTests.swift`: the popover's notice card.
+//! The popover's notice card.
 mod common;
 
 use cooked_model::accounts::ConnectedAccount;

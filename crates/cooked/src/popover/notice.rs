@@ -1,5 +1,5 @@
-//! The notice card on top of the popover (Swift `NoticeCard`, DESIGN.md): what is missing in one sentence, and its
-//! one fix. Title in emphasis, body at 72%, both wrap; one white button at most, "Not now" beside it.
+//! The notice card on top of the popover (DESIGN.md): what is missing in one sentence, and its one fix. Title in
+//! emphasis, body at 72%, both wrap; one white button at most, "Not now" beside it.
 
 use cooked_model::notice::Notice;
 use rune::{Color, Cursor, El, col, row, text};
@@ -61,7 +61,7 @@ pub fn card_for(notice: &Notice, copied: bool) -> El {
     )
 }
 
-/// 28 pt capsules (Swift `PrimaryButtonStyle`, `SecondaryButtonStyle`): white to ink with dark text, or a quiet
+/// 28 pt capsules: white to ink with dark text, or a quiet
 /// ring with ink text.
 fn button(title: &'static str, primary: bool) -> El {
     let b = row()

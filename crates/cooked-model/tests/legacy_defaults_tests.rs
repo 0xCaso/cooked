@@ -1,4 +1,4 @@
-//! `LegacyDefaultsTests.swift`, with the in-memory store for the two suites.
+//! Settings copied from the old bundle id, with the in-memory store for the two suites.
 
 use cooked_model::defaults::{DefaultsStore, DefaultsValue, MemoryDefaults};
 use cooked_model::histogram_clock::ChartRange;

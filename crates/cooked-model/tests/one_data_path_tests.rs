@@ -1,4 +1,4 @@
-//! `OneDataPathTests.swift`: one data path. The session files, the bridge files and the minute cache; T3 Code's logs
+//! One data path. The session files, the bridge files and the minute cache; T3 Code's logs
 //! only for a Claude percent with no bridge file yet.
 mod common;
 
@@ -126,7 +126,7 @@ fn codex_percent_comes_from_the_rollouts() {
     );
 }
 
-/// Task 8: no T3 Code database, the rows keep the session's own name and open the session itself.
+/// No T3 Code database, the rows keep the session's own name and open the session itself.
 #[test]
 fn without_t3_code_rows_use_the_session_name() {
     let now = common::now();

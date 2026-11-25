@@ -120,21 +120,21 @@ fn island_shows_only_connected_accounts_in_their_order_with_their_names() {
     );
 }
 
-/// Not a Swift case: the accounts JSON must be byte-equal to what Swift's `JSONEncoder` stores in UserDefaults
-/// (keys in declaration order, `/` escaped as `\/`, non-ASCII raw). Expected bytes printed by `swift`.
+/// The accounts JSON must be byte-equal to what earlier versions stored in UserDefaults (keys in declaration order,
+/// `/` escaped as `\/`, non-ASCII raw).
 #[test]
 fn accounts_json_matches_swift_encoder() {
     let accounts = [
         ConnectedAccount::new("claudeAgent_work", "wörk “x” ê/ü", "/Users/me/.claude-work"),
         ConnectedAccount::new("codex", "codex", "/h/.codex"),
     ];
-    let swift = r#"[{"id":"claudeAgent_work","name":"wörk “x” ê\/ü","path":"\/Users\/me\/.claude-work"},{"id":"codex","name":"codex","path":"\/h\/.codex"}]"#;
+    let saved = r#"[{"id":"claudeAgent_work","name":"wörk “x” ê\/ü","path":"\/Users\/me\/.claude-work"},{"id":"codex","name":"codex","path":"\/h\/.codex"}]"#;
     assert_eq!(
         String::from_utf8(AccountStore::encode(&accounts)).unwrap(),
-        swift
+        saved
     );
     assert_eq!(
-        AccountStore::decode(swift.as_bytes()),
+        AccountStore::decode(saved.as_bytes()),
         Some(accounts.to_vec())
     );
     let controls = [ConnectedAccount::new(

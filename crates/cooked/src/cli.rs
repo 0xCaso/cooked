@@ -1,5 +1,5 @@
-//! The command line, as `CookedApp.swift` reads it: one parser for every flag. The headless commands (`--limits`,
-//! `--statusline`) print and exit before any window; the rest change how the app starts.
+//! The command line: one parser for every flag. The headless commands (`--limits`, `--statusline`) print and exit
+//! before any window; the rest change how the app starts.
 //!
 //! Rune's tooling flags (`--snap`, `--tree`, `--scene`, ...) are Rune's: in a `tooling` build Rune takes them from
 //! the same command line, so no Cooked flag may share a name (`cli_flags_disjoint_from_rune_tooling`). Arguments this
@@ -83,8 +83,8 @@ pub struct Launch {
     pub probe_item_click: Option<Duration>,
 }
 
-/// `args` as `std::env::args()` gives them, the program first. As Swift: `--limits` wins over `--statusline`, which
-/// wins over the app; a flag's missing or unreadable value is as if the flag were absent; `--statusline` with no
+/// `args` as `std::env::args()` gives them, the program first. `--limits` wins over `--statusline`, which wins over
+/// the app; a flag's missing or unreadable value is as if the flag were absent; `--statusline` with no
 /// action, or one it does not know, is `status`.
 pub fn parse(args: &[String]) -> Command {
     let rest = args.get(1..).unwrap_or_default();
@@ -168,8 +168,7 @@ fn limits(out: &mut dyn Write) -> i32 {
     0
 }
 
-/// The lines `--limits` prints, as Swift's `print` writes them (items joined by a space, so an account with no
-/// note ends in a space).
+/// The lines `--limits` prints: items joined by a space, so an account with no note ends in a space.
 pub fn limits_lines(status: &StatusFile, notices: &[Notice]) -> Vec<String> {
     let text = |s: &Option<String>| s.clone().unwrap_or_else(|| "-".to_owned());
     let mut lines: Vec<String> = status
@@ -212,7 +211,7 @@ pub fn limits_lines(status: &StatusFile, notices: &[Notice]) -> Vec<String> {
     lines
 }
 
-/// Swift's `print` of a `StatusLineSetup.State`: the case's name.
+/// A `State` as `--statusline` prints it.
 fn state_name(state: State) -> &'static str {
     match state {
         State::NotConnected => "notConnected",
@@ -221,7 +220,7 @@ fn state_name(state: State) -> &'static str {
     }
 }
 
-/// Swift's `print` of the error: the case's name for `notAnObject`.
+/// A failure as `--statusline` prints it.
 fn failure_text(failure: &Failure) -> String {
     match failure {
         Failure::NotAnObject => "notAnObject".to_owned(),
@@ -328,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn headless_commands_win_as_in_swift() {
+    fn headless_commands_win() {
         assert_eq!(parse(&args(&["--open", "--limits"])), Command::Limits);
         assert_eq!(
             parse(&args(&["--statusline", "connect", "--limits"])),
@@ -483,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn limits_lines_print_as_swift() {
+    fn limits_lines_format() {
         let mut accounts = BTreeMap::new();
         accounts.insert(
             "claude".to_owned(),

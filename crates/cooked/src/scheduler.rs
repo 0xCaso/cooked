@@ -1,6 +1,6 @@
-//! The live feed's reader, as `Views/IslandRoot.swift` runs it: read, hand the reading to the UI, wait 5 s, again.
-//! It runs on its own thread, never the UI thread. Changing the accounts reads again at once with a new source; when
-//! the feed is not live it stops reading until it is again.
+//! The live feed's reader: read, hand the reading to the UI, wait 5 s, again. It runs on its own thread, never the UI
+//! thread. Changing the accounts reads again at once with a new source; when the feed is not live it stops reading
+//! until it is again.
 
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -18,8 +18,8 @@ use crate::paths;
 /// The wait after each reading.
 pub const INTERVAL: Duration = Duration::from_secs(5);
 /// How long Quit waits for the reader to stop. A waiting reader stops at once; one in the middle of a reading (the
-/// first launch reads 14 days) is left behind: the process ends under it, as Swift's `terminate` did, and its cache
-/// writes are atomic, so nothing is left half-written.
+/// first launch reads 14 days) is left behind: the process ends under it, and its cache writes are
+/// atomic, so nothing is left half-written.
 pub const STOP_GRACE: Duration = Duration::from_millis(250);
 
 /// What the UI asks of the reader thread.
@@ -80,7 +80,7 @@ impl LiveReader {
     }
 }
 
-/// As Swift's `UsageSource` with `MinuteLedger(url:)`: each new source loads the caches from disk. The bridge
+/// Each new source loads the caches from disk. The bridge
 /// folder stays the real one: Claude Code's status line writes it, Cooked only reads it.
 pub fn live_source(accounts: Vec<ConnectedAccount>) -> UsageSource {
     let dir = paths::data_dir();

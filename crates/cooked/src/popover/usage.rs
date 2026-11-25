@@ -1,7 +1,6 @@
-//! Usage per account (mockup B `.usage`, Swift `accountsCard`): a pill per window, counted as what is left. The
-//! 5-hour pill opens with the account name, then the % and "full HH:MM" (red: it runs out before the reset) or
-//! "resets HH:MM"; the week pill its % and reset day. Under each, a 44 x 2 tile bar. Accounts not used in 5 hours
-//! fold into one line (DESIGN.md).
+//! Usage per account: a pill per window, counted as what is left. The 5-hour pill opens with the account name, then the
+//! % and "full HH:MM" (red: it runs out before the reset) or "resets HH:MM"; the week pill its % and reset day. Under
+//! each, a 44 x 2 tile bar. Accounts not used in 5 hours fold into one line (DESIGN.md).
 
 use cooked_model::tiles::bar_grid;
 use cooked_model::usage_snapshot::{Account, UsageSnapshot};
@@ -13,10 +12,10 @@ use crate::tiles::{TileGrid, tile_slot};
 
 /// A bar's tiles.
 pub const BAR: (usize, usize) = (44, 2);
-/// The week column, points (mockup B `.u-row`: `minmax(0, 1fr) 150px`).
+/// The week column, points.
 const WEEK_WIDTH: f32 = 150.0;
 const COLUMN_GAP: f32 = 8.0;
-/// Bar height and tile spacing (mockup B `.pop.tiles .bar`, `gap: 1.2`).
+/// Bar height and tile spacing.
 const BAR_HEIGHT: f32 = 8.0;
 const BAR_GAP: f32 = 1.2;
 const BAR_RADIUS: f32 = 0.85;
@@ -51,7 +50,7 @@ pub fn bars(s: &UsageSnapshot) -> Vec<TileGrid> {
 }
 
 /// The 5-hour pill's times: "full 23:14" (red), "resets 04:40", or nothing without a percent. Blocked: the reset
-/// in red (Swift `PillTimes(red:)`).
+/// in red.
 pub fn five_hour_times(a: &Account) -> Option<(String, bool)> {
     if a.is_blocked {
         return Some((format!("resets {}", a.five_hour_reset), true));
@@ -136,7 +135,7 @@ pub fn card_for(s: &UsageSnapshot, first_mark: u32) -> El {
     card(body, CARD_RADIUS)
 }
 
-/// A pill: its top line, then the bar the pill's full width (mockup B `.u5`, `.uw`).
+/// A pill: its top line, then the bar the pill's full width.
 fn pill(key: &'static str, top: El, mark: u32) -> El {
     well(
         col()

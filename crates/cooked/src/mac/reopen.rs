@@ -1,10 +1,10 @@
 //! Opening the app again while it runs (Applications, Spotlight, the Dock, `open`): macOS sends the running app the
-//! reopen Apple event (`'aevt'`/`'rapp'`), and Swift's `applicationShouldHandleReopen` opened the popover. Rune's
-//! app delegate has no such hook, so Cooked handles the Apple event itself: AppKit's own handler only asked the
-//! delegate, and Cooked never wants its default (no window to bring back).
+//! reopen Apple event (`'aevt'`/`'rapp'`), which opens the popover. Rune's app delegate has no such hook, so Cooked
+//! handles the Apple event itself: AppKit's own handler only asked the delegate, and Cooked never wants its default (no
+//! window to bring back).
 //!
-//! A later launch's arguments (`open --args --settings`) never reach the running app: LaunchServices sends only
-//! the reopen event, in Swift too. Main thread only.
+//! A later launch's arguments (`open --args --settings`) never reach the running app: LaunchServices sends only the
+//! reopen event. Main thread only.
 
 use objc2::rc::{Retained, autoreleasepool};
 use objc2::runtime::{AnyObject, NSObject};

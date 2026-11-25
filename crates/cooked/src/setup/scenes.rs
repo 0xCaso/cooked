@@ -1,6 +1,6 @@
-//! The mockup's states as headless scenes (`--snap`, `--tree`), over a home made in a temporary folder: three Claude
-//! folders reading one `settings.json` through symlinks, a fourth unticked, and Codex. Nothing outside that folder is
-//! read or written. The clock stops at Wed 4 Nov 2026 16:58 UTC, the mockup's.
+//! Setup's and Settings' states as headless scenes (`--snap`, `--tree`), over a home made in a temporary folder: three
+//! Claude folders reading one `settings.json` through symlinks, a fourth unticked, and Codex. Nothing outside that
+//! folder is read or written. The clock stops at Wed 4 Nov 2026 16:58 UTC.
 
 use std::fs;
 use std::path::Path;

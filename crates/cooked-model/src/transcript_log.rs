@@ -1,4 +1,4 @@
-//! Port of `Model/TranscriptLog.swift`. New tokens per minute of the Claude accounts, read from their transcripts
+//! New tokens per minute of the Claude accounts, read from their transcripts
 //! (`<config dir>/projects/**/*.jsonl`). T3 Code's database writes a turn's tokens only when the turn ends, and never
 //! the subagents that keep running after it; the transcripts have every call, with its time. "New" counts like the
 //! watcher: input + cache writes + output, without cache reads.
@@ -85,7 +85,7 @@ impl Session {
     }
 }
 
-/// Sessions most tokens first, then by id, both descending (Swift's `($0.tokens, $0.id) > ($1.tokens, $1.id)`).
+/// Sessions most tokens first, then by id, both descending.
 pub(crate) fn sort_sessions(sessions: &mut [Session]) {
     sessions.sort_by(|a, b| b.tokens.total_cmp(&a.tokens).then_with(|| b.id.cmp(&a.id)));
 }

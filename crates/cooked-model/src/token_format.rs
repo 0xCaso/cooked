@@ -1,4 +1,4 @@
-//! Port of `Model/TokenFormat.swift`.
+//! Token counts as short labels.
 
 /// 950 → "950", 9 000 → "9k", 1 200 000 → "1.2M".
 pub fn short(n: f64) -> String {

@@ -1,4 +1,4 @@
-//! Port of `IslandPlacement.swift`: where the island panel goes on a screen. Pure geometry: the displays come in as
+//! Where the island panel goes on a screen. Pure geometry: the displays come in as
 //! plain data (`ScreenInfo`), so no AppKit. Frames are in screen coordinates (origin bottom-left), and
 //! `visible_frame` is `NSScreen.visibleFrame`: it already excludes the menu bar and the Dock.
 

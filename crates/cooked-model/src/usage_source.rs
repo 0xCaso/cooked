@@ -1,4 +1,4 @@
-//! Port of `Model/UsageSource.swift`: where the live island reads from. The session files of the connected accounts
+//! Where the live island reads from. The session files of the connected accounts
 //! (tokens per minute, sessions and the Codex percent), the status line bridge files (the Claude percent) and the
 //! minute cache (the alert thresholds). T3 Code adds thread titles when its database exists; until the bridge is
 //! connected, its logs give the Claude percent.

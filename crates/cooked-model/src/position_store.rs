@@ -1,5 +1,5 @@
-//! Port of `PositionStore.swift`: the panel's last position, in the defaults as JSON under `islandPosition`.
-//! The JSON is the one Swift's `JSONEncoder` writes for `SavedPosition`: `{"displayID": 2, "topCenter": [x, y]}`
+//! The panel's last position, in the defaults as JSON under `islandPosition`.
+//! The JSON keeps the form earlier versions saved: `{"displayID": 2, "topCenter": [x, y]}`
 //! (a `CGPoint` encodes as a two-number array).
 
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub fn encode(position: &IslandPosition) -> Vec<u8> {
     serde_json::to_vec(position).unwrap_or_default()
 }
 
-/// `None` when the data is not a saved position, as Swift's `try?` decode.
+/// `None` when the data is not a saved position.
 pub fn decode(data: &[u8]) -> Option<IslandPosition> {
     serde_json::from_slice(data).ok()
 }

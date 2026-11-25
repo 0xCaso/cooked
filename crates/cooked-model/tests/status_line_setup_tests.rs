@@ -1,4 +1,4 @@
-//! `StatusLineSetupTests.swift`: connecting the status line bridge changes only the `statusLine` key, and
+//! Connecting the status line bridge changes only the `statusLine` key, and
 //! disconnecting gives back the exact old text. Every file is under a temporary folder, never the real `~/.claude`.
 mod common;
 

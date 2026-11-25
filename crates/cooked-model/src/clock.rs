@@ -1,7 +1,7 @@
-//! Time without a calendar library: Unix seconds as `f64` (Swift's `Date.timeIntervalSince1970`), civil dates in the
+//! Time without a calendar library: Unix seconds as `f64`, civil dates in the
 //! proleptic Gregorian calendar, and the local zone behind a trait (the app gives the real one).
 
-/// The UTC offset in effect at a moment, in seconds east of UTC. Stands in for Swift's `Calendar.current`.
+/// The UTC offset in effect at a moment, in seconds east of UTC.
 pub trait TimeZone {
     fn utc_offset(&self, unix: f64) -> i64;
 }

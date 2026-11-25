@@ -1,6 +1,6 @@
-//! Port of `Model/DemoData.swift`: the mockup's demo data (src/lib.js). `calm` is a real status.json of 28/10 19:28,
+//! The mockup's demo data (src/lib.js). `calm` is a real status.json of 28/10 19:28,
 //! `peak` (23:05) is invented. The week % of every account but the work account is invented. `Feed` is
-//! `IslandModel.Feed`: what the island shows.
+//! what the island shows.
 
 use crate::token_sources::TokenSource;
 use crate::usage_snapshot::{Account, Urgency, UsageSnapshot};
@@ -19,7 +19,7 @@ pub enum Feed {
 impl Feed {
     pub const ALL: [Feed; 3] = [Feed::Live, Feed::DemoCalm, Feed::DemoPeak];
 
-    /// The Swift raw value, as `--feed` takes it.
+    /// The raw value, as `--feed` takes it.
     pub fn raw(self) -> &'static str {
         match self {
             Feed::Live => "live",

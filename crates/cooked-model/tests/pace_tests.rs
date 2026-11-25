@@ -1,4 +1,4 @@
-//! `PaceTests.swift`: even pace and the pills' strips.
+//! Even pace and the pills' strips.
 mod common;
 
 use common::token_source;
@@ -24,39 +24,28 @@ fn weekday_is_short_english() {
     assert_eq!(live_snapshot::weekday(monday, &FixedOffset(3600)), "Mon");
 }
 
-// PaceTests.stripLightsTheShareLeftAndPutsTheLineAtTimeLeft: `bar_lights_the_share_left_and_puts_the_line_at_time_left`
-// in `crates/cooked-model/tests/tiles_tests.rs`, and `pills_count_what_is_left` in
-// `crates/cooked/src/popover/tests.rs`; `PaceStrip.columns(width:)` does not apply: the bars have a fixed 44 columns
-// (`usage::BAR`).
-// PaceTests.overspendIsTheDarkDotsBeforeTheLine: `bar_runs_out_before_reset_turns_the_overspend_red` in
-// `crates/cooked-model/tests/tiles_tests.rs`.
-
 #[test]
 #[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
 fn fronts_sway_within_bounds_and_keep_moving() {
-    // Swift: let fronts = PaceFronts(seed: 11); for frame in 0...3600 { sway = fronts.sway(at: frame / 60, still: false) }
-    // #expect(sway.count == 3); #expect(biggest <= PaceFronts.maxSway); #expect(biggest > 0.2)
-    // #expect(moving > 1000) (frames with a sway over 0.05); #expect(rows.count == 3)
-    unimplemented!("port with the popover pills in Task 13");
+    // Three fronts, seed 11, over 3600 frames at 60 fps: no sway past the max sway, the biggest over 0.2, more than
+    // 1000 frames swaying over 0.05.
+    unimplemented!("the pills' bar fronts do not sway");
 }
 
 #[test]
 #[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
 fn still_fronts_do_not_sway() {
-    // Swift: let fronts = PaceFronts(seed: 11); for frame in 0...600 { _ = fronts.sway(at: frame / 60, still: false) }
-    // #expect(fronts.sway(at: 10.1, still: true) == [0, 0, 0])
-    unimplemented!("port with the popover pills in Task 13");
+    // Seed 11, 600 frames moving, then still at 10.1 s: every sway is 0.
+    unimplemented!("the pills' bar fronts do not sway");
 }
 
 #[test]
 #[ignore = "parity gap, pending a design choice: whole tiles, no partly lit front or shifting dots (Swift PaceStrip.cover/shift)"]
 fn front_dot_is_partly_lit_and_the_dots_behind_move_less() {
-    // Swift: 3.9 columns lit: columns 0-2 full, column 3 at 90%, column 4 dark
-    // #expect(PaceStrip.cover(column: 2, fill: 3.9, sway: 0) == 1); cover(3, 3.9, 0) ≈ 0.9; cover(4, 3.9, 0) == 0
-    // cover(4, 3.9, 0.5) ≈ 0.4; cover(0, fill: 0, sway: 0.7) == 0
-    // front = shift(3, 3.9, 0.7) ≈ PaceStrip.maxShift; back = shift(0, 3.9, 0.7): 0 < back < front
-    // shift(3, 3.9, 0) == 0; shift(6, 3.9, 0.7) == 0 // dark dots stay put
-    unimplemented!("port with the popover pills in Task 13");
+    // 3.9 columns lit: columns 0-2 full, column 3 at 90%, column 4 dark, and at 40% with a sway of 0.5; a fill of 0
+    // lights nothing. With a sway of 0.7 the front dot shifts the most and the dots behind it less; with no sway, or
+    // dark, a dot stays put.
+    unimplemented!("tiles are whole: no partly lit front or shifting dots");
 }
 
 #[test]

@@ -277,7 +277,7 @@ fn an_old_copy_does_not_move_the_start_past_newer_calls() {
     }
 }
 
-/// Review Focus 2: a line cut mid-write (Claude Code still appending) is skipped, and the next reading counts it.
+/// A line cut mid-write (Claude Code still appending) is skipped, and the next reading counts it.
 #[test]
 fn half_written_line_is_skipped_then_read() {
     let f = Fixture::new();

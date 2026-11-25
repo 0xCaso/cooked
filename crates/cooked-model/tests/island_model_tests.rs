@@ -1,4 +1,4 @@
-//! `IslandModelTests.swift`: the island's state with no AppKit. The panel-size cases measure views: they live in
+//! The island's state with no AppKit. The panel-size cases measure views: they live in
 //! `crates/cooked`.
 
 use cooked_model::defaults::MemoryDefaults;
@@ -56,12 +56,6 @@ fn peak_rate_stays_on_tick() {
     assert_eq!(model.rate_now, 184_000);
 }
 
-// IslandModelTests.panelSizeHoldsOpenPeak: does not apply, Rune has no SwiftUI panel sized to the open peak: the
-// island overlay is a fixed 338 x 88 (`window_is_the_island_and_its_margin` in `crates/cooked/src/island.rs`) and
-// the popover is its own overlay that follows its page's measured height.
-
-// MARK: - IslandHitTestTests
-
 // panel 452 × 600 with its bottom-left corner at (1000, 800) on screen; rects are top-left based
 const PANEL: Rect = Rect {
     x: 1000.0,
@@ -118,8 +112,6 @@ fn outside_the_panel_passes_through() {
     ));
 }
 
-// MARK: - PanelSizeTests
-
 #[test]
 fn tallest_has_the_full_list_and_every_account() {
     use cooked_model::token_sources::LIMIT;
@@ -131,11 +123,6 @@ fn tallest_has_the_full_list_and_every_account() {
         demo_data::peak().rows().len()
     );
 }
-
-// PanelSizeTests.theOpenListMakesThePanelTaller: `the_open_list_makes_the_page_taller` in
-// `crates/cooked/src/popover/tests.rs`.
-
-// MARK: - Review fixes and live state
 
 #[test]
 fn closing_by_a_click_elsewhere_swallows_that_same_click() {

@@ -1,6 +1,5 @@
-//! The Setup and Settings controls, as `Views/SetupControls.swift` draws them in the approved look:
-//! 30 pt capsule buttons, a 16 pt checkbox, a 38 x 22
-//! switch, the account's name field, a disclosure with a chevron that turns, and the motion of steps and the sheet.
+//! The Setup and Settings controls: 30 pt capsule buttons, a 16 pt checkbox, a 38 x 22 switch, the account's name
+//! field, a disclosure with a chevron that turns, and the motion of steps and the sheet.
 
 use rune::{
     Color, Cursor, El, Icon, Shadow, Spring, SpringPair, TextEdit, Transition, col, el, icon, row,
@@ -72,7 +71,7 @@ pub fn fade_transition(reduce_motion: bool) -> Transition {
     ))
 }
 
-// MARK: - Icons (the mockup's 16 x 16 strokes)
+// Icons (16 x 16 strokes)
 
 macro_rules! stroke_icon {
     ($name:ident, $id:literal, $width:literal, $paths:literal) => {
@@ -152,7 +151,7 @@ stroke_icon!(
     r#"<path d="M6 3.5L10.5 8 6 12.5"/>"#
 );
 
-// MARK: - Buttons
+// Buttons
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ButtonKind {
@@ -164,7 +163,7 @@ pub enum ButtonKind {
     Ghost,
 }
 
-/// A 30 pt capsule (mockup `.btn`); press sinks to 0.97 (DESIGN.md).
+/// A 30 pt capsule; press sinks to 0.97 (DESIGN.md).
 pub fn button(key: &'static str, title: &str, kind: ButtonKind) -> El {
     let b = row()
         .key(key)
@@ -212,7 +211,7 @@ pub fn button(key: &'static str, title: &str, kind: ButtonKind) -> El {
     }
 }
 
-// MARK: - Checkbox and switch
+// Checkbox and switch
 
 /// A 16 pt checkbox: recessed when off, white with a dark tick when on.
 pub fn checkbox(key: impl Into<String>, on: bool, label: &str) -> El {
@@ -276,9 +275,9 @@ pub fn switch(key: &'static str, on: bool, label: &str, reduce_motion: bool) -> 
     track.child(knob)
 }
 
-// MARK: - Name field
+// Name field
 
-/// The account's short name in a recessed field (mockup `.fld`): 500 and full ink when ticked, 400 at 55% when not.
+/// The account's short name in a recessed field: 500 and full ink when ticked, 400 at 55% when not.
 pub fn name_field(edit: &TextEdit, enabled: bool, configure: impl FnOnce(El) -> El) -> El {
     let style = if enabled {
         TextStyle::Emphasis
@@ -313,9 +312,9 @@ pub fn name_field(edit: &TextEdit, enabled: bool, configure: impl FnOnce(El) -> 
     .child(field)
 }
 
-// MARK: - Disclosure
+// Disclosure
 
-/// A closed-by-default disclosure (mockup `.disc`): a chevron that turns 90° in 150 ms, the title at 72%, and the
+/// A closed-by-default disclosure: a chevron that turns 90° in 150 ms, the title at 72%, and the
 /// body 18 pt in under it.
 pub fn disclosure(key: &'static str, title: &str, open: bool, reduce_motion: bool) -> El {
     let chevron = icon(&CHEVRON, 12.0)
@@ -363,7 +362,7 @@ pub fn disclosure_body(key: &'static str, reduce_motion: bool) -> El {
         .transition(fade_transition(reduce_motion))
 }
 
-/// The segmented control's track (Swift `Segments`): recessed; its options are `segment`s.
+/// The segmented control's track: recessed; its options are `segment`s.
 pub fn segments(key: &'static str) -> El {
     row()
         .key(key)
@@ -402,7 +401,7 @@ pub fn segment(key: &'static str, title: &str, on: bool) -> El {
     }
 }
 
-/// A 22 pt status glyph (mockup `.sglyph`): filled with a tick, a ring with a dash, or the warning triangle alone.
+/// A 22 pt status glyph: filled with a tick, a ring with a dash, or the warning triangle alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Glyph {
     Connected,
@@ -432,7 +431,7 @@ pub fn rail_line() -> El {
         .fill(Palette::ink().alpha(0.14))
 }
 
-/// A hairline between rows and sections (mockup `--muted`).
+/// A hairline between rows and sections.
 pub fn line() -> Color {
     Color::WHITE.alpha(0.08)
 }

@@ -1,4 +1,4 @@
-//! T3 Code, the app the sources run in (`T3Code.swift`, the link half; opening it is the app's `mac::open`).
+//! T3 Code, the app the sources run in: the link half; opening it is the app's `mac::open`.
 //! `t3code://threads/<environment>/<thread>` opens one thread (T3 Code 0.0.46 and later, pingdotgg/t3code#18454);
 //! older builds only come to the front.
 
@@ -26,8 +26,7 @@ pub fn link(thread: &str, environment_file: &Path) -> Option<String> {
     ))
 }
 
-/// Percent-encodes all but ASCII letters, digits and `-._~`. Swift kept non-ASCII letters too, and `URL(string:)`
-/// then encoded them as these UTF-8 bytes: the same link.
+/// Percent-encodes all but ASCII letters, digits and `-._~`.
 fn segment(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {

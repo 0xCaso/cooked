@@ -1,4 +1,4 @@
-//! Port of `Model/Accounts.swift`: the Claude Code and Codex config folders Cooked reads.
+//! The Claude Code and Codex config folders Cooked reads.
 
 use crate::defaults::DefaultsStore;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use std::time::SystemTime;
 /// Ids follow T3 Code's provider instances, so the T3 Code extras still match: `~/.claude` is `claudeAgent`,
 /// `~/.claude-x-y` is `claudeAgent_x_y`, `~/.codex` is `codex`.
 ///
-/// Field order is the JSON key order Swift's `JSONEncoder` writes.
+/// Field order is the JSON key order earlier versions saved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectedAccount {
     pub id: String,
@@ -161,7 +161,7 @@ fn newest_codex(dir: &str) -> Option<SystemTime> {
     }
 }
 
-/// The connected accounts, in display order, in UserDefaults as JSON (the same bytes Swift's `JSONEncoder` writes).
+/// The connected accounts, in display order, in UserDefaults as JSON (the same bytes earlier versions saved).
 /// The first launch connects every folder `scan` finds, with its default name.
 pub struct AccountStore;
 
@@ -191,7 +191,7 @@ impl AccountStore {
         found
     }
 
-    /// Swift `JSONEncoder` bytes: compact, keys in declaration order, `/` written as `\/`.
+    /// The bytes earlier versions saved: compact, keys in declaration order, `/` written as `\/`.
     pub fn encode(accounts: &[ConnectedAccount]) -> Vec<u8> {
         let mut out = Vec::new();
         let mut ser = serde_json::Serializer::with_formatter(&mut out, SwiftFormatter);
@@ -207,7 +207,7 @@ impl AccountStore {
     }
 }
 
-/// serde_json's compact output, plus the `\/` escape Swift's `JSONEncoder` uses by default.
+/// serde_json's compact output, plus the `\/` escape earlier versions saved.
 pub struct SwiftFormatter;
 
 impl serde_json::ser::Formatter for SwiftFormatter {

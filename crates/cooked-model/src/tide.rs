@@ -1,4 +1,4 @@
-//! Port of `Dots/Tide.swift`: the charts are a liquid. Every column is a spring pulled to its target and tied to its
+//! The charts are a liquid. Every column is a spring pulled to its target and tied to its
 //! neighbours, so a new value flows into place instead of being redrawn. `LiquidShade` keeps the opacity, the white
 //! core and the red flag; the LED radius and glow are dropped (chrome tiles have neither).
 
@@ -120,7 +120,7 @@ impl TideScale {
 impl TideScale {
     /// `targets`, except where a minute spans `FINE_SPAN` columns or more (10m, 30m): there the columns follow a
     /// line between the minutes' centres, so the chart varies column by column (the approved mockup) instead of
-    /// standing in flat steps one minute wide (Swift). Coarser ranges keep `targets` as is.
+    /// standing in flat steps one minute wide. Coarser ranges keep `targets` as is.
     pub fn fine_targets(minutes: &[f64], cols: usize, rows: usize, top: f64) -> Vec<f64> {
         let n = minutes.len();
         if n == 0 || (cols as f64) < Self::FINE_SPAN * n as f64 {

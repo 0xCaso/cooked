@@ -12,7 +12,7 @@ pub fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// The file's non-empty lines, like Swift's `Data.split(separator:)`.
+/// The file's non-empty lines.
 pub fn lines(name: &str) -> Vec<Vec<u8>> {
     let data = std::fs::read(fixture(name)).expect("fixture");
     data.split(|b| *b == b'\n')
@@ -106,7 +106,7 @@ pub fn append(path: &Path, lines: &[String]) {
     append_raw(path, &(lines.join("\n") + "\n"));
 }
 
-// T3 Code's provider log lines (`LimitLogTests.claudeLine`, `codexLine`, `logDir`).
+// T3 Code's provider log lines.
 
 /// A Claude `rate_limit_event` line as T3 Code logs it (30/10 11:59).
 pub fn claude_line_full(
@@ -231,7 +231,7 @@ pub fn source(dir: PathBuf) -> cooked_model::usage_source::UsageSource {
     }
 }
 
-/// A source line, as Swift's `TokenSource(id:threadID:project:detail:account:rate:agents:)`.
+/// A source line.
 pub fn token_source(
     id: &str,
     thread: Option<&str>,

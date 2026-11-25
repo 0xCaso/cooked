@@ -1,4 +1,4 @@
-//! `DemoDataTests.swift`: the mockup's demo snapshots.
+//! The mockup's demo snapshots.
 use cooked_model::demo_data::{self, Feed};
 use cooked_model::token_format;
 use cooked_model::usage_snapshot::Urgency;
@@ -122,7 +122,7 @@ fn calm_rates_cycle() {
     assert_eq!(demo_data::CALM_RATES, [9000, 11000, 8000, 10000]);
 }
 
-/// Not a Swift case: the feeds' raw values are the `--feed` arguments and Swift's `IslandModel.Feed`.
+/// The feeds' raw values are the `--feed` arguments.
 #[test]
 fn feeds_round_trip_their_raw_values() {
     for f in Feed::ALL {
