@@ -580,6 +580,11 @@ fn a_bar_that_runs_out_has_red_tiles() {
 
 /// Runs a scene through Rune's `--tree` and returns the tree.
 fn tree(scene: &str) -> serde_json::Value {
+    tree_at(scene, None, None)
+}
+
+/// `tree`, after `script` (Rune's `--script` events) if any, taken at `at` seconds if given.
+fn tree_at(scene: &str, script: Option<&str>, at: Option<f64>) -> serde_json::Value {
     // its own folder per call: two tests may render the same scene at once
     static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let run = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -587,15 +592,21 @@ fn tree(scene: &str) -> serde_json::Value {
         std::env::temp_dir().join(format!("cooked-tree-{}-{run}-{scene}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let out = dir.join("tree.json");
-    scenes::app()
-        .args([
-            "--tree".to_owned(),
-            out.to_string_lossy().into_owned(),
-            "--scene".to_owned(),
-            scene.to_owned(),
-        ])
-        .try_run()
-        .expect("headless tree");
+    let mut args = vec![
+        "--tree".to_owned(),
+        out.to_string_lossy().into_owned(),
+        "--scene".to_owned(),
+        scene.to_owned(),
+    ];
+    if let Some(script) = script {
+        let file = dir.join("script.json");
+        std::fs::write(&file, script).expect("script written");
+        args.extend(["--script".to_owned(), file.to_string_lossy().into_owned()]);
+    }
+    if let Some(at) = at {
+        args.extend(["--at".to_owned(), at.to_string()]);
+    }
+    scenes::app().args(args).try_run().expect("headless tree");
     let json = std::fs::read_to_string(&out).expect("tree written");
     let _ = std::fs::remove_dir_all(&dir);
     serde_json::from_str(&json).expect("tree json")
@@ -752,4 +763,29 @@ fn an_ended_line_with_nowhere_to_open_rests() {
         burners::right(&ended, Some(&nowhere)),
         burners::right(&ended, None)
     );
+}
+
+/// The lifted line's new right column (agents, "Open in …") lands in place and fades in: it does not travel in
+/// from the right, out of the card, while the hover animates.
+#[test]
+fn the_lifted_right_column_does_not_travel() {
+    let script = r#"[{"t": 0.2, "type": "move", "x": 300, "y": 200},
+                     {"t": 0.5, "type": "move", "key": "source-t1"}]"#;
+    let right = |t: &serde_json::Value, end: &str| {
+        t["elements"]
+            .as_array()
+            .expect("elements")
+            .iter()
+            .find(|e| e["path"].as_str().is_some_and(|p| p.ends_with(end)))
+            .unwrap_or_else(|| panic!("no {end}"))["rect"]
+            .clone()
+    };
+    let settled = tree_at("popover-peak", Some(script), None);
+    let early = tree_at("popover-peak", Some(script), Some(0.55));
+    for end in [
+        "/source-t1/line/right",
+        "/source-t1/line/right/rate-row/agents",
+    ] {
+        assert_eq!(right(&early, end), right(&settled, end), "{end} moved");
+    }
 }

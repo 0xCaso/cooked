@@ -9,7 +9,7 @@
 use cooked_model::token_format;
 use cooked_model::token_sources::TokenSource;
 use cooked_model::usage_snapshot::UsageSnapshot;
-use rune::{Color, Cursor, El, col, el, row, text};
+use rune::{Anim, Color, Cursor, El, col, el, row, text};
 
 use super::{CARD_RADIUS, Popover, Request};
 use crate::theme::{Motion, Palette, TextStyle, card};
@@ -199,7 +199,7 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
     let line = match source.ended_ago {
         Some(_) => {
             // at rest "9 min ago" at 55%; lifted, the rate then "  ↗" at full ink, as Swift's "\(rate)  ↗"
-            let mut end = row().key("end").center_y();
+            let mut end = row().key("end").center_y().frame_motion(Anim::INSTANT);
             if side.rate {
                 end = end.child(rate(source.rate, false));
             }
@@ -222,17 +222,23 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
                     end.child(
                         text(note)
                             .key("ago")
+                            .frame_motion(Anim::INSTANT)
                             .font(TextStyle::Body.font())
                             .color(ink),
                     ),
                 )
         }
         None => {
-            let mut top = row().key("rate-row").gap(8.0).items_end();
+            let mut top = row()
+                .key("rate-row")
+                .gap(8.0)
+                .items_end()
+                .frame_motion(Anim::INSTANT);
             if let Some(agents) = side.agents {
                 top = top.child(
                     text(agents)
                         .key("agents")
+                        .frame_motion(Anim::INSTANT)
                         .font(TextStyle::Body.font())
                         .color(Palette::ink3()),
                 );
@@ -259,13 +265,17 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
                     ),
             )
             .child(
+                // Lifted, the column gains the agents and "Open in …": it lands in place and they fade in, as
+                // SwiftUI's text swap; travelling in from the right, they would cross the card's edge.
                 col()
                     .key("right")
                     .items_end()
+                    .frame_motion(Anim::INSTANT)
                     .child(top.child(rate(source.rate, hot)))
                     .child(
                         text(side.note)
                             .key("account")
+                            .frame_motion(Anim::INSTANT)
                             .font(TextStyle::Body.font())
                             .color(if side.opens {
                                 Palette::ink()
@@ -283,6 +293,7 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
 fn rate(rate: f64, hot: bool) -> El {
     row()
         .key("rate-pair")
+        .frame_motion(Anim::INSTANT)
         .child(
             text(token_format::short(rate))
                 .key("rate")
