@@ -741,7 +741,9 @@ fn content(s: &Island) -> El {
             text(account.short.clone())
                 .key("account")
                 .font(TextStyle::Body.font())
-                .color(Palette::ink2()),
+                .color(Palette::ink2())
+                // the capsule's width is fixed: a long name is cut, never the rate
+                .truncate(),
         );
     }
     // The number at the rate ink, its unit at 55%.
@@ -1085,6 +1087,88 @@ mod tests {
             .and_then(|n| n.get("rect"))
             .and_then(|r| r[2].as_f64())
             .unwrap_or_else(|| panic!("no rect at {key}"))
+    }
+
+    /// The calm island with a long account name and a wide rate.
+    fn long_name() -> Island {
+        let mut island = scenes::init();
+        island.select_feed(Feed::DemoCalm);
+        {
+            let mut m = island.model.borrow_mut();
+            let id = m.snapshot.active_id.clone();
+            let account = m
+                .snapshot
+                .accounts
+                .iter_mut()
+                .find(|a| a.id == id)
+                .expect("active account");
+            account.short = "a-very-long-account-name-for-the-team".to_owned();
+            m.rate_now = 12_300_000;
+        }
+        island
+    }
+
+    /// A scene of `long_name` or the calm island through `--tree`, apart from `tree`'s files.
+    fn name_tree(scene: &str) -> serde_json::Value {
+        let dir = std::env::temp_dir().join(format!("cooked-name-{}-{scene}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let out = dir.join("tree.json");
+        rune::App::new(rune::AppSpec {
+            scenes: &[
+                ("long-name", |s: &mut Island| *s = long_name()),
+                ("short-name", |s: &mut Island| *s = island(Feed::DemoCalm)),
+            ],
+            fonts: crate::theme::PlexFont::FILES,
+            families: crate::theme::PlexFont::FAMILIES,
+            ..rune::AppSpec::new("Cooked island", WINDOW, long_name, view)
+        })
+        .args([
+            "--tree".to_owned(),
+            out.to_string_lossy().into_owned(),
+            "--scene".to_owned(),
+            scene.to_owned(),
+        ])
+        .try_run()
+        .expect("headless tree");
+        let json = std::fs::read_to_string(&out).expect("tree written");
+        let _ = std::fs::remove_dir_all(&dir);
+        serde_json::from_str(&json).expect("tree json")
+    }
+
+    /// A long account name is cut with "…": the wave, the percentage and the rate keep their size, and the rate
+    /// stays inside the capsule.
+    #[test]
+    fn a_long_account_name_is_cut_inside_the_capsule() {
+        let t = name_tree("long-name");
+        let rect = |key: &str| -> [f64; 4] {
+            let r = node(&t, key)
+                .and_then(|n| n["rect"].as_array())
+                .unwrap_or_else(|| panic!("no rect at {key}"));
+            [0, 1, 2, 3].map(|i| r[i].as_f64().expect("number"))
+        };
+        assert_eq!(field(&t, "rate", "text"), "12.3M");
+        let island = rect("island");
+        let right = island[0] + island[2];
+        for key in ["rate", "rate-unit"] {
+            let r = rect(key);
+            assert!(
+                r[0] + r[2] <= right,
+                "{key} {r:?} leaves the capsule {island:?}"
+            );
+        }
+        let account = rect("account");
+        assert!(
+            account[0] + account[2] <= rect("rate-row")[0],
+            "the name runs under the rate"
+        );
+        assert!(
+            width(&t, "wave") >= WAVE_WIDTH.0 as f64,
+            "the wave keeps its size"
+        );
+        let short = name_tree("short-name");
+        for key in ["percent", "rate-unit"] {
+            assert_eq!(width(&t, key), width(&short, key), "{key} keeps its size");
+        }
     }
 
     /// The calm island: white percentage, 72% account and rate, Plex, one 240 pt row.
