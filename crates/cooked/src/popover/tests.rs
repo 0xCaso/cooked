@@ -643,6 +643,7 @@ fn color_of(t: &[(String, String)], text: &str) -> String {
 
 const RED: &str = "#ff453aff";
 const INK: &str = "#f4f1eaff";
+const INK3: &str = "#f4f1ea8c";
 
 #[test]
 fn peak_scene_tree() {
@@ -713,33 +714,29 @@ fn popover_notice_matches_the_checked_in_snap() {
     assert_matches_snap(scenes::app(), "popover-notice");
 }
 
-/// The demo peak's "personal" fills before its reset: its 5-hour pill shows "full 01:50" alone, so the name reads
-/// whole (with the reset time too it was cut to "perso…", 2026-11-25-popover-details).
+/// A 5-hour pill that fills before its reset says when, in red, then the reset at 55%, as the Swift app did
+/// (2026-11-25-full-and-reset; the name may then be cut, "perso…").
 #[test]
-fn a_full_pill_leaves_the_name_whole() {
-    let t = tree("popover-peak");
-    let els = t["elements"].as_array().expect("elements");
-    let name = els
+fn a_full_pill_also_says_when_it_resets() {
+    let peak = demo_data::peak();
+    let personal = peak
+        .accounts
         .iter()
-        .find(|e| {
-            e["text"] == "personal"
-                && e["path"]
-                    .as_str()
-                    .is_some_and(|p| p.ends_with("five-hour/top/name"))
-        })
-        .expect("the personal 5-hour name");
-    // "personal" in 13 pt Plex Sans 500 is 52 pt wide; "perso…" would be about 38
-    assert!(name["rect"][2].as_f64().expect("width") > 50.0, "{name}");
-    let texts = texts(&t);
-    assert_eq!(color_of(&texts, "full 01:50"), RED);
-    assert!(
-        !texts.iter().any(|(s, _)| s == "02:40"),
-        "no reset time after full"
+        .find(|a| a.short == "personal")
+        .expect("personal");
+    assert_eq!(
+        usage::reset_after_full(personal),
+        Some(personal.five_hour_reset.clone())
     );
+    assert_eq!(usage::reset_after_full(&peak.accounts[1]), None);
+    let mut blocked = personal.clone();
+    blocked.is_blocked = true;
+    assert_eq!(usage::reset_after_full(&blocked), None);
+    let texts = texts(&tree("popover-peak"));
+    assert_eq!(color_of(&texts, "full 01:50"), RED);
+    assert_eq!(color_of(&texts, &personal.five_hour_reset), INK3);
 }
 
-/// The lifted line rises 1 pt as a card inside a box that tracks the pointer and does not move: with the hit area on
-/// the rising card, the pointer on its bottom point would leave it, drop it and catch it again.
 #[test]
 fn the_hover_box_is_not_the_lifted_card() {
     let t = tree("popover-peak-hover");

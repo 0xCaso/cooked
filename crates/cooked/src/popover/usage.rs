@@ -1,6 +1,6 @@
 //! Usage per account: a pill per window, counted as what is left. The 5-hour pill opens with the account name, then the
-//! % and "full HH:MM" (red: it runs out before the reset) or "resets HH:MM"; the week pill its % and
-//! reset day. Under each, a 44 x 2 tile bar. Accounts not used in 5 hours are left out.
+//! % and "full HH:MM" (red: it runs out before the reset) then the reset at 55%, or "resets HH:MM"; the week pill
+//! its % and reset day. Under each, a 44 x 2 tile bar. Accounts not used in 5 hours are left out.
 
 use cooked_model::tiles::bar_grid;
 use cooked_model::usage_snapshot::{Account, UsageSnapshot};
@@ -103,6 +103,11 @@ pub fn five_hour_times(a: &Account) -> Option<(String, bool)> {
         .then(|| (format!("resets {}", a.five_hour_reset), false))
 }
 
+/// After "full HH:MM", the 5-hour reset, as the Swift app's pill: when the window frees up again.
+pub fn reset_after_full(a: &Account) -> Option<String> {
+    (!a.is_blocked && a.full_at.is_some()).then(|| a.five_hour_reset.clone())
+}
+
 /// The week pill's times: "full HH:MM" (red) or "resets Mon".
 pub fn week_times(a: &Account) -> Option<(String, bool)> {
     if let Some(full) = &a.week_full_at {
@@ -203,7 +208,11 @@ fn five_hour_pill(a: &Account, mark: u32) -> El {
         .child(name)
         .child(percent("percent", a.five_hour_left_if_known(), fills(a)))
         .child(el().grow(1.0));
-    if let Some(t) = times("times", five_hour_times(a)) {
+    let reset = reset_after_full(a).map(|r| (r, false));
+    for t in [times("times", five_hour_times(a)), times("reset", reset)]
+        .into_iter()
+        .flatten()
+    {
         top = top.child(t);
     }
     let line = time_left(a.five_hour_left_if_known(), a.five_hour_elapsed);
