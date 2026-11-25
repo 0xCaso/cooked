@@ -24,8 +24,8 @@ use cooked_model::island_placement::Rect;
 use cooked_model::notice::Notice;
 use cooked_model::token_sources::OpenTarget;
 use rune::{
-    Color, Cx, El, Key, KeyEvent, OverlayHandle, OverlayPlacement, Shadow, SystemMaterial, Tx, col,
-    el, text,
+    Color, Cx, El, Key, KeyEvent, OverlayHandle, OverlayPlacement, ScrollSpec, Shadow,
+    SystemMaterial, Tx, col, el, text,
 };
 
 use crate::island::Model;
@@ -114,14 +114,19 @@ pub fn frame(anchor: &Anchor, height: f32) -> Rect {
     let (mx, top, bottom) = (MARGIN_X as f64, MARGIN_TOP as f64, MARGIN_BOTTOM as f64);
     let width = WIDTH as f64 + 2.0 * mx;
     let page_top = anchor.capsule.min_y() - anchor.gap;
-    let room = (page_top - anchor.visible.min_y() - SCREEN_BOTTOM_GAP).max(0.0);
-    let page = (height as f64).min(room);
+    let page = (height as f64).min(room(anchor));
     let full = page + top + bottom;
     let v = anchor.visible;
     let x = (anchor.capsule.mid_x() - width / 2.0)
         .min(v.max_x() - WIDTH as f64 - mx)
         .max(v.min_x() - mx);
     Rect::new(x, page_top + top - full, width, full)
+}
+
+/// The page's most height under `anchor`: down to the visible frame's bottom, less `SCREEN_BOTTOM_GAP`.
+fn room(anchor: &Anchor) -> f64 {
+    let page_top = anchor.capsule.min_y() - anchor.gap;
+    (page_top - anchor.visible.min_y() - SCREEN_BOTTOM_GAP).max(0.0)
 }
 
 /// `frame` as Rune's overlay rect (points from the primary display's top-left, y down).
@@ -147,6 +152,8 @@ pub struct Popover {
     anchor: Option<Anchor>,
     /// The page's measured height, points.
     height: f32,
+    /// The lower part's measured heights, points: its box in the page, and its content.
+    lower: (f32, f32),
     histogram: TileGrid,
     /// The histogram's liquid: its surface moves between the minutes' heights.
     tide: cooked_model::tide::TideHistogram,
@@ -185,6 +192,7 @@ impl Popover {
             shown: false,
             anchor: None,
             height: FIRST_HEIGHT,
+            lower: (0.0, 0.0),
             histogram: TileGrid::new(0, 0, Vec::new()),
             tide: tpm::tide(),
             bars: Vec::new(),
@@ -313,6 +321,19 @@ impl Popover {
         }
     }
 
+    /// The lower part's box or content was measured: it scrolls when the content is taller than its box.
+    fn lower_measured(&mut self, view: Option<f32>, content: Option<f32>) {
+        self.lower = (
+            view.unwrap_or(self.lower.0),
+            content.unwrap_or(self.lower.1),
+        );
+    }
+
+    /// The lower part is taller than the room the page leaves it.
+    fn lower_scrolls(&self) -> bool {
+        self.lower.1 > self.lower.0 + 0.5
+    }
+
     fn request(&self, request: Request) {
         (self.requests)(request);
     }
@@ -421,6 +442,10 @@ fn page(s: &Popover) -> El {
     let snapshot = &m.snapshot;
     let notice = m.notice().cloned();
     let mut body = col().key("body").w_full().pt(14.0).px(12.0).pb(12.0);
+    // no taller than the room under the capsule: the lower part scrolls inside it
+    if let Some(anchor) = &s.anchor {
+        body = body.max_h(room(anchor) as f32);
+    }
     if let Some(n) = &notice {
         body = body.child(notice::card_for(n, s.copied));
     }
@@ -434,8 +459,14 @@ fn page(s: &Popover) -> El {
                 notice.is_none(),
             ))
             .child(tpm::card_for(&m));
+        // what burns tokens and the usage: the full list of sources and many accounts can be taller than the
+        // display, and then they scroll
+        let mut lower = col()
+            .key("lower-content")
+            .w_full()
+            .on_layout(|s: &mut Popover, [_, _, _, h]| s.lower_measured(None, Some(h)));
         if !snapshot.sources.is_empty() {
-            body = body
+            lower = lower
                 .child(section(
                     "burners-head",
                     "What burns tokens",
@@ -445,10 +476,22 @@ fn page(s: &Popover) -> El {
                 .child(burners::card_for(snapshot, s.expanded));
         }
         if !snapshot.accounts.is_empty() {
-            body = body
+            lower = lower
                 .child(section("usage-head", "Usage", None, false))
                 .child(usage::card_for(snapshot, FIRST_BAR_MARK));
         }
+        let mut view = col()
+            .key("lower")
+            .w_full()
+            .shrink()
+            .min_h(0.0)
+            .on_layout(|s: &mut Popover, [_, _, _, h]| s.lower_measured(Some(h), None))
+            .child(lower);
+        // only when it overflows: a viewport clips the cards' shadows at its sides
+        if s.lower_scrolls() {
+            view = view.scroll(ScrollSpec::default());
+        }
+        body = body.child(view);
     }
     surface(s, body)
 }
