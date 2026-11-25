@@ -102,6 +102,23 @@ pub fn plan(target: Option<&OpenTarget>, apps: &dyn Apps, places: &Places) -> Op
     terminal_plan(target, apps, &places.commands_dir)
 }
 
+/// Where a click on `target` goes, for the row under the pointer, as `plan` decides it: "Open in T3 Code ↗", "Open in
+/// Codex ↗", "Open in Claude ↗" or "Open in Terminal ↗"; "Open T3 Code ↗" with no target. `None`: nowhere to open.
+pub fn label(
+    target: Option<&OpenTarget>,
+    apps: &dyn Apps,
+    places: &Places,
+) -> Option<&'static str> {
+    let action = plan(target, apps, places)?;
+    Some(match (target.map(|t| t.place), action) {
+        (_, Action::Terminal { .. }) => "Open in Terminal ↗",
+        (None, _) => "Open T3 Code ↗",
+        (Some(Place::T3Code), _) => "Open in T3 Code ↗",
+        (Some(Place::Codex), _) => "Open in Codex ↗",
+        (Some(Place::Claude), _) => "Open in Claude ↗",
+    })
+}
+
 /// T3 Code: the thread in the T3 Code that is running (Alpha, Nightly and custom builds share the bundle id and
 /// the scheme, so the link goes to that app, not to whichever one macOS picks). No thread or no link: only to
 /// the front.
@@ -163,6 +180,11 @@ impl Apps for Workspace {
 fn first_running(bundle_id: &str) -> Option<Retained<NSRunningApplication>> {
     NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(bundle_id))
         .firstObject()
+}
+
+/// `label` for the apps on this Mac.
+pub fn label_here(target: Option<&OpenTarget>) -> Option<&'static str> {
+    label(target, &Workspace, &Places::app()?)
 }
 
 /// Opens the session.
@@ -402,6 +424,102 @@ mod tests {
         ));
         // no Terminal: nothing
         assert_eq!(plan(Some(&cx), &FakeApps::with(&[CLAUDE], &[]), &p), None);
+    }
+
+    #[test]
+    fn the_label_names_where_a_click_opens() {
+        let apps = FakeApps::with(&[T3, CODEX, CLAUDE, TERMINAL], &[]);
+        let p = places(None);
+        let t3 = OpenTarget::t3_code("t1");
+        let cx = OpenTarget::codex("cx", None);
+        let home = OpenTarget::claude("s", None, None);
+        let work = OpenTarget::claude("w", None, Some("/h/.claude-work".into()));
+        assert_eq!(label(Some(&t3), &apps, &p), Some("Open in T3 Code ↗"));
+        assert_eq!(label(Some(&cx), &apps, &p), Some("Open in Codex ↗"));
+        assert_eq!(label(Some(&home), &apps, &p), Some("Open in Claude ↗"));
+        // the Claude app only opens `~/.claude` sessions
+        assert_eq!(label(Some(&work), &apps, &p), Some("Open in Terminal ↗"));
+        // no Codex app: Terminal resumes it
+        let no_codex = FakeApps::with(&[T3, TERMINAL], &[]);
+        assert_eq!(label(Some(&cx), &no_codex, &p), Some("Open in Terminal ↗"));
+        // no target: T3 Code itself
+        assert_eq!(label(None, &apps, &p), Some("Open T3 Code ↗"));
+        // nowhere to open: no label
+        assert_eq!(label(Some(&cx), &FakeApps::default(), &p), None);
+    }
+
+    /// The row under the pointer, per target: where a click opens it in place of the account, and the agent count.
+    #[test]
+    fn a_lifted_row_says_where_a_click_opens_per_target() {
+        use crate::popover::burners::{Lift, Right, right};
+        let apps = FakeApps::with(&[T3, CODEX, CLAUDE, TERMINAL], &[]);
+        let p = places(None);
+        let live = cooked_model::demo_data::peak().sources[0].clone();
+        let lifted = |source: &cooked_model::token_sources::TokenSource| {
+            let lift = Lift {
+                id: source.id.clone(),
+                open: label(source.target().as_ref(), &apps, &p),
+            };
+            right(source, Some(&lift))
+        };
+        let targets = [
+            (None, "Open in T3 Code ↗"),
+            (Some(OpenTarget::codex("cx", None)), "Open in Codex ↗"),
+            (
+                Some(OpenTarget::claude("s", None, None)),
+                "Open in Claude ↗",
+            ),
+            (
+                Some(OpenTarget::claude("w", None, Some("/h/.claude-w".into()))),
+                "Open in Terminal ↗",
+            ),
+        ];
+        for (session, open) in targets {
+            let mut source = live.clone();
+            if session.is_some() {
+                source.thread_id = None;
+                source.session = session;
+            }
+            assert_eq!(
+                lifted(&source),
+                Right {
+                    agents: Some("1 agent + 3 sub".into()),
+                    note: open.into(),
+                    opens: true,
+                    rate: false,
+                },
+                "{open}"
+            );
+        }
+        // at rest: the account, no agent count
+        assert_eq!(
+            right(&live, None),
+            Right {
+                agents: None,
+                note: "work".into(),
+                opens: false,
+                rate: false,
+            }
+        );
+        // another row is lifted: this one rests
+        let other = Lift {
+            id: "other".into(),
+            open: Some("Open in T3 Code ↗"),
+        };
+        assert_eq!(right(&live, Some(&other)), right(&live, None));
+        // an ended row: "9 min ago" at rest; lifted, its rate and "↗"
+        let mut ended = live.clone();
+        ended.ended_ago = Some(9);
+        assert_eq!(right(&ended, None).note, "9 min ago");
+        assert_eq!(
+            lifted(&ended),
+            Right {
+                agents: None,
+                note: "↗".into(),
+                opens: true,
+                rate: true,
+            }
+        );
     }
 
     #[test]

@@ -10,7 +10,7 @@
 //! its top centre on the 0.24 s spring, and leaves faster. Reduce Motion: no motion, and the histogram and the metal
 //! stand still.
 
-mod burners;
+pub(crate) mod burners;
 mod notice;
 mod tpm;
 mod usage;
@@ -73,6 +73,9 @@ pub enum Request {
     OpenPercentSettings,
     Copy(String),
 }
+
+/// Where a click on a source opens it: "Open in T3 Code ↗"; `None`, nowhere (`mac::open::label`).
+pub type OpenLabel = dyn Fn(Option<&OpenTarget>) -> Option<&'static str>;
 
 /// Where the popover hangs: under the island's capsule, or under the menu bar item (`capsule` is then the item's
 /// frame), `gap` points below it; the visible frame of its display, AppKit coordinates (origin bottom-left of the
@@ -147,6 +150,8 @@ pub struct Popover {
     pub overlay: Option<OverlayHandle<Popover>>,
     /// What the clicks ask of the app.
     pub requests: Rc<dyn Fn(Request)>,
+    /// Where a click on a source opens it (`mac::open::label_here`); the app sets it, until then nowhere.
+    pub opens: Rc<OpenLabel>,
     /// The page is mounted: open, or on its way in.
     shown: bool,
     anchor: Option<Anchor>,
@@ -161,6 +166,8 @@ pub struct Popover {
     bars: Vec<TileGrid>,
     /// "N more" opened the full list of sources; closing the popover folds it again.
     expanded: bool,
+    /// The source under the pointer: it lifts and says where a click opens it.
+    hovered: Option<burners::Lift>,
     /// "Copy details" was pressed: the button says "Copied" for `COPIED_FOR`, or until the popover closes.
     copied: bool,
     /// Presses of "Copy details": each one's reset clears "Copied" only if no press came after it.
@@ -189,6 +196,7 @@ impl Popover {
             model,
             overlay: None,
             requests: Rc::new(|_| {}),
+            opens: Rc::new(|_| None),
             shown: false,
             anchor: None,
             height: FIRST_HEIGHT,
@@ -197,6 +205,7 @@ impl Popover {
             tide: tpm::tide(),
             bars: Vec::new(),
             expanded: false,
+            hovered: None,
             copied: false,
             copies: 0,
             reduce_motion_flag: launch.reduce_motion,
@@ -267,6 +276,7 @@ impl Popover {
         }
         self.shown = false;
         self.expanded = false;
+        self.hovered = None;
         self.copied = false;
         self.had_keys = false;
         self.outside = None;
@@ -349,6 +359,19 @@ impl Popover {
     /// The lower part is taller than the room the page leaves it.
     fn lower_scrolls(&self) -> bool {
         self.lower.1 > self.lower.0 + 0.5
+    }
+
+    /// The pointer entered (`inside`) or left the source `id`: entering lifts it with where a click on `target`
+    /// opens; leaving drops the lift, unless another row has it already.
+    fn hover(&mut self, id: &str, target: Option<&OpenTarget>, inside: bool) {
+        if inside {
+            self.hovered = Some(burners::Lift {
+                id: id.to_owned(),
+                open: (self.opens)(target),
+            });
+        } else if self.hovered.as_ref().is_some_and(|l| l.id == id) {
+            self.hovered = None;
+        }
     }
 
     fn request(&self, request: Request) {
@@ -490,7 +513,12 @@ fn page(s: &Popover) -> El {
                     Some("last 5 min"),
                     false,
                 ))
-                .child(burners::card_for(snapshot, s.expanded));
+                .child(burners::card_for(
+                    snapshot,
+                    s.expanded,
+                    s.hovered.as_ref(),
+                    s.reduce_motion,
+                ));
         }
         if !snapshot.accounts.is_empty() {
             lower = lower
@@ -600,7 +628,12 @@ pub mod scenes {
     use crate::theme::PlexFont;
     use crate::tiles::ChromeTiles;
 
-    pub const SCENES: &[&str] = &["popover-calm", "popover-peak", "popover-notice"];
+    pub const SCENES: &[&str] = &[
+        "popover-calm",
+        "popover-peak",
+        "popover-notice",
+        "popover-peak-hover",
+    ];
     /// The window: the page and its margin, tall enough for the peak.
     pub const SIZE: (f32, f32) = (WIDTH + 2.0 * MARGIN_X, 880.0);
 
@@ -621,6 +654,15 @@ pub mod scenes {
         p
     }
 
+    /// The peak with its top source under the pointer, opening in T3 Code.
+    pub fn hovered() -> Popover {
+        let mut p = popover(Feed::DemoPeak);
+        p.opens = Rc::new(|_| Some("Open in T3 Code ↗"));
+        let target = p.model.borrow().snapshot.sources[0].target();
+        p.hover("t1", target.as_ref(), true);
+        p
+    }
+
     fn init() -> Popover {
         popover(Feed::DemoCalm)
     }
@@ -635,6 +677,7 @@ pub mod scenes {
                     *s = popover(Feed::DemoPeak)
                 }),
                 ("popover-notice", |s: &mut Popover| *s = with_notice()),
+                ("popover-peak-hover", |s: &mut Popover| *s = hovered()),
             ],
             fonts: PlexFont::FILES,
             families: PlexFont::FAMILIES,
