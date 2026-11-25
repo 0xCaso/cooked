@@ -526,51 +526,34 @@ fn pills_count_what_is_left() {
 
 #[test]
 fn pill_times_follow_the_red_rule() {
-    let parts = |v: &[(&str, bool)]| -> Vec<(String, bool)> {
-        v.iter().map(|(t, red)| ((*t).to_owned(), *red)).collect()
-    };
     let peak = demo_data::peak();
     let work = &peak.accounts[0];
     assert!(usage::fills(work));
-    // full before the reset: "full 23:14" in red, then the reset time, as Swift
     assert_eq!(
         usage::five_hour_times(work),
-        parts(&[("full 23:14", true), ("00:20", false)])
+        Some(("full 23:14".into(), true))
     );
-    assert_eq!(usage::week_times(work), parts(&[("resets Mon", false)]));
-    let personal = &peak.accounts[2];
-    assert_eq!(
-        usage::five_hour_times(personal),
-        parts(&[("full 01:50", true), ("02:40", false)])
-    );
+    assert_eq!(usage::week_times(work), Some(("resets Mon".into(), false)));
     let team = &peak.accounts[1];
     assert!(!usage::fills(team));
     assert_eq!(
         usage::five_hour_times(team),
-        parts(&[("resets 04:40", false)])
+        Some(("resets 04:40".into(), false))
     );
     let mut blocked = team.clone();
     blocked.is_blocked = true;
     assert_eq!(
         usage::five_hour_times(&blocked),
-        parts(&[("resets 04:40", true)])
+        Some(("resets 04:40".into(), true))
     );
     let mut unknown = team.clone();
     unknown.has_percent = false;
-    assert_eq!(usage::five_hour_times(&unknown), parts(&[]));
-    // full with no percent: no reset to show
-    let mut full_unknown = work.clone();
-    full_unknown.has_percent = false;
-    assert_eq!(
-        usage::five_hour_times(&full_unknown),
-        parts(&[("full 23:14", true)])
-    );
-    // the week pill is too narrow for both: "full" alone
+    assert_eq!(usage::five_hour_times(&unknown), None);
     let mut week_full = team.clone();
     week_full.week_full_at = Some("18:00".into());
     assert_eq!(
         usage::week_times(&week_full),
-        parts(&[("full 18:00", true)])
+        Some(("full 18:00".into(), true))
     );
 }
 
@@ -652,10 +635,6 @@ fn peak_scene_tree() {
     assert_eq!(color_of(&t, "113k"), RED, "the source that fills");
     assert_eq!(color_of(&t, "18k"), INK);
     assert_eq!(color_of(&t, "full 23:14"), RED);
-    // then the reset time, quiet
-    assert_eq!(color_of(&t, "00:20"), "#f4f1ea8c");
-    assert_eq!(color_of(&t, "full 01:50"), RED);
-    assert_eq!(color_of(&t, "02:40"), "#f4f1ea8c");
     assert_eq!(color_of(&t, "resets 04:40"), "#f4f1ea8c");
     for label in [
         "Tokens per minute",
@@ -712,4 +691,29 @@ fn popover_peak_matches_the_checked_in_snap() {
 #[test]
 fn popover_notice_matches_the_checked_in_snap() {
     assert_matches_snap(scenes::app(), "popover-notice");
+}
+
+/// The demo peak's "personal" fills before its reset: its 5-hour pill shows "full 01:50" alone, so the name reads
+/// whole (with the reset time too it was cut to "perso…", 2026-11-25-popover-details).
+#[test]
+fn a_full_pill_leaves_the_name_whole() {
+    let t = tree("popover-peak");
+    let els = t["elements"].as_array().expect("elements");
+    let name = els
+        .iter()
+        .find(|e| {
+            e["text"] == "personal"
+                && e["path"]
+                    .as_str()
+                    .is_some_and(|p| p.ends_with("five-hour/top/name"))
+        })
+        .expect("the personal 5-hour name");
+    // "personal" in 13 pt Plex Sans 500 is 52 pt wide; "perso…" would be about 38
+    assert!(name["rect"][2].as_f64().expect("width") > 50.0, "{name}");
+    let texts = texts(&t);
+    assert_eq!(color_of(&texts, "full 01:50"), RED);
+    assert!(
+        !texts.iter().any(|(s, _)| s == "02:40"),
+        "no reset time after full"
+    );
 }
