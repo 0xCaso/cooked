@@ -476,34 +476,51 @@ fn pills_count_what_is_left() {
 
 #[test]
 fn pill_times_follow_the_red_rule() {
+    let parts = |v: &[(&str, bool)]| -> Vec<(String, bool)> {
+        v.iter().map(|(t, red)| ((*t).to_owned(), *red)).collect()
+    };
     let peak = demo_data::peak();
     let work = &peak.accounts[0];
     assert!(usage::fills(work));
+    // full before the reset: "full 23:14" in red, then the reset time, as Swift
     assert_eq!(
         usage::five_hour_times(work),
-        Some(("full 23:14".into(), true))
+        parts(&[("full 23:14", true), ("00:20", false)])
     );
-    assert_eq!(usage::week_times(work), Some(("resets Mon".into(), false)));
+    assert_eq!(usage::week_times(work), parts(&[("resets Mon", false)]));
+    let personal = &peak.accounts[2];
+    assert_eq!(
+        usage::five_hour_times(personal),
+        parts(&[("full 01:50", true), ("02:40", false)])
+    );
     let team = &peak.accounts[1];
     assert!(!usage::fills(team));
     assert_eq!(
         usage::five_hour_times(team),
-        Some(("resets 04:40".into(), false))
+        parts(&[("resets 04:40", false)])
     );
     let mut blocked = team.clone();
     blocked.is_blocked = true;
     assert_eq!(
         usage::five_hour_times(&blocked),
-        Some(("resets 04:40".into(), true))
+        parts(&[("resets 04:40", true)])
     );
     let mut unknown = team.clone();
     unknown.has_percent = false;
-    assert_eq!(usage::five_hour_times(&unknown), None);
+    assert_eq!(usage::five_hour_times(&unknown), parts(&[]));
+    // full with no percent: no reset to show
+    let mut full_unknown = work.clone();
+    full_unknown.has_percent = false;
+    assert_eq!(
+        usage::five_hour_times(&full_unknown),
+        parts(&[("full 23:14", true)])
+    );
+    // the week pill is too narrow for both: "full" alone
     let mut week_full = team.clone();
     week_full.week_full_at = Some("18:00".into());
     assert_eq!(
         usage::week_times(&week_full),
-        Some(("full 18:00".into(), true))
+        parts(&[("full 18:00", true)])
     );
 }
 
@@ -581,6 +598,10 @@ fn peak_scene_tree() {
     assert_eq!(color_of(&t, "113k"), RED, "the source that fills");
     assert_eq!(color_of(&t, "18k"), INK);
     assert_eq!(color_of(&t, "full 23:14"), RED);
+    // then the reset time, quiet
+    assert_eq!(color_of(&t, "00:20"), "#f4f1ea8c");
+    assert_eq!(color_of(&t, "full 01:50"), RED);
+    assert_eq!(color_of(&t, "02:40"), "#f4f1ea8c");
     assert_eq!(color_of(&t, "resets 04:40"), "#f4f1ea8c");
     for label in [
         "Tokens per minute",
