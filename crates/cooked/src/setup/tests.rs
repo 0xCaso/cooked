@@ -95,6 +95,23 @@ fn skipping_every_step_changes_no_file() {
     assert!(!Path::new(&s.model.status_line.script()).exists());
 }
 
+/// Skip on Accounts moves on with every folder ticked, and saves them as Continue does.
+#[test]
+fn skip_on_accounts_saves_them() {
+    let mut s = scenes::setup("test-skip-saves", Mode::Setup, Tab::Accounts);
+    let pushed = recording(&mut s);
+    let changes = Rc::new(RefCell::new(0));
+    let count = changes.clone();
+    s.model.on_accounts_change = Some(Box::new(move || *count.borrow_mut() += 1));
+    s.names[0] = rune::TextEdit::new("home");
+    assert!(s.go(true));
+    assert_eq!(s.model.step, Step::Percent);
+    assert_eq!(*changes.borrow(), 1, "the island hears of the change");
+    assert_eq!(pushed.borrow().len(), 1);
+    let saved = cooked_model::accounts::AccountStore::load(&*s.model.defaults).expect("saved");
+    assert_eq!(saved[0].name, "home");
+}
+
 #[test]
 fn settings_save_a_tick_at_once_and_a_name_when_the_user_moves_on() {
     let mut s = scenes::setup("test-settings", Mode::Settings, Tab::Accounts);
