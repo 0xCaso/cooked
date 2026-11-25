@@ -180,16 +180,50 @@ fn tall(accounts: usize, expanded: bool) -> Popover {
     p
 }
 
-/// The page's height in a scene of `tall`, from Rune's `--tree` on a window tall enough for any of them.
-fn page_height(scene: &str) -> f64 {
+/// The open list and 7 accounts under a capsule with only `SHORT_ROOM` points free below it.
+fn tall_on_a_short_display() -> Popover {
+    let mut p = tall(7, true);
+    p.anchor = Some(short_anchor());
+    p
+}
+
+/// A display whose visible frame ends `SHORT_ROOM` points under the page's top.
+const SHORT_ROOM: f64 = 400.0;
+
+fn short_anchor() -> Anchor {
+    let a = anchor(575.0);
+    let page_top = a.capsule.min_y() - a.gap;
+    let bottom = page_top - SHORT_ROOM - SCREEN_BOTTOM_GAP;
+    Anchor {
+        visible: Rect::new(0.0, bottom, 1440.0, 876.0 - bottom),
+        ..a
+    }
+}
+
+/// A scene of `tall` through Rune's `--tree` (after `script`, if any) on a window tall enough for any of them.
+fn tall_tree(scene: &str, script: Option<&str>) -> serde_json::Value {
     let dir = std::env::temp_dir().join(format!("cooked-tall-{}-{scene}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let out = dir.join("tree.json");
+    let mut args = vec![
+        "--tree".to_owned(),
+        out.to_string_lossy().into_owned(),
+        "--scene".to_owned(),
+        scene.to_owned(),
+    ];
+    if let Some(script) = script {
+        let file = dir.join("script.json");
+        std::fs::write(&file, script).expect("script written");
+        args.extend(["--script".to_owned(), file.to_string_lossy().into_owned()]);
+    }
     rune::App::new(rune::AppSpec {
         scenes: &[
             ("folded-5", |s: &mut Popover| *s = tall(5, false)),
             ("open-5", |s: &mut Popover| *s = tall(5, true)),
             ("open-7", |s: &mut Popover| *s = tall(7, true)),
+            ("open-7-short", |s: &mut Popover| {
+                *s = tall_on_a_short_display()
+            }),
         ],
         fonts: crate::theme::PlexFont::FILES,
         families: crate::theme::PlexFont::FAMILIES,
@@ -200,24 +234,71 @@ fn page_height(scene: &str) -> f64 {
             view,
         )
     })
-    .args([
-        "--tree".to_owned(),
-        out.to_string_lossy().into_owned(),
-        "--scene".to_owned(),
-        scene.to_owned(),
-    ])
+    .args(args)
     .try_run()
     .expect("headless tree");
     let json = std::fs::read_to_string(&out).expect("tree written");
     let _ = std::fs::remove_dir_all(&dir);
-    let t: serde_json::Value = serde_json::from_str(&json).expect("tree json");
-    t["elements"]
+    serde_json::from_str(&json).expect("tree json")
+}
+
+/// The rect (x, y, width, height) of the element keyed `key`.
+fn rect_of(t: &serde_json::Value, key: &str) -> [f64; 4] {
+    let e = t["elements"]
         .as_array()
         .expect("elements")
         .iter()
-        .find(|e| e.get("key").and_then(|k| k.as_str()) == Some("popover"))
-        .and_then(|e| e["rect"][3].as_f64())
-        .expect("the page's rect")
+        .find(|e| e.get("key").and_then(|k| k.as_str()) == Some(key))
+        .unwrap_or_else(|| panic!("no element {key:?}"));
+    let r: Vec<f64> = e["rect"]
+        .as_array()
+        .expect("rect")
+        .iter()
+        .filter_map(|v| v.as_f64())
+        .collect();
+    [r[0], r[1], r[2], r[3]]
+}
+
+/// The page's height in a scene of `tall`.
+fn page_height(scene: &str) -> f64 {
+    rect_of(&tall_tree(scene, None), "popover")[3]
+}
+
+/// Taller than the room under the capsule, the page stops at the room's bottom and its lower part (what burns
+/// tokens, the usage) scrolls: the last account is out of view, then a swipe over it brings it in.
+#[test]
+fn a_page_taller_than_the_room_scrolls_its_lower_part() {
+    assert!(
+        page_height("open-7") > SHORT_ROOM + 100.0,
+        "the page is taller"
+    );
+    let t = tall_tree("open-7-short", None);
+    let page = rect_of(&t, "popover");
+    assert!(page[3] <= SHORT_ROOM + 0.5, "the page {page:?}");
+    let f = frame(&short_anchor(), page[3] as f32);
+    assert!(
+        f.height - (MARGIN_TOP + MARGIN_BOTTOM) as f64 >= page[3] - 0.5,
+        "the window holds the page"
+    );
+    let lower = rect_of(&t, "lower");
+    let (lower_top, lower_bottom) = (lower[1], lower[1] + lower[3]);
+    assert!(
+        lower_bottom <= page[1] + page[3] + 0.5,
+        "the scroll ends inside the page"
+    );
+    let last = rect_of(&t, "account-measure-6");
+    assert!(
+        last[1] > lower_bottom,
+        "the last account starts out of view: {last:?}"
+    );
+    let script = r#"[{"t": 0.1, "type": "scroll", "key": "lower", "dy": -3000, "dur": 0.3}]"#;
+    let scrolled = tall_tree("open-7-short", Some(script));
+    let last = rect_of(&scrolled, "account-measure-6");
+    let last_bottom = last[1] + last[3];
+    assert!(
+        last[1] >= lower_top && last_bottom <= lower_bottom + 0.5,
+        "the last account scrolled into view: {last:?} in {lower:?}"
+    );
 }
 
 /// The page grows with the open sources list and with more
