@@ -789,3 +789,46 @@ fn the_lifted_right_column_does_not_travel() {
         assert_eq!(right(&early, end), right(&settled, end), "{end} moved");
     }
 }
+
+/// The even-pace line is drawn over the bar, brighter and taller than its tiles, as Swift's `PaceStrip`: an off
+/// column alone vanished in the bar's dark part.
+#[test]
+fn the_pace_line_shows_over_the_bar() {
+    let t = tree("popover-calm");
+    let all = t["elements"].as_array().expect("elements");
+    let lines: Vec<_> = all
+        .iter()
+        .filter(|e| {
+            e["path"]
+                .as_str()
+                .is_some_and(|p| p.ends_with("/pace-line"))
+        })
+        .collect();
+    assert!(!lines.is_empty(), "no pace line");
+    for line in lines {
+        let path = line["path"].as_str().unwrap();
+        let bar_path = format!(
+            "{}/pace/bar",
+            path.rsplit_once("/pace/").expect("in a pace strip").0
+        );
+        let bar = all
+            .iter()
+            .find(|e| e["path"].as_str() == Some(bar_path.as_str()))
+            .unwrap_or_else(|| panic!("no {bar_path}"));
+        let (l, b) = (&line["rect"], &bar["rect"]);
+        let (lx, ly, lw, lh) = (
+            l[0].as_f64().unwrap(),
+            l[1].as_f64().unwrap(),
+            l[2].as_f64().unwrap(),
+            l[3].as_f64().unwrap(),
+        );
+        let (bx, by, bw, bh) = (
+            b[0].as_f64().unwrap(),
+            b[1].as_f64().unwrap(),
+            b[2].as_f64().unwrap(),
+            b[3].as_f64().unwrap(),
+        );
+        assert!(lh > bh && ly < by, "taller than the bar: {l} vs {b}");
+        assert!(lx >= bx && lx + lw <= bx + bw, "inside the bar: {l} vs {b}");
+    }
+}

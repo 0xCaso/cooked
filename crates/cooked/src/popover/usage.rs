@@ -19,19 +19,60 @@ const COLUMN_GAP: f32 = 8.0;
 const BAR_HEIGHT: f32 = 8.0;
 const BAR_GAP: f32 = 1.2;
 const BAR_RADIUS: f32 = 0.85;
+/// The even-pace line, as Swift's `PaceStrip`: 1.6 pt wide, 2.5 pt past the bar above and below, ink at 72%.
+const LINE_WIDTH: f32 = 1.6;
+const LINE_OUT: f32 = 2.5;
+const LINE_ALPHA: f32 = 0.72;
 
 /// The 5-hour window runs out before it resets: its % and times are red.
 pub fn fills(a: &Account) -> bool {
     a.is_blocked || a.full_at.is_some()
 }
 
+/// The share of the window still to go, where the pace line sits; none without a percent.
+fn time_left(left: Option<i64>, elapsed: Option<f64>) -> Option<f32> {
+    left.and(elapsed).map(|e| (1.0 - e) as f32)
+}
+
+/// The bar's tiles and, over them, the pace line in its column (`bar_grid` leaves that column off): a row of one
+/// slot per column at the tiles' spacing, so the line sits on the column's centre.
+fn pace_strip(mark: u32, time_left: Option<f32>) -> El {
+    let bar = tile_slot(mark).key("bar").w_full().h_full();
+    let mut strip = el().key("pace").w_full().h(BAR_HEIGHT).child(bar);
+    if let Some(t) = time_left {
+        let cols = BAR.0;
+        let line = ((t.clamp(0.0, 1.0) * (cols - 1) as f32).round() as usize).min(cols - 1);
+        let mut track = row()
+            .key("pace-track")
+            .absolute(0.0, -LINE_OUT)
+            .w_full()
+            .h(BAR_HEIGHT + 2.0 * LINE_OUT)
+            .gap(BAR_GAP);
+        for c in 0..cols {
+            let mut slot = row().grow(1.0).h_full().justify_center();
+            if c == line {
+                slot = slot.child(
+                    el().key("pace-line")
+                        .w(LINE_WIDTH)
+                        .h_full()
+                        .radius(LINE_WIDTH / 2.0)
+                        .fill(Palette::ink().alpha(LINE_ALPHA)),
+                );
+            }
+            track = track.child(slot);
+        }
+        strip = strip.child(track);
+    }
+    strip
+}
+
 /// The bars of every account row, 5 hours then week, in row order.
 pub fn bars(s: &UsageSnapshot) -> Vec<TileGrid> {
     let grid = |left: Option<i64>, elapsed: Option<f64>, hot: bool| {
         let fraction = left.unwrap_or(0) as f32 / 100.0;
-        let time_left = left.and(elapsed).map(|e| (1.0 - e) as f32);
         let (cols, rows) = BAR;
-        TileGrid::new(cols, rows, bar_grid(fraction, time_left, hot, cols, rows))
+        let line = time_left(left, elapsed);
+        TileGrid::new(cols, rows, bar_grid(fraction, line, hot, cols, rows))
             .spacing(BAR_GAP, BAR_RADIUS)
     };
     s.rows()
@@ -136,7 +177,7 @@ pub fn card_for(s: &UsageSnapshot, first_mark: u32) -> El {
 }
 
 /// A pill: its top line, then the bar the pill's full width.
-fn pill(key: &'static str, top: El, mark: u32) -> El {
+fn pill(key: &'static str, top: El, mark: u32, time_left: Option<f32>) -> El {
     well(
         col()
             .key(key)
@@ -144,7 +185,7 @@ fn pill(key: &'static str, top: El, mark: u32) -> El {
             .px(10.0)
             .pb(7.0)
             .child(top.mb(5.0))
-            .child(tile_slot(mark).key("bar").w_full().h(BAR_HEIGHT)),
+            .child(pace_strip(mark, time_left)),
         WELL_RADIUS,
     )
 }
@@ -192,7 +233,8 @@ fn five_hour_pill(a: &Account, mark: u32) -> El {
     if let Some(t) = times("times", five_hour_times(a)) {
         top = top.child(t);
     }
-    pill("five-hour", top, mark)
+    let line = time_left(a.five_hour_left_if_known(), a.five_hour_elapsed);
+    pill("five-hour", top, mark, line)
 }
 
 fn week_pill(a: &Account, mark: u32) -> El {
@@ -210,5 +252,6 @@ fn week_pill(a: &Account, mark: u32) -> El {
     if let Some(t) = times("times", week_times(a)) {
         top = top.child(t);
     }
-    pill("week", top, mark)
+    let line = time_left(a.week_percent.map(Account::left), a.week_elapsed);
+    pill("week", top, mark, line)
 }
