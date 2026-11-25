@@ -420,17 +420,22 @@ impl Island {
     /// A press, drag and release on the capsule. Below `DRAG_THRESHOLD` it is a tap; past it the island follows
     /// the pointer, kept on the display under the pointer, and its position is saved on release.
     fn drag(&mut self, d: &Drag) {
-        match d.phase {
+        self.drag_at(d.phase, mac::mouse_location(), d.cancelled());
+    }
+
+    /// `drag` with the pointer (AppKit screen coordinates) given: each press starts afresh from where the frame is
+    /// now, so a cancelled gesture leaves no stale start behind (`ReviewFixTests.eachPressStartsAFreshDrag`).
+    fn drag_at(&mut self, phase: Phase, mouse: Point, cancelled: bool) {
+        match phase {
             Phase::Down => {
                 self.press = Some(Press {
-                    mouse: mac::mouse_location(),
+                    mouse,
                     origin: Point::new(self.frame.x, self.frame.y),
                 });
                 self.dragging = false;
             }
             Phase::Move => {
                 let Some(press) = self.press else { return };
-                let mouse = mac::mouse_location();
                 if !self.dragging && moved(press.mouse, mouse) < DRAG_THRESHOLD {
                     return;
                 }
@@ -452,7 +457,7 @@ impl Island {
                 self.dragging = false;
                 if dragged {
                     self.save_position();
-                } else if !d.cancelled() {
+                } else if !cancelled {
                     self.toggle_popover();
                 }
             }
@@ -974,6 +979,47 @@ mod tests {
         let right = dragged_frame(press, Point::new(3000.0, 850.0), frame, &screens);
         assert!(right.x + OVERHANG >= 1440.0);
         assert!(right.max_x() - OVERHANG <= 3360.0);
+    }
+
+    /// `ReviewFixTests.eachPressStartsAFreshDrag`: a press with no release before it (a cancelled gesture) starts
+    /// from where the island is now, not from the old press.
+    #[test]
+    fn each_press_starts_a_fresh_drag() {
+        let mut s = island(Feed::DemoCalm);
+        s.drag_at(Phase::Down, Point::new(100.0, 100.0), false);
+        let first = s.press.expect("pressed").origin;
+        s.place(Rect::new(300.0, 300.0, WINDOW.0 as f64, WINDOW.1 as f64));
+        s.drag_at(Phase::Down, Point::new(400.0, 400.0), false);
+        let press = s.press.expect("pressed again");
+        assert_eq!(press.origin, Point::new(300.0, 300.0));
+        assert_eq!(press.mouse, Point::new(400.0, 400.0));
+        assert_ne!(press.origin, first);
+        assert!(!s.dragging);
+    }
+
+    /// `ReviewFixTests.handBackWaitsForTheDragToEnd`, the part that still applies: a drag past the threshold closes
+    /// the popover and is a drag until the release, which ends it, clears the press, and doesn't reopen it. (The
+    /// wait itself is Swift's: its panel gave the keyboard back by reordering the window that was being dragged;
+    /// here the popover is its own overlay and takes the keyboard with it.)
+    #[test]
+    fn a_drag_closes_the_popover_and_the_release_ends_it() {
+        let mut s = island(Feed::DemoCalm);
+        s.open_popover();
+        s.drag_at(Phase::Down, Point::new(100.0, 100.0), false);
+        // under the threshold: still a tap, the popover stays
+        s.drag_at(Phase::Move, Point::new(101.0, 101.0), false);
+        assert!(s.model.borrow().is_open);
+        assert!(!s.dragging);
+        s.drag_at(Phase::Move, Point::new(140.0, 120.0), false);
+        assert!(!s.model.borrow().is_open);
+        assert!(s.dragging);
+        s.drag_at(Phase::Up, Point::new(140.0, 120.0), false);
+        assert!(!s.dragging);
+        assert_eq!(s.press, None);
+        assert!(
+            !s.model.borrow().is_open,
+            "the release of a drag is not a tap"
+        );
     }
 
     #[test]

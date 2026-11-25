@@ -175,6 +175,66 @@ fn closing_folds_the_list_again() {
     assert!(!p.expanded);
 }
 
+/// The peak with `accounts` accounts and the full sources list, folded or open.
+fn tall(accounts: usize, expanded: bool) -> Popover {
+    let mut p = popover(Feed::DemoPeak);
+    p.model.borrow_mut().snapshot = IslandState::<Prefs>::tallest(accounts);
+    p.expanded = expanded;
+    p.refresh();
+    p
+}
+
+/// The page's height in a scene of `tall`, from Rune's `--tree` on a window tall enough for any of them.
+fn page_height(scene: &str) -> f64 {
+    let dir = std::env::temp_dir().join(format!("cooked-tall-{}-{scene}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let out = dir.join("tree.json");
+    rune::App::new(rune::AppSpec {
+        scenes: &[
+            ("folded-5", |s: &mut Popover| *s = tall(5, false)),
+            ("open-5", |s: &mut Popover| *s = tall(5, true)),
+            ("open-7", |s: &mut Popover| *s = tall(7, true)),
+        ],
+        fonts: crate::theme::PlexFont::FILES,
+        families: crate::theme::PlexFont::FAMILIES,
+        ..rune::AppSpec::new(
+            "Cooked popover",
+            (scenes::SIZE.0, 2000.0),
+            || tall(5, false),
+            view,
+        )
+    })
+    .args([
+        "--tree".to_owned(),
+        out.to_string_lossy().into_owned(),
+        "--scene".to_owned(),
+        scene.to_owned(),
+    ])
+    .try_run()
+    .expect("headless tree");
+    let json = std::fs::read_to_string(&out).expect("tree written");
+    let _ = std::fs::remove_dir_all(&dir);
+    let t: serde_json::Value = serde_json::from_str(&json).expect("tree json");
+    t["elements"]
+        .as_array()
+        .expect("elements")
+        .iter()
+        .find(|e| e.get("key").and_then(|k| k.as_str()) == Some("popover"))
+        .and_then(|e| e["rect"][3].as_f64())
+        .expect("the page's rect")
+}
+
+/// `PanelSizeTests.theOpenListMakesThePanelTaller`: the page grows with the open sources list and with more
+/// accounts (its overlay follows the measured height, `Popover::measured`).
+#[test]
+fn the_open_list_makes_the_page_taller() {
+    let folded = page_height("folded-5");
+    let open = page_height("open-5");
+    let seven = page_height("open-7");
+    assert!(open > folded + 100.0, "open {open}, folded {folded}");
+    assert!(seven > open, "7 accounts {seven}, 5 accounts {open}");
+}
+
 #[test]
 fn grids_by_mark() {
     let p = popover(Feed::DemoPeak);

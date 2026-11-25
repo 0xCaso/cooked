@@ -24,30 +24,15 @@ fn weekday_is_short_english() {
     assert_eq!(live_snapshot::weekday(monday, &FixedOffset(3600)), "Mon");
 }
 
-#[test]
-#[ignore = "needs Task 13: the pills' pace strip (Views/AccountPills.swift PaceStrip, PopoverView.left)"]
-fn strip_lights_the_share_left_and_puts_the_line_at_time_left() {
-    // Swift: team on 30/10 at 13:08: 26% left, 27% of the window to go, 15 columns
-    // let l = PaceStrip.layout(left: 26, timeLeft: 0.27, cols: 15); #expect(abs(l.fill - 3.9) < 0.001); #expect(l.line == 4)
-    // #expect(PaceStrip.layout(left: 140, timeLeft: nil, cols: 15).fill == 15); ….line == nil
-    // #expect(PaceStrip.columns(width: 46) == 15); #expect(PopoverView.left(74) == 26); #expect(PopoverView.left(140) == 0)
-    unimplemented!("port with the popover pills in Task 13");
-}
+// PaceTests.stripLightsTheShareLeftAndPutsTheLineAtTimeLeft: `bar_lights_the_share_left_and_puts_the_line_at_time_left`
+// in `crates/cooked-model/tests/tiles_tests.rs`, and `pills_count_what_is_left` in
+// `crates/cooked/src/popover/tests.rs`; `PaceStrip.columns(width:)` does not apply: the bars have a fixed 44 columns
+// (`usage::BAR`).
+// PaceTests.overspendIsTheDarkDotsBeforeTheLine: `bar_runs_out_before_reset_turns_the_overspend_red` in
+// `crates/cooked-model/tests/tiles_tests.rs`.
 
 #[test]
-#[ignore = "needs Task 13: the pills' pace strip (Views/AccountPills.swift PaceStrip)"]
-fn overspend_is_the_dark_dots_before_the_line() {
-    // Swift: 10% left (1.5 columns), half the window to go: line at column 7
-    // let l = PaceStrip.layout(left: 10, timeLeft: 0.5, cols: 15); #expect(l.line == 7)
-    // #expect(PaceStrip.overspend(column: 3, cover: 0, line: l.line, hot: true))
-    // #expect(!PaceStrip.overspend(column: 3, cover: 0, line: l.line, hot: false))
-    // #expect(!PaceStrip.overspend(column: 0, cover: 1, line: l.line, hot: true)) // lit
-    // #expect(!PaceStrip.overspend(column: 9, cover: 0, line: l.line, hot: true)) // past the line
-    unimplemented!("port with the popover pills in Task 13");
-}
-
-#[test]
-#[ignore = "needs Task 13: the pills' moving fronts (Views/AccountPills.swift PaceFronts)"]
+#[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
 fn fronts_sway_within_bounds_and_keep_moving() {
     // Swift: let fronts = PaceFronts(seed: 11); for frame in 0...3600 { sway = fronts.sway(at: frame / 60, still: false) }
     // #expect(sway.count == 3); #expect(biggest <= PaceFronts.maxSway); #expect(biggest > 0.2)
@@ -56,7 +41,7 @@ fn fronts_sway_within_bounds_and_keep_moving() {
 }
 
 #[test]
-#[ignore = "needs Task 13: the pills' moving fronts (Views/AccountPills.swift PaceFronts)"]
+#[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
 fn still_fronts_do_not_sway() {
     // Swift: let fronts = PaceFronts(seed: 11); for frame in 0...600 { _ = fronts.sway(at: frame / 60, still: false) }
     // #expect(fronts.sway(at: 10.1, still: true) == [0, 0, 0])
@@ -64,7 +49,7 @@ fn still_fronts_do_not_sway() {
 }
 
 #[test]
-#[ignore = "needs Task 13: the pills' pace strip (Views/AccountPills.swift PaceStrip)"]
+#[ignore = "parity gap, pending a design choice: whole tiles, no partly lit front or shifting dots (Swift PaceStrip.cover/shift)"]
 fn front_dot_is_partly_lit_and_the_dots_behind_move_less() {
     // Swift: 3.9 columns lit: columns 0-2 full, column 3 at 90%, column 4 dark
     // #expect(PaceStrip.cover(column: 2, fill: 3.9, sway: 0) == 1); cover(3, 3.9, 0) ≈ 0.9; cover(4, 3.9, 0) == 0
