@@ -558,15 +558,21 @@ fn pill_times_follow_the_red_rule() {
 }
 
 #[test]
-fn unused_accounts_fold_into_one_line() {
-    assert_eq!(
-        usage::unused_line(&demo_data::calm()).as_deref(),
-        Some("personal")
-    );
-    assert_eq!(usage::unused_line(&demo_data::peak()), None);
-    // the folded account has no pill and no bars
+fn unused_accounts_are_left_out() {
     let calm = demo_data::calm();
+    // the account not used in 5 h has no pill, no bars and no line of its own
     assert_eq!(usage::bars(&calm).len(), 2 * (calm.accounts.len() - 1));
+    let t = tree("popover-calm");
+    assert!(
+        !t["elements"]
+            .as_array()
+            .expect("elements")
+            .iter()
+            .any(|e| e["path"]
+                .as_str()
+                .is_some_and(|p| p.contains("/usage/unused"))),
+        "the \"not used in 5 h\" line is still there"
+    );
 }
 
 #[test]
@@ -677,7 +683,10 @@ fn calm_scene_tree() {
         !t.iter().any(|(s, _)| s == "What burns tokens"),
         "no sources, no card"
     );
-    assert_eq!(color_of(&t, "personal"), "#f4f1eab8", "the folded line");
+    assert!(
+        !t.iter().any(|(s, _)| s == "personal"),
+        "the unused account is left out"
+    );
     assert!(!t.iter().any(|(_, c)| c == RED), "no red when calm: {t:?}");
 }
 

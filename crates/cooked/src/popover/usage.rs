@@ -1,6 +1,6 @@
 //! Usage per account: a pill per window, counted as what is left. The 5-hour pill opens with the account name, then the
-//! % and "full HH:MM" (red: it runs out before the reset) or "resets HH:MM"; the week pill its % and reset day. Under
-//! each, a 44 x 2 tile bar. Accounts not used in 5 hours fold into one line (DESIGN.md).
+//! % and "full HH:MM" (red: it runs out before the reset) or "resets HH:MM"; the week pill its % and
+//! reset day. Under each, a 44 x 2 tile bar. Accounts not used in 5 hours are left out.
 
 use cooked_model::tiles::bar_grid;
 use cooked_model::usage_snapshot::{Account, UsageSnapshot};
@@ -113,12 +113,6 @@ pub fn week_times(a: &Account) -> Option<(String, bool)> {
         .map(|r| (format!("resets {r}"), false))
 }
 
-/// "personal, side": the accounts folded into one line.
-pub fn unused_line(s: &UsageSnapshot) -> Option<String> {
-    let names: Vec<&str> = s.unused().iter().map(|a| a.short.as_str()).collect();
-    (!names.is_empty()).then(|| names.join(", "))
-}
-
 pub fn card_for(s: &UsageSnapshot, first_mark: u32) -> El {
     let label = |key: &'static str, t: &'static str| {
         text(t)
@@ -150,27 +144,6 @@ pub fn card_for(s: &UsageSnapshot, first_mark: u32) -> El {
                 .mb(6.0)
                 .child(five_hour_pill(a, mark).grow(1.0).shrink().min_w(0.0))
                 .child(week_pill(a, mark + 1).w(WEEK_WIDTH)),
-        );
-    }
-    if let Some(names) = unused_line(s) {
-        body = body.child(
-            row()
-                .key("unused")
-                .w_full()
-                .items_end()
-                .gap(8.0)
-                .px(4.0)
-                .pb(6.0)
-                .child(label("unused-label", "not used in 5 h"))
-                .child(el().grow(1.0))
-                .child(
-                    text(names)
-                        .key("unused-names")
-                        .font(TextStyle::Body.font())
-                        .color(Palette::ink2())
-                        .truncate()
-                        .shrink(),
-                ),
         );
     }
     card(body, CARD_RADIUS)

@@ -35,7 +35,7 @@ warning light only when needed.
 | Urgent island | the calm island, 5h % and hairline red | same size as calm; details only in the popover |
 | Histogram (popover) | tokens/min for the last 60 min, the alert threshold (p99) | monochrome columns; red only above the threshold; small idle drops keep it moving, never into the threshold row |
 | Notice card (popover) | what is missing, one sentence, and its one fix | one at a time, at the top; title in emphasis, body in ink2, both wrap; one primary button at most; the missing number shows "—" |
-| Account list | 5h, full at, reset and week % per account; "blocked until" when the limit is hit | text and a thin bar, no colored dots; accounts not used in 5 h fold into one line |
+| Account list | 5h, full at, reset and week % per account; "blocked until" when the limit is hit | text and a thin bar, no colored dots; accounts not used in 5 h are left out |
 
 ## Don't
 
