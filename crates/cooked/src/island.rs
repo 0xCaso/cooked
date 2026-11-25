@@ -16,7 +16,7 @@ use cooked_model::menu_bar::{MenuBarLabel, screen_under_item};
 use cooked_model::position_store::{self, IslandPosition};
 use cooked_model::token_format;
 use rune::{
-    Color, Cx, Drag, El, OverlayHandle, OverlayPlacement, Phase, PointerPress, PopupItem,
+    Color, Cursor, Cx, Drag, El, OverlayHandle, OverlayPlacement, Phase, PointerPress, PopupItem,
     PopupMenu, Shadow, SystemMaterial, Tx, el, row, text,
 };
 use std::cell::RefCell;
@@ -609,6 +609,7 @@ fn overlay_rect(frame: Rect, primary_height: f64) -> OverlayPlacement {
 fn press_handlers(capsule: El) -> El {
     capsule
         .hit()
+        .cursor(Cursor::Pointer)
         .on_drag(|s: &mut Island, d: &mut Drag, _: &mut Tx| s.drag(d))
         .on_secondary_press(|s: &mut Island, at: PointerPress, tx: &mut Tx| {
             tx.popup_menu(s.menu(), at, |s: &mut Island, picked, tx: &mut Tx| {
@@ -1094,18 +1095,29 @@ mod tests {
 
     /// Runs a scene through Rune's `--tree` and returns the tree.
     fn tree(scene: &str) -> serde_json::Value {
-        let dir = std::env::temp_dir().join(format!("cooked-tree-{}-{scene}", std::process::id()));
+        tree_after(scene, None)
+    }
+
+    /// `tree`, after `script` (Rune's `--script` events) if any.
+    fn tree_after(scene: &str, script: Option<&str>) -> serde_json::Value {
+        static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let run = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("cooked-tree-{}-{run}-{scene}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let out = dir.join("tree.json");
-        scenes::app()
-            .args([
-                "--tree".to_owned(),
-                out.to_string_lossy().into_owned(),
-                "--scene".to_owned(),
-                scene.to_owned(),
-            ])
-            .try_run()
-            .expect("headless tree");
+        let mut args = vec![
+            "--tree".to_owned(),
+            out.to_string_lossy().into_owned(),
+            "--scene".to_owned(),
+            scene.to_owned(),
+        ];
+        if let Some(script) = script {
+            let file = dir.join("script.json");
+            std::fs::write(&file, script).expect("script written");
+            args.extend(["--script".to_owned(), file.to_string_lossy().into_owned()]);
+        }
+        scenes::app().args(args).try_run().expect("headless tree");
         let json = std::fs::read_to_string(&out).expect("tree written");
         let _ = std::fs::remove_dir_all(&dir);
         serde_json::from_str(&json).expect("tree json")
@@ -1132,6 +1144,20 @@ mod tests {
             .and_then(|n| n.get("rect"))
             .and_then(|r| r[2].as_f64())
             .unwrap_or_else(|| panic!("no rect at {key}"))
+    }
+
+    /// The pointer's shape in the island after it moved to `to` (a script position: `"key": …` or `"x": …, "y": …`).
+    fn cursor_at(to: &str) -> Option<String> {
+        let script = format!(r#"[{{"t": 0.1, "type": "move", {to}}}]"#);
+        let t = tree_after("island-calm", Some(&script));
+        t["pointer"]["cursor"].as_str().map(str::to_owned)
+    }
+
+    #[test]
+    fn the_capsule_shows_the_pointing_hand() {
+        assert_eq!(cursor_at(r#""key": "island""#).as_deref(), Some("pointer"));
+        // the margin lets clicks through to the window below: no pointing hand there
+        assert_ne!(cursor_at(r#""x": 2, "y": 2"#).as_deref(), Some("pointer"));
     }
 
     use scenes::LONG_NAME;
