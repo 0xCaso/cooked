@@ -58,6 +58,7 @@ pub fn run(launch: Launch) {
 
     let mut state = Island::new(model.clone());
     state.solid = crate::mac::window::reduce_transparency();
+    state.reduce_motion = crate::tiles::system_reduce_motion();
     if let Some(displays) = Displays::current() {
         state.restore_position(displays);
     }

@@ -253,6 +253,13 @@ impl Popover {
         });
     }
 
+    /// The system's Reduce Motion is `reduced` now (`--reduce-motion` keeps it on): the chart and the metal follow.
+    /// True while the page is up, so it draws a frame in which its metal reads the setting again.
+    pub fn system_reduce_motion(&mut self, reduced: bool) -> bool {
+        self.reduce_motion = self.reduce_motion_flag || reduced;
+        self.shown
+    }
+
     /// Goes, the island or the model already closed: the page leaves on its exit while the window fades.
     pub fn hide(&mut self) {
         if !self.shown {
