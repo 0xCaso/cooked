@@ -13,9 +13,6 @@ use std::collections::HashMap;
 pub const FALLBACK_THRESHOLD_15M: i64 = 500_000;
 /// The chart keeps a day, for its longest range (`ChartRange.day`).
 pub const HISTORY_MINUTES: usize = 24 * 60;
-/// The island turns urgent when a window fills this soon. Red means "fills before the reset", never a spike or a
-/// percent alone (2026-11-16-red-account-rule).
-pub const URGENT_ETA: f64 = 20.0 * 60.0;
 pub const OK_STATES: [&str; 3] = ["allowed", "allowed_warning", "?"];
 pub const FIVE_HOURS: f64 = 5.0 * 3600.0;
 pub const WEEK: f64 = 7.0 * 86400.0;
@@ -346,16 +343,9 @@ impl Ctx<'_> {
         if self.stale(id) || !self.has_percent(id) || e.live != Some(true) {
             return false;
         }
-        if self.percent(id) >= 100 {
-            return true;
-        }
-        if self.eta(id).is_some_and(|eta| eta - self.now <= URGENT_ETA) {
-            return true;
-        }
-        if self
-            .week_eta(id)
-            .is_some_and(|eta| eta - self.now <= URGENT_ETA)
-        {
+        // Red means "fills before the reset", as the pill's "full HH:MM" says, never a spike or a percent alone
+        // (2026-11-16-red-account-rule, 2026-11-25-red-when-full-before-reset).
+        if self.full_at(id).is_some() || self.week_eta(id).is_some() {
             return true;
         }
         e.limit_status

@@ -32,6 +32,14 @@ fn status(edit: impl FnOnce(&mut StatusFile)) -> StatusFile {
     s
 }
 
+/// The fixture with work not filling before its reset: no account is red unless `edit` makes one so.
+fn quiet(edit: impl FnOnce(&mut StatusFile)) -> StatusFile {
+    status(|s| {
+        entry(s, "claudeAgent_work").projection = None;
+        edit(s)
+    })
+}
+
 fn entry<'a>(s: &'a mut StatusFile, id: &str) -> &'a mut Entry {
     s.accounts.get_mut(id).expect("account in the fixture")
 }
@@ -135,8 +143,11 @@ fn calm_snapshot_from_the_fixture() {
     assert_eq!(s.series[1438], 27004.0);
     assert_eq!(s.series[1380], 100.0); // the hour's first minute
     assert_eq!(s.clock, "15:25");
-    // 18:04 is 158 min away: not urgent
-    assert_eq!(s.urgency, None);
+    // 18:04 is 158 min away, before the 19:00 reset: urgent (2026-11-25-red-when-full-before-reset)
+    assert_eq!(
+        s.urgency.as_ref().map(|u| u.full_at.as_str()),
+        Some("18:04")
+    );
 }
 
 /// The popover's chart sums every account; the island keeps the active one (2026-10-30-aggregated-popover-chart).
@@ -177,13 +188,13 @@ fn popover_chart_sums_every_account() {
 /// 91% used with no projection: not red, it is not expected to fill before the reset (2026-11-16-red-account-rule).
 #[test]
 fn ninety_percent_alone_is_not_urgent() {
-    let st = status(|s| entry(s, "claudeAgent").five_hour_pct = Some(91));
+    let st = quiet(|s| entry(s, "claudeAgent").five_hour_pct = Some(91));
     let s = make(&st, &none()).unwrap();
     assert_eq!(s.urgency, None);
 }
 
 #[test]
-fn urgent_when_full_within_twenty_minutes() {
+fn urgent_when_full_before_the_reset() {
     let st = status(|s| entry(s, "claudeAgent_work").projection = projection("5 min", "15:40"));
     // the card names the thread its button opens: work's top source, not the overall top one
     let sources = [
@@ -222,12 +233,12 @@ fn a_spike_alone_is_not_urgent() {
         "claudeAgent".to_owned(),
         HashMap::from([(minute_now() - 1, (425_706 / 15 * 3) as f64)]),
     )]);
-    let s = make(&status(|_| {}), &minutes).unwrap();
+    let s = make(&quiet(|_| {}), &minutes).unwrap();
     assert_eq!(s.active_id, "claudeAgent");
     assert!(!s.is_urgent());
 }
 
-/// The week fills within 20 minutes: urgent, and the account carries "full" for its week pill.
+/// The week fills before its reset: urgent, and the account carries "full" for its week pill.
 #[test]
 fn urgent_when_the_week_fills_soon() {
     let st = status(|s| {
@@ -242,28 +253,31 @@ fn urgent_when_the_week_fills_soon() {
     assert_eq!(u.lead, "full at ");
     assert_eq!(u.full_at, "15:40");
     assert_eq!(u.detail, "personal week in 14 min");
-    // later: the week pill is red, the island is not urgent
+    // later, still before the week's reset: as red as the week pill
     let later = status(|s| {
         entry(s, "claudeAgent_work").projection = None;
         entry(s, "claudeAgent").week_projection = projection("1 h", "18:00");
     });
     let l = make(&later, &none()).unwrap();
     assert_eq!(l.accounts[1].week_full_at.as_deref(), Some("18:00"));
-    assert_eq!(l.urgency, None);
+    assert_eq!(
+        l.urgency.as_ref().map(|u| u.full_at.as_str()),
+        Some("18:00")
+    );
 }
 
 #[test]
 fn urgent_when_the_limit_is_hit() {
-    let st = status(|s| entry(s, "claudeAgent_work").limit_status = Some("rejected".to_owned()));
+    let st = quiet(|s| entry(s, "claudeAgent_work").limit_status = Some("rejected".to_owned()));
     assert!(make(&st, &none()).unwrap().urgency.is_some());
     let warn =
-        status(|s| entry(s, "claudeAgent_work").limit_status = Some("allowed_warning".to_owned()));
+        quiet(|s| entry(s, "claudeAgent_work").limit_status = Some("allowed_warning".to_owned()));
     assert_eq!(make(&warn, &none()).unwrap().urgency, None);
 }
 
 #[test]
 fn stale_and_idle_accounts_are_never_urgent() {
-    let stale = status(|s| {
+    let stale = quiet(|s| {
         let e = entry(s, "claudeAgent");
         e.five_hour_pct = Some(97);
         e.note = Some("5h window already reset, no new data".to_owned());
@@ -272,7 +286,7 @@ fn stale_and_idle_accounts_are_never_urgent() {
     assert_eq!(s.urgency, None);
     assert_eq!(s.accounts[1].five_hour_percent, 0);
     assert_eq!(s.accounts[1].five_hour_reset, "—");
-    let idle = status(|s| {
+    let idle = quiet(|s| {
         let e = entry(s, "claudeAgent");
         e.five_hour_pct = Some(97);
         e.live = Some(false);
@@ -322,7 +336,7 @@ fn full_at_only_before_the_reset() {
 /// finished turns: on 30/10 13:44 the database had work ahead while team burned 5 times more.
 #[test]
 fn active_account_is_the_one_the_minutes_show_burning() {
-    let st = status(|s| {
+    let st = quiet(|s| {
         if let Some(t) = entry(s, "claudeAgent").tokens_fresh.as_mut() {
             t.insert("15m".to_owned(), 1);
         }
