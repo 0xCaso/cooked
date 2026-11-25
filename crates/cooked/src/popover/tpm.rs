@@ -1,5 +1,5 @@
-//! Tokens per minute (mockup B `.tpm`, Swift `PopoverView.rateCard`): the one big number, the alert line, the
-//! histogram in 72 x 26 chrome tiles (red above the threshold row) and the chart's ranges.
+//! Tokens per minute: the one big number, the alert line, the histogram in 72 x 26 chrome tiles (red above the
+//! threshold row) and the chart's ranges.
 
 use cooked_model::histogram_clock::{ChartRange, MinuteHistory};
 use cooked_model::island_model::IslandState;
@@ -13,15 +13,15 @@ use crate::island::Prefs;
 use crate::theme::{Motion, Palette, Rgb, TextStyle, card, well};
 use crate::tiles::{TileGrid, tile_slot};
 
-/// The histogram's tiles (spec, "Chrome tiles"; decision 2026-11-24-rune-look).
+/// The histogram's tiles.
 pub const COLS: usize = 72;
 pub const ROWS: usize = 26;
-/// The histogram's well: 150 pt tall, 8 pt around the tiles, near black (mockup B `.pop.tiles .hist`).
+/// The histogram's well: 150 pt tall, 8 pt around the tiles, near black.
 const WELL_HEIGHT: f32 = 150.0;
 const WELL_PADDING: f32 = 8.0;
 const WELL_FILL: u32 = 0x050505;
 
-/// The histogram for `range` of the chart's minutes at chart time `t`: Swift's liquid (`TideHistogram`, lively at
+/// The histogram for `range` of the chart's minutes at chart time `t`: the liquid (`TideHistogram`, lively at
 /// 10 minutes, calm on the longer ranges) on the tiles, with lines between minutes where one spans two columns or
 /// more, so the chart moves at 60 fps column by column (DESIGN.md) instead of in one-minute steps. `still`: the
 /// liquid stands at its targets (Reduce Motion, scenes).
@@ -176,7 +176,7 @@ fn range_key(range: ChartRange, on: bool) -> El {
     if !on {
         return key.hover(Color::WHITE.alpha(0.06));
     }
-    // mockup B: a chrome key, lit on its top edge
+    // a chrome key, lit on its top edge
     key.fill(Rgb::hex(0xD9DDE3).color())
         .linear_gradient(
             std::f32::consts::PI,

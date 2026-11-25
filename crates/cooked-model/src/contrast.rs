@@ -1,5 +1,4 @@
-//! Port of `Style/Contrast.swift` (and the `RGB` it uses from `Style/Theme.swift`): WCAG 2.x contrast. Text with
-//! opacity is composited over its background (sRGB), then the ratio of relative luminances is taken.
+//! WCAG 2.x contrast. Text with opacity is composited over its background (sRGB), then the ratio of relative luminances is taken.
 
 /// An sRGB colour as 0...1 components.
 #[derive(Debug, Clone, Copy, PartialEq)]

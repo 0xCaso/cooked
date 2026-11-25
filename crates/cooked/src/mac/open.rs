@@ -1,5 +1,4 @@
-//! A click on a row (release spec, section 1, Click on a row; `SessionOpener.swift` and `T3Code.swift`): the place
-//! the session runs in, else a Terminal that resumes it.
+//! A click on a row: the place the session runs in, else a Terminal that resumes it.
 //!
 //! `plan` decides what to do from what is installed and running (`Apps`, faked in tests); `perform` does it with
 //! `NSWorkspace`. Tests never open anything: they check the plan.
@@ -166,7 +165,7 @@ fn first_running(bundle_id: &str) -> Option<Retained<NSRunningApplication>> {
         .firstObject()
 }
 
-/// Opens the session (Swift `SessionOpener.open`).
+/// Opens the session.
 pub fn open(target: Option<&OpenTarget>) {
     let Some(places) = Places::app() else { return };
     let Some(action) = plan(target, &Workspace, &places) else {
@@ -198,7 +197,7 @@ fn perform(action: Action) {
         }
         Action::Activate { bundle_id } => {
             if let Some(app) = first_running(&bundle_id) {
-                // SAFETY: `-[NSRunningApplication activate]` (macOS 14), Swift's `activate()`.
+                // SAFETY: `-[NSRunningApplication activate]` (macOS 14).
                 let _: Bool = unsafe { msg_send![&*app, activate] };
             }
         }
@@ -220,7 +219,7 @@ fn write_script(path: &Path, script: &str) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    // like `write(toFile:atomically:)`: a half-written script never runs
+    // written aside, then renamed: a half-written script never runs
     let tmp = path.with_extension("command.tmp");
     std::fs::write(&tmp, script)?;
     std::fs::rename(&tmp, path)?;
@@ -237,7 +236,7 @@ fn open_link(url: &str, app: &Path) {
     }
 }
 
-/// `NSWorkspace.open([url], withApplicationAt: app, configuration: .init())`.
+/// Opens `url` with the app at `app`.
 fn open_with(url: Retained<NSURL>, app: &Path) {
     let urls = NSArray::from_retained_slice(&[url]);
     NSWorkspace::sharedWorkspace().openURLs_withApplicationAtURL_configuration_completionHandler(
@@ -248,7 +247,7 @@ fn open_with(url: Retained<NSURL>, app: &Path) {
     );
 }
 
-/// `NSWorkspace.openApplication(at: app, configuration: .init())`.
+/// Opens the app at `app`.
 fn launch(app: &Path) {
     NSWorkspace::sharedWorkspace().openApplicationAtURL_configuration_completionHandler(
         &file_url(app),

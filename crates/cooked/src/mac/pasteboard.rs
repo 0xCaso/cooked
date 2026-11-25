@@ -1,5 +1,5 @@
-//! The clipboard: "Copy details" on the format notice (Swift `IslandModel.act`). Tests use a pasteboard of their
-//! own (`unique`), never the user's.
+//! The clipboard: "Copy details" on the format notice. Tests use a pasteboard of their own (`unique`), never the
+//! user's.
 
 use objc2::msg_send;
 use objc2::rc::Retained;

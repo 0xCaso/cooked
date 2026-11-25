@@ -1,4 +1,4 @@
-//! The chrome-tile grids the Rune UI draws, and Review Focus 1 (no log folders).
+//! The chrome-tile grids the Rune UI draws, and the island with no log folders.
 mod common;
 
 use cooked_model::clock::FixedOffset;
@@ -91,7 +91,7 @@ fn rows_lit_from_the_bottom_rounded_to_the_nearest_row() {
     }
 }
 
-/// `PaceTests.stripLightsTheShareLeftAndPutsTheLineAtTimeLeft`, on whole tiles: team on 30/10 at 13:08, 26% left
+/// The share left and the pace line, on whole tiles: team on 30/10 at 13:08, 26% left
 /// and 27% of the window to go on 15 columns. The fill is 3.9 columns (the front tile is lit from half a tile) and
 /// the line, an off tile, is at column 4.
 #[test]
@@ -176,7 +176,7 @@ fn wave_is_mirrored_around_the_centre_row_and_widens_with_the_rate() {
     assert!(count(&busy, TileLevel::Lit) > count(&quiet, TileLevel::Lit) + 16);
 }
 
-/// Review Focus 1: no `~/.claude*/projects`, no Codex: the island shows "—" and a notice, no crash.
+/// No `~/.claude*/projects`, no Codex: the island shows "—" and a notice, no crash.
 #[test]
 fn no_log_roots_gives_dash_and_notice() {
     let dir = common::temp_dir("no-roots");

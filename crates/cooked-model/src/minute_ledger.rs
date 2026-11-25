@@ -1,11 +1,11 @@
-//! Port of `Model/MinuteLedger.swift`. The minute cache: new tokens per account and minute for the last 14 days, and
+//! The minute cache: new tokens per account and minute for the last 14 days, and
 //! where each session file was read up to, in `~/Library/Application Support/Cooked/minutes.json`. The readers
 //! (`TranscriptLog`, `CodexLog`) add to it.
 //! - The first launch reads 14 days of files, `budget` bytes per reading, newest files first, so the island keeps
 //!   updating while the history fills (`history_progress`).
 //! - At start, each file continues from its saved position: lines written while Cooked was closed are counted.
 //!
-//! Shared between the readers behind an `Arc`; every method takes `&self` and locks inside, like the Swift class.
+//! Shared between the readers behind an `Arc`; every method takes `&self` and locks inside.
 
 use crate::files;
 use crate::limit_log::Buckets;
@@ -36,7 +36,7 @@ pub struct Mark {
     pub newest: Option<i64>,
 }
 
-/// The file's form; `version` has no default, so a file without it is dropped like in Swift.
+/// The file's form; `version` has no default, so a file without it is dropped.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Saved {
@@ -142,8 +142,6 @@ impl MinuteLedger {
         })
     }
 
-    // A reading
-
     /// Starts a reading, before every reader reads.
     pub fn begin(&self) {
         let mut s = self.lock();
@@ -191,11 +189,9 @@ impl MinuteLedger {
             s.last_save = Some(now);
             data
         };
-        // like `try? data.write(to:options: .atomic)`: a failed save is tried again at the next one
+        // a failed save is tried again at the next one
         let _ = files::write_atomic(url, &data);
     }
-
-    // For the readers
 
     /// A file a reader walked in this reading; its mark, if it has one.
     pub fn see(&self, path: &str) -> Option<Mark> {

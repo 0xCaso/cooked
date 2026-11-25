@@ -1,4 +1,4 @@
-//! Port of `Model/StatusLineBridge.swift`. The Claude percent, from the files the status line bridge writes: for each
+//! The Claude percent, from the files the status line bridge writes: for each
 //! account, the JSON Claude Code last gave its status line, in
 //! `~/Library/Application Support/Cooked/bridge/<account id>.json`. Claude Code sends `rate_limits.five_hour` and
 //! `seven_day` (`used_percentage` 0...100, `resets_at` Unix seconds) after each response, for subscribers only. The

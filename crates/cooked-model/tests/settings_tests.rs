@@ -1,6 +1,6 @@
-//! Review Focus 3: the defaults the Swift app wrote load with no loss, and every key round-trips.
-//! `fixtures/defaults.plist` is `defaults export com.0xcaso.Cooked` from a real Swift install, account names and
-//! paths anonymized (the JSON bytes are otherwise the ones Swift's `JSONEncoder` wrote).
+//! The defaults earlier versions wrote load with no loss, and every key round-trips.
+//! `fixtures/defaults.plist` is `defaults export com.0xcaso.Cooked` from a real install of an earlier version,
+//! account names and paths anonymized (the JSON bytes are otherwise the ones it wrote).
 
 mod common;
 
@@ -64,7 +64,7 @@ fn real_swift_plist_loads() {
     settings.save(&mut saved);
     assert_eq!(Settings::load(&saved), settings);
     assert!(saved.get_bool("setupDone"));
-    // The accounts JSON goes back out as the bytes Swift wrote.
+    // The accounts JSON goes back out as the bytes it came in as.
     assert_eq!(
         saved.get_data(AccountStore::KEY),
         store.get_data(AccountStore::KEY)

@@ -1,6 +1,6 @@
-//! Port of `Views/IslandModel.swift` with no I/O: what the island shows and whether the popover is open, as pure
+//! With no I/O: what the island shows and whether the popover is open, as pure
 //! state and transitions. Opening windows and the clipboard come back as a `NoticeAction` for the app to run; times
-//! come in as Unix seconds. `GlassStyle` is from `Views/Surfaces.swift`.
+//! come in as Unix seconds.
 
 use crate::defaults::DefaultsStore;
 use crate::demo_data::{self, CALM_RATES, Feed};
@@ -265,8 +265,8 @@ impl<D: DefaultsStore> IslandState<D> {
         self.notice() == Some(&Notice::NoAccounts)
     }
 
-    /// The active account's 5h % left, or "—" without a percent (the Swift island showed no text there; the
-    /// popover's notice says why).
+    /// The active account's 5h % left, or "—" without a percent (the popover's notice
+    /// says why).
     pub fn five_hour_label(&self) -> String {
         match self
             .snapshot
@@ -367,8 +367,8 @@ impl<D: DefaultsStore> IslandState<D> {
     }
 
     /// The mockup's demo feed: one minute lasts 4 s, each new minute takes a value from the series' last
-    /// `DEMO_TAIL` minutes, ±15%, so the demo goes on at the level it shows. Swift drew from minutes 5...n-5, the
-    /// calm start of the peak series, and the chart dropped to a fifth after launch.
+    /// `DEMO_TAIL` minutes, ±15%, so the demo goes on at the level it shows. Minutes 5...n-5
+    /// would be the calm start of the peak series, and the chart would drop to a fifth after launch.
     pub fn demo_clock(s: &UsageSnapshot) -> HistogramClock {
         // the peak series' burst is its last 8 minutes (`demo_data::series`): a 10-minute tail let minutes 50 and
         // 51, half as high, into the feed

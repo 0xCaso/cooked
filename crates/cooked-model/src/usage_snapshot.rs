@@ -1,4 +1,4 @@
-//! Port of `Model/UsageSnapshot.swift`: what the island shows at one moment, live data from the watcher, or a demo.
+//! What the island shows at one moment, live data from the watcher, or a demo.
 
 use crate::live_snapshot::{FALLBACK_THRESHOLD_15M, HISTORY_MINUTES};
 use crate::token_sources::TokenSource;
@@ -32,7 +32,7 @@ pub struct Account {
 }
 
 impl Account {
-    /// The required fields; the rest take Swift's defaults.
+    /// The required fields; the rest take their defaults.
     pub fn new(
         id: &str,
         short: &str,
@@ -91,7 +91,7 @@ pub struct Urgency {
 }
 
 impl Urgency {
-    /// `lead` takes Swift's default, "full at ".
+    /// `lead` is "full at ".
     pub fn new(percent: i64, full_at: &str, detail: &str, source: &str) -> Self {
         Self {
             percent,

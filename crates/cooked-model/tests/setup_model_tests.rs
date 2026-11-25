@@ -1,4 +1,4 @@
-//! `SetupModelTests.swift`: a fresh user (temporary home) gets through Setup, and skipping each step leaves their
+//! A fresh user (temporary home) gets through Setup, and skipping each step leaves their
 //! files as they were. Every file is under a temporary home, never the real `~/.claude`.
 mod common;
 

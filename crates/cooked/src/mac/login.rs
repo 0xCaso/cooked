@@ -1,5 +1,5 @@
-//! Open at login: the app's own `SMAppService.mainApp` (Swift `MainAppLoginItem`). Outside a bundle (`cargo run`)
-//! registering fails and Setup goes on without it; the error comes back as one line.
+//! Open at login: the app's own `SMAppService.mainApp`. Outside a bundle (`cargo run`) registering fails and Setup
+//! goes on without it; the error comes back as one line.
 
 use cooked_model::setup_model::LoginItem;
 use objc2::rc::Retained;
@@ -21,7 +21,7 @@ impl LoginItem for MainAppLogin {
         unsafe { main_app().status() == SMAppServiceStatus::Enabled }
     }
 
-    /// On: register. Off: unregister only when enabled, as Swift.
+    /// On: register. Off: unregister only when enabled.
     fn set(&mut self, on: bool) -> Result<(), String> {
         let service = main_app();
         // SAFETY: the documented calls on the app's own service; errors come back as `NSError`.

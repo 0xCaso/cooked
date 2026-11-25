@@ -1,4 +1,4 @@
-//! Port of `Model/StatusFile.swift`. Every account's limits, as the watcher script's status.json had them:
+//! Every account's limits, as the watcher script's status.json had them:
 //! `LimitLog` builds it now, and the tests still decode fixtures in that form. Only the fields the island uses.
 
 use crate::clock::{self, Civil, TimeZone};

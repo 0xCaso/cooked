@@ -1,4 +1,4 @@
-//! Not Swift cases: checks for ported code whose Swift tests live in later tasks' files.
+//! Token format, ISO dates, watcher times and the status line bridge.
 
 use cooked_model::clock::{FixedOffset, days_from_civil, iso_date};
 use cooked_model::status_file::{StatusFile, WatcherTime};

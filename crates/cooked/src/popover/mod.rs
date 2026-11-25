@@ -1,15 +1,14 @@
-//! The popover under the island, as `Views/PopoverView.swift` lays it out, in the "B · Chrome tiles" look:
-//! a 440 pt glass page with the notice on top (one at a time), then
-//! tokens per minute (`tpm`), what burns tokens (`burners`) and the usage of every account (`usage`).
+//! The popover under the island, in the "B · Chrome tiles" look: a 440 pt glass page with the notice on top (one at a
+//! time), then tokens per minute (`tpm`), what burns tokens (`burners`) and the usage of every account (`usage`).
 //!
-//! It is its own overlay, next to the island's: shown under the capsule when the island is tapped, and gone with
-//! Esc, any other key, a click outside or another window taking the keyboard (`IslandPanel` in Swift). It takes the
-//! keyboard without activating the app, so the app in use stays in front, and gives it back when it hides. Both
-//! overlays share the island's model (`island::Model`).
+//! It is its own overlay, next to the island's: shown under the capsule when the island is tapped, and gone with Esc,
+//! any other key, a click outside or another window taking the keyboard. It takes the keyboard without activating the
+//! app, so the app in use stays in front, and gives it back when it hides. Both overlays share the island's model
+//! (`island::Model`).
 //!
-//! Step 0 (1d) found no glass morph across two windows, so it enters as DESIGN.md says: from `scale(.96)` and
-//! transparent about its top centre on the 0.24 s spring, and leaves faster. Reduce Motion: no motion, and the
-//! histogram and the metal stand still.
+//! There is no glass morph across two windows, so it enters as DESIGN.md says: from `scale(.96)` and transparent about
+//! its top centre on the 0.24 s spring, and leaves faster. Reduce Motion: no motion, and the histogram and the metal
+//! stand still.
 
 mod burners;
 mod notice;
@@ -34,13 +33,13 @@ use crate::mac::events::OutsideClicks;
 use crate::theme::{GlassLook, Motion, Palette, TextStyle};
 use crate::tiles::{self, TileGrid, TileGrids};
 
-/// The page, points (mockup B `.pop`).
+/// The page, points.
 pub const WIDTH: f32 = 440.0;
-/// The page's corners (mockup B: 26; cards 18, wells 9).
+/// The page's corners (cards 18, wells 9).
 const RADIUS: f32 = 26.0;
 pub const CARD_RADIUS: f32 = 18.0;
 pub const WELL_RADIUS: f32 = 9.0;
-/// Between the capsule's bottom and the page's top (mockup B `.stage` gap).
+/// Between the capsule's bottom and the page's top.
 pub const GAP: f64 = 10.0;
 /// The overlay's transparent margin around the page, for its shadow: little above (the island is there), more
 /// below, where the shadow falls. Clicks there go through.
@@ -57,7 +56,7 @@ pub const FIRST_SIZE: (f32, f32) = (
     FIRST_HEIGHT + MARGIN_TOP + MARGIN_BOTTOM,
 );
 
-/// How long "Copy details" says "Copied" (Swift `NoticeCard`).
+/// How long "Copy details" says "Copied".
 pub const COPIED_FOR: Duration = Duration::from_millis(1500);
 
 /// The tile grids' marks: the histogram, then a pair per account row (5 hours, week).
@@ -97,7 +96,7 @@ impl Anchor {
         }
     }
 
-    /// Under the menu bar item at `item` (`IslandPlacement.underItem`).
+    /// Under the menu bar item at `item` (`island_placement::under_item`).
     pub fn item(item: Rect, visible: Rect, primary_height: f64) -> Self {
         Self {
             capsule: item,
@@ -110,7 +109,7 @@ impl Anchor {
 
 /// The overlay's frame (AppKit coordinates, margin included) for a page `height` points tall: centred under the
 /// capsule, `gap` below it, the page kept inside the display's visible frame across, and no taller than the space
-/// down to the visible frame's bottom (Swift capped the panel at the screen's visible height).
+/// down to the visible frame's bottom.
 pub fn frame(anchor: &Anchor, height: f32) -> Rect {
     let (mx, top, bottom) = (MARGIN_X as f64, MARGIN_TOP as f64, MARGIN_BOTTOM as f64);
     let width = WIDTH as f64 + 2.0 * mx;
@@ -454,7 +453,7 @@ fn page(s: &Popover) -> El {
     surface(s, body)
 }
 
-/// A section's label over its card (mockup B `.sec-h`): 12 pt at 55%, a note on the right.
+/// A section's label over its card: 12 pt at 55%, a note on the right.
 fn section(key: &'static str, title: &str, note: Option<&str>, first: bool) -> El {
     let label = |key: &'static str, t: &str| {
         text(t.to_owned())
@@ -477,7 +476,7 @@ fn section(key: &'static str, title: &str, note: Option<&str>, first: bool) -> E
 }
 
 /// The page's surface: Liquid Glass under the glass style's tint and veil, or opaque `#080808` with Reduce
-/// Transparency (as `IslandSurface`); a 0.5 pt hairline. Only the page takes the pointer.
+/// Transparency (as the island's); a 0.5 pt hairline. Only the page takes the pointer.
 fn surface(s: &Popover, body: El) -> El {
     let m = s.model.borrow();
     let style = m.glass_style();

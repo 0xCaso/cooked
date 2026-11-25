@@ -1,4 +1,4 @@
-//! Port of `Model/CodexLog.swift`. New tokens per minute, the 5 h and week percent, and the sessions of a Codex
+//! New tokens per minute, the 5 h and week percent, and the sessions of a Codex
 //! account, read from its rollouts (`<codex home>/sessions/<year>/<month>/<day>/rollout-<time>-<id>.jsonl`). Codex
 //! writes a `token_count` event after each call, with that call's usage (`last_token_usage`) and the account's limits
 //! (`rate_limits`). Rollouts from the Codex CLI, the Codex app and T3 Code are all written here. "New" counts like the
@@ -300,8 +300,8 @@ impl CodexLog {
             .find(Limits::shown)
     }
 
-    /// A repeated event has the same totals. Numbers as Swift prints a `Double` ("16898.0"): the key is saved in the
-    /// minute cache the Swift app wrote too.
+    /// A repeated event has the same totals. Numbers print with a decimal point ("16898.0"): the key
+    /// is saved in the minute cache, which earlier versions wrote too.
     pub fn key(u: &Usage) -> String {
         let n = |v: Option<f64>| format!("{:?}", v.unwrap_or(0.0));
         format!(

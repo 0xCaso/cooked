@@ -1,5 +1,5 @@
 //! Every setting Cooked keeps in its `UserDefaults` domain (`com.0xcaso.Cooked`), with the keys, encodings and
-//! defaults the Swift app uses, so an upgrade from Swift loses nothing. Each key is read and written by the module
+//! defaults earlier versions used, so an upgrade loses nothing. Each key is read and written by the module
 //! that owns it; this gathers them in one load and one save. The data feed (live/demo) is not saved.
 
 use crate::accounts::{AccountStore, ConnectedAccount};
@@ -17,7 +17,7 @@ pub struct Settings {
     pub accounts: Option<Vec<ConnectedAccount>>,
     /// `islandPosition`: `None` until the panel is moved once.
     pub island_position: Option<IslandPosition>,
-    /// `glassStyle`, `displayMode`, `chartRange`: raw strings; missing or unknown → the Swift default.
+    /// `glassStyle`, `displayMode`, `chartRange`: raw strings; missing or unknown → the default.
     pub glass_style: GlassStyle,
     pub display_mode: DisplayMode,
     pub chart_range: ChartRange,

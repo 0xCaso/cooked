@@ -1,4 +1,4 @@
-//! Port of `LegacyDefaults.swift`: Cooked's bundle id was `com.0xcaso.UsageIsland`; the settings saved under it
+//! Cooked's bundle id was `com.0xcaso.UsageIsland`; the settings saved under it
 //! (glass, chart range, position) are copied once, so the rename keeps them. A key Cooked already has is never
 //! overwritten.
 

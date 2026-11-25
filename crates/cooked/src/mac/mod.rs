@@ -15,7 +15,7 @@ use cooked_model::clock::TimeZone;
 use objc2::rc::Retained;
 use objc2_foundation::{NSDate, NSTimeZone};
 
-/// The user's zone as Swift's `Calendar.current` sees it: `NSTimeZone.localTimeZone`, DST included. Make one per
+/// The user's zone: `NSTimeZone.localTimeZone`, DST included. Make one per
 /// reading, so a zone change in System Settings shows up at the next one.
 pub struct LocalZone(Retained<NSTimeZone>);
 

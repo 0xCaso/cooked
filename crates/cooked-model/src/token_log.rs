@@ -1,9 +1,8 @@
-//! Port of `Model/TokenLog.swift`. T3 Code's own database, read-only: the T3 Code extra. It names the sessions T3 Code
+//! T3 Code's own database, read-only: the T3 Code extra. It names the sessions T3 Code
 //! started by their thread, and gives the account of a thread for T3 Code's limit logs. No number of the island comes
 //! from it.
 //!
-//! The Swift app links the system SQLite; so does this port, through a few `extern "C"` calls into macOS's
-//! `libsqlite3`, instead of a crate that would compile its own copy.
+//! Links the system SQLite through a few `extern "C"` calls into macOS's `libsqlite3`, instead of a crate that would compile its own copy.
 
 use crate::files;
 use std::collections::HashMap;

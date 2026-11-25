@@ -1,15 +1,14 @@
-//! The Setup window (first launch) and the Settings window, as `SetupWindow.swift` shows them: one dark window,
-//! 600 pt wide and as tall as its content, in the approved look.
-//! Setup walks three optional steps (accounts, the Claude percent, open at login); Settings shows the
-//! same groups as tabs, with "Remove Cooked's changes…" under them.
+//! The Setup window (first launch) and the Settings window: one dark window, 600 pt wide and as tall as its content.
+//! Setup walks three optional steps (accounts, the Claude percent, open at login); Settings shows the same groups as
+//! tabs, with "Remove Cooked's changes…" under them.
 //!
-//! The logic is `cooked_model::setup_model` (Task 6): which folders Cooked reads and their names, the status line
-//! bridge (`StatusLineSetup`, the only code that edits a `settings.json`), the login item. Nothing outside Cooked's
-//! own folder is written before Allow or Connect. This module holds the window's own state (the step or tab, the
-//! name fields, the open disclosures, the confirmation) and hands the new accounts to the island.
+//! The logic is `cooked_model::setup_model`: which folders Cooked reads and their names, the status line bridge
+//! (`StatusLineSetup`, the only code that edits a `settings.json`), the login item. Nothing outside Cooked's own folder
+//! is written before Allow or Connect. This module holds the window's own state (the step or tab, the name fields, the
+//! open disclosures, the confirmation) and hands the new accounts to the island.
 //!
-//! It is an ordinary Rune window next to the overlays, created hidden on the first open. `Opener` opens it from
-//! the island's menu, the popover's notice and the `--setup` / `--settings` flags.
+//! It is an ordinary Rune window next to the overlays, created hidden on the first open. `Opener` opens it from the
+//! island's menu, the popover's notice and the `--setup` / `--settings` flags.
 
 mod controls;
 mod views;
@@ -33,7 +32,7 @@ pub use views::view;
 
 /// The window's width; the height follows the content.
 pub const WIDTH: f32 = 600.0;
-/// The band at the top with the traffic lights and the title (mockup `.tb`).
+/// The band at the top with the traffic lights and the title.
 pub const TITLEBAR: f32 = 40.0;
 /// Open at login kept for this run only: the login item of tests, scenes and the blank window, which must never
 /// register the real one.
@@ -91,7 +90,7 @@ pub enum Mode {
     Settings,
 }
 
-/// Settings' tabs (Swift `SettingsView.Tab`).
+/// Settings' tabs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tab {
     Accounts,
@@ -226,7 +225,7 @@ impl Setup {
         self.names_dirty = false;
     }
 
-    /// The window comes up (Swift makes a new model each time): what is on disk now, the first step or `tab`.
+    /// The window comes up: what is on disk now, the first step or `tab`.
     pub fn present(&mut self, mode: Mode, tab: Tab) {
         self.model = (self.make)();
         self.model.refresh();
@@ -288,7 +287,7 @@ impl Setup {
         }
     }
 
-    // MARK: Setup's steps
+    // Setup's steps
 
     /// The primary button acts, then moves on; Skip only moves on (Skip on Accounts keeps every folder ticked).
     /// Returns false when the window should close (Done).
@@ -345,7 +344,7 @@ impl Setup {
         }
     }
 
-    // MARK: Settings
+    // Settings
 
     pub(crate) fn select_tab(&mut self, tab: Tab) {
         self.commit_names();
@@ -429,7 +428,7 @@ pub struct Opener {
 
 impl Opener {
     /// Shows the window in `mode` and brings it to the front: an accessory app comes forward so the window takes
-    /// the keyboard (as Swift's `NSApp.activate()`).
+    /// the keyboard.
     pub fn open(&self, mode: Mode, tab: Tab) {
         self.app.update(move |s, tx| {
             s.present(mode, tab);
@@ -475,7 +474,7 @@ pub fn is_done(defaults: &dyn cooked_model::defaults::DefaultsStore) -> bool {
     setup_model::is_done(defaults)
 }
 
-/// Scenes for Rune's headless tooling (`--snap`, `--tree`; feature `tooling`): the mockup's states over a home
+/// Scenes for Rune's headless tooling (`--snap`, `--tree`; feature `tooling`): Setup's and Settings' states over a home
 /// made in a temporary folder, the clock stopped at Wed 4 Nov 2026 16:58 UTC.
 #[cfg(any(test, feature = "tooling"))]
 pub mod scenes;

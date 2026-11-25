@@ -1,4 +1,4 @@
-//! Port of `Dots/AccountBar.swift`: the 5h bar of one account, 20 dots, one per 5%.
+//! The 5h bar of one account, 20 dots, one per 5%.
 
 use crate::dot_shading::DotGrid;
 

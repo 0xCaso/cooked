@@ -1,5 +1,5 @@
 //! The window's flow over a temporary home (never the real `~/.claude`), the launch flags, and the scenes'
-//! snapshots. The Swift `SetupModelTests` and `StatusLineSetupTests` are ported in `cooked-model` (Task 6).
+//! snapshots. The model's own tests are in `cooked-model`.
 
 use std::cell::RefCell;
 use std::fs;
@@ -197,7 +197,7 @@ fn only_the_app_uses_the_real_login_item() {
 }
 
 #[test]
-fn scenes_show_the_mockup_states() {
+fn scenes_show_the_states() {
     let s = scenes::scene_in("settings-changed", "test-changed");
     assert_eq!(s.model.percent(), State::Changed);
     assert_eq!(

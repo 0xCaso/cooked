@@ -1,4 +1,4 @@
-//! `OpenTargetTests.swift`: a click on a row goes where the session runs (release spec, section 1, Click on a row).
+//! A click on a row goes where the session runs (release spec, section 1, Click on a row).
 //! Where the app sends each target (`SessionOpener`) is tested in `crates/cooked/src/mac/open.rs`.
 
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ fn accounts() -> Vec<ConnectedAccount> {
     ]
 }
 
-/// A session with a steady rate (Swift's `.steady`).
+/// A session with a steady rate.
 fn session(account: &str, id: &str) -> Session {
     let mut s = Session::new(account, id, Some("/Users/x/My Repo".into()), 600.0, true, 0);
     s.last_five = s.tokens / 3.0;

@@ -60,7 +60,7 @@ pub(crate) fn contains(hay: &[u8], needle: &[u8]) -> bool {
     find(hay, needle, 0).is_some()
 }
 
-/// Lines split on `\n`, empty ones left out (Swift's `split(separator:)`).
+/// Lines split on `\n`, empty ones left out.
 pub(crate) fn lines(data: &[u8]) -> impl DoubleEndedIterator<Item = &[u8]> {
     data.split(|b| *b == b'\n').filter(|l| !l.is_empty())
 }

@@ -1,5 +1,4 @@
-//! `TideTests.swift`: the charts as a liquid. `shadeFadesTheRimAndCapsTheGlow` keeps its alpha asserts only: chrome
-//! tiles have no radius or glow.
+//! The charts as a liquid. Shading checks alpha only: chrome tiles have no radius or glow.
 
 use cooked_model::histogram_clock::MinuteHistory;
 use cooked_model::tide::{
@@ -131,7 +130,7 @@ fn settled_spike_stays_narrow() {
     assert!(wide(spike.heights()) <= wide(&target) + 1);
 }
 
-/// Task 4: the open chart keeps moving on a flat history, by less than 0.6 rows, and never into the threshold row.
+/// The open chart keeps moving on a flat history, by less than 0.6 rows, and never into the threshold row.
 #[test]
 fn idle_ripples_stay_small() {
     let flat = history(vec![2000.0; 60]);
@@ -375,7 +374,7 @@ fn shade_fades_the_rim_and_caps_the_glow() {
     assert_eq!(off.alpha, 0.06);
 }
 
-/// Task 14 (F10): at 10 minutes a minute spans 7 of the popover's 72 columns. Swift's targets stand in flat steps;
+/// At 10 minutes a minute spans 7 of the popover's 72 columns. Plain targets stand in flat steps;
 /// the fine targets draw a line between the minutes' centres, so neighbouring columns differ, as in the mockup.
 #[test]
 fn fine_targets_vary_inside_a_minute_at_ten_minutes() {
@@ -383,8 +382,8 @@ fn fine_targets_vary_inside_a_minute_at_ten_minutes() {
     let flat = TideScale::targets(&minutes, 72, 26, 64000.0);
     let fine = TideScale::fine_targets(&minutes, 72, 26, 64000.0);
     let steps = |h: &[f64]| h.windows(2).filter(|w| (w[1] - w[0]).abs() > 1e-9).count();
-    // Swift: flat inside a minute, a change only at its edges (a column across two minutes averages them)
-    assert!(steps(&flat) <= 2 * 9, "Swift: {} changes", steps(&flat));
+    // flat inside a minute, a change only at its edges (a column across two minutes averages them)
+    assert!(steps(&flat) <= 2 * 9, "flat: {} changes", steps(&flat));
     assert!(steps(&fine) > 60, "fine: {} changes", steps(&fine));
     // never past the minutes' own range, and rising with them
     let (lo, hi) = (flat[0], flat[71]);

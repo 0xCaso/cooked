@@ -1,6 +1,6 @@
-//! The menu bar item of "Show Cooked in › Menu bar" (`MenuBarItem.swift`): an `NSStatusItem` whose button shows the
-//! label as an image, the dot wave of the last 9 minutes and the 5-hour percent, drawn with CoreGraphics and
-//! CoreText. A left click and a right click go to `on_click`; the menu pops up under the button.
+//! The menu bar item of "Show Cooked in › Menu bar": an `NSStatusItem` whose button shows the label as an image,
+//! the dot wave of the last 9 minutes and the 5-hour percent, drawn with CoreGraphics and CoreText. A left click
+//! and a right click go to `on_click`; the menu pops up under the button.
 //!
 //! The image draws in AppKit's drawing handler, in the menu bar's appearance at that moment: light ink on a dark
 //! menu bar, dark ink on a light one, drawn again by AppKit when the menu bar changes. A new label (data) sets a new
@@ -29,7 +29,7 @@ use rune::{PopupEntry, PopupMenu};
 use crate::menu_bar::MenuHost;
 use crate::theme::{PlexFont, TextStyle};
 
-/// The label's geometry, points (`MenuBarLabel` in Swift): 6 pt in from each side and between wave and percent;
+/// The label's geometry, points: 6 pt in from each side and between wave and percent;
 /// dots of radius 1.2 every 3.4 pt, 9 columns of 5.
 const PAD: f64 = 6.0;
 const SPACING: f64 = 6.0;
@@ -49,7 +49,7 @@ const MOUSE_UPS: u64 = (1 << 2) | (1 << 4);
 pub struct Ink {
     /// `.primary`: AppKit's label colour.
     pub primary: [f64; 4],
-    /// Red text on a light menu bar needs a darker red to reach 4.5:1 (`MenuBarLabel.red`).
+    /// Red text on a light menu bar needs a darker red to reach 4.5:1.
     pub red: [f64; 4],
 }
 
@@ -247,7 +247,7 @@ struct ItemButton<'a> {
 }
 
 impl MenuHost for ItemButton<'_> {
-    /// Under the button, as `MenuBarItem.showMenu`; returns once the menu has closed.
+    /// Under the button; returns once the menu has closed.
     fn pop_up(&self, popup: &PopupMenu) -> Option<String> {
         let native = NativeMenu::new(self.mtm, popup);
         let height = self.button.bounds().size.height;

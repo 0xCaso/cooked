@@ -1,13 +1,12 @@
 //! The chrome tiles: the histogram, the island wave and the account bars as small tiles of liquid metal.
 //!
-//! A grid is ONE Rune element (`tile_slot`), an effect slot whose mark names the grid; the state hands the grid's
-//! cells to the compositor (`TileGrids`), which lays the tiles out inside the slot's rect and draws one
-//! `liquid_metal` layer per tile. Step 0 (1b) measured this at 0.55 ms a frame for 1872 tiles, against 3.1-4.0 ms
-//! for one element per tile.
+//! A grid is ONE Rune element (`tile_slot`), an effect slot whose mark names the grid; the state hands the grid's cells
+//! to the compositor (`TileGrids`), which lays the tiles out inside the slot's rect and draws one `liquid_metal` layer
+//! per tile: 0.55 ms a frame for 1872 tiles, against 3.1-4.0 ms for one element per tile.
 //!
-//! Lit tiles are chrome, red ones red metal, off tiles gunmetal at 6%. The metal's clock moves only in frames that
-//! are drawn, so it stands still while the window is hidden or covered (Rune draws no frame then), and Reduce
-//! Motion (the system setting or `--reduce-motion`) stops it.
+//! Lit tiles are chrome, red ones red metal, off tiles gunmetal at 6%. The metal's clock moves only in frames that are
+//! drawn, so it stands still while the window is hidden or covered (Rune draws no frame then), and Reduce Motion (the
+//! system setting or `--reduce-motion`) stops it.
 
 use std::ops::Range;
 
@@ -41,7 +40,7 @@ pub struct TileGrid {
     pub wave: Option<Wave>,
 }
 
-/// The island wave's inputs (`cooked_model::tiles::island_wave_grid`, the mockup's sway).
+/// The island wave's inputs (`cooked_model::tiles::island_wave_grid`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Wave {
     pub urgent: bool,
@@ -122,7 +121,7 @@ impl Metals {
         }
         .anchor(FillAnchor::World);
         // Red tiles: a lighter red and a much softer floor than the chrome (contrast 0.15 against 0.55), so they
-        // read as the mockup's red (Task 14 variant B, signed off 2026-11-24).
+        // read as red.
         let red = LiquidMetalParams {
             tint: rgb(0xff4f42),
             light: rgb(0xffe4e0),
@@ -387,27 +386,9 @@ fn fit<T>(v: &mut Vec<T>, n: usize) {
     }
 }
 
-/// `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`.
+/// System Settings › Accessibility › Display › Reduce motion.
 pub fn system_reduce_motion() -> bool {
-    use objc2::runtime::{AnyClass, AnyObject, Bool};
-    use objc2::{msg_send, sel};
-    let Some(class) = AnyClass::get(c"NSWorkspace") else {
-        return false;
-    };
-    // SAFETY: `sharedWorkspace` returns the process-wide NSWorkspace (never nil) and
-    // `accessibilityDisplayShouldReduceMotion` a BOOL; both are safe from any thread.
-    unsafe {
-        let workspace: *mut AnyObject = msg_send![class, sharedWorkspace];
-        if workspace.is_null()
-            || !(*workspace)
-                .class()
-                .responds_to(sel!(accessibilityDisplayShouldReduceMotion))
-        {
-            return false;
-        }
-        let reduced: Bool = msg_send![workspace, accessibilityDisplayShouldReduceMotion];
-        reduced.as_bool()
-    }
+    objc2_app_kit::NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion()
 }
 
 #[cfg(test)]

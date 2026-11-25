@@ -1,4 +1,4 @@
-//! Port of `MenuBarWave` and `MenuBarLabel` (`MenuBarItem.swift`) with no AppKit: what the menu bar item shows,
+//! With no AppKit: what the menu bar item shows,
 //! what its clicks do, and the display that holds it.
 
 use crate::island_placement::{Rect, ScreenInfo};

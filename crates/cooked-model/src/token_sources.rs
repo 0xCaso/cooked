@@ -1,4 +1,4 @@
-//! Port of `Model/TokenSources.swift`: the lines of "What burns tokens", and where a click on one goes.
+//! The lines of "What burns tokens", and where a click on one goes.
 
 use crate::accounts::{self, CODEX_ID, ConnectedAccount};
 use crate::live_snapshot;

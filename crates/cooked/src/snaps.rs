@@ -11,7 +11,7 @@ use rune::{App, AppSpec, Color, Cx, El, col, el, row};
 
 use crate::tiles::{ChromeTiles, TileGrid, TileGrids, tile_slot};
 
-/// The metal's clock in every scene, seconds (step-0 1f used the same).
+/// The metal's clock in every scene, seconds.
 pub const SNAP_T: f64 = 3.0;
 pub const SCENES: &[&str] = &["tiles-demo-peak"];
 /// Window size, points.
@@ -118,8 +118,8 @@ pub(crate) mod tests {
     use cooked_model::tiles::TileLevel;
     use std::path::{Path, PathBuf};
 
-    /// Mean absolute difference per channel, out of 255, the new render may have against the checked-in one. Step 0
-    /// (1f) measured 0.28 between a headless snap and the same frame on screen; renders on one machine are equal.
+    /// Mean absolute difference per channel, out of 255, the new render may have against the checked-in one. A
+    /// headless snap and the same frame on screen differ by 0.28; renders on one machine are equal.
     const MEAN_TOLERANCE: f64 = 1.0;
 
     pub(crate) fn decode(path: &Path) -> (u32, u32, Vec<u8>) {

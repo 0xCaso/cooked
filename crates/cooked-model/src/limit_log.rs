@@ -1,4 +1,4 @@
-//! Port of `Model/LimitLog.swift`. The accounts' 5 h and week percent, and the paces and alert thresholds built from
+//! The accounts' 5 h and week percent, and the paces and alert thresholds built from
 //! them, in the form the watcher script's status.json had. The samples come from:
 //! - Claude: the status line bridge files (`status_line_bridge`, terminal `claude` sessions) and T3 Code's provider
 //!   logs (`~/.t3/userdata/logs/provider/events.<thread>.log`, read-only: the Agent SDK runs no status line, and logs
@@ -47,7 +47,7 @@ pub struct Pace {
     pub minimum: usize,
 }
 
-/// What a reading takes besides the logs; `Default` is Swift's default arguments.
+/// What a reading takes besides the logs.
 #[derive(Default)]
 pub struct LimitInput<'a> {
     /// This reading's samples: the bridge's and the rollouts'.
@@ -202,7 +202,7 @@ impl LimitLog {
             && let Some(store) = &self.store
             && let Ok(data) = serde_json::to_vec(&self.last)
         {
-            // like `try? data.write(...)`: a failed save is tried again at the next change
+            // a failed save is tried again at the next change
             let _ = files::write_atomic(store, &data);
         }
         if input.fresh
@@ -309,7 +309,7 @@ impl LimitLog {
     pub fn prune(s: &[Sample]) -> Vec<Sample> {
         let mut sorted: Vec<Sample> = s.to_vec();
         sorted.sort_by(|a, b| a.at.total_cmp(&b.at));
-        // one per time: the later one in `s` wins, like `Dictionary(uniquingKeysWith: { _, b in b })`
+        // one per time: the later one in `s` wins
         let mut unique: Vec<Sample> = Vec::with_capacity(sorted.len());
         for sample in sorted {
             match unique.last_mut() {

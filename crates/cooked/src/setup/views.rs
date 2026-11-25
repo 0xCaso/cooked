@@ -1,6 +1,5 @@
-//! The Setup and Settings views (`Views/SetupViews.swift`), laid out as the approved mockup's wizard2: a 40 pt
-//! title band, then Setup's step rail, the step and its foot, or Settings' tabs, the tab and the "Remove Cooked's
-//! changes…" row, and the confirmation sheet hanging from the title band.
+//! The Setup and Settings views: a 40 pt title band, then Setup's step rail, the step and its foot, or Settings' tabs,
+//! the tab and the "Remove Cooked's changes…" row, and the confirmation sheet hanging from the title band.
 
 use cooked_model::island_model::DisplayMode;
 use cooked_model::live_snapshot;
@@ -64,7 +63,7 @@ pub fn view(s: &Setup, cx: &mut Cx<Setup>) -> El {
     }
 }
 
-/// The traffic lights' band and the title in the middle (mockup `.tb`).
+/// The traffic lights' band and the title in the middle.
 fn title_band(s: &Setup) -> El {
     el().key("titlebar")
         .w_full()
@@ -73,7 +72,7 @@ fn title_band(s: &Setup) -> El {
         .child(label("title", s.title(), TextStyle::Body, Palette::ink2()))
 }
 
-// MARK: - Setup
+// Setup
 
 fn rail(s: &Setup) -> El {
     let steps = s.model.steps();
@@ -265,7 +264,7 @@ fn foot(s: &Setup) -> El {
     top_line(f)
 }
 
-// MARK: - Accounts (Setup step 1 and the Accounts tab)
+// Accounts (Setup step 1 and the Accounts tab)
 
 fn accounts_list(s: &Setup) -> El {
     let settings = s.mode == Mode::Settings;
@@ -339,7 +338,7 @@ fn accounts_list(s: &Setup) -> El {
     card(list, 16.0)
 }
 
-// MARK: - Facts, files, changes
+// Facts, files, changes
 
 /// One fact: plain pieces at 72%, numbers and commands in Plex Mono (some at full ink).
 #[derive(Debug, Clone, PartialEq)]
@@ -528,7 +527,7 @@ fn trees(files: &[SettingsFile]) -> El {
     c
 }
 
-/// What the `statusLine` key ran and runs now, for the changed state (mockup `change_well`).
+/// What the `statusLine` key ran and runs now, for the changed state.
 fn change_well(s: &Setup) -> El {
     let cell = |key: &'static str, t: String, w: Option<f32>, style: TextStyle, color: Color| {
         let e = label(key, t, style, color).truncate();
@@ -610,7 +609,7 @@ fn with_problem(s: &Setup, body: El) -> El {
     }
 }
 
-// MARK: - Settings
+// Settings
 
 fn tabs(s: &Setup) -> El {
     let mut r = row()
@@ -693,7 +692,7 @@ fn tab(s: &Setup, reduce_motion: bool) -> El {
     el().key("tab").w_full().clip_corners([0.0; 4]).child(body)
 }
 
-/// A status line: the glyph, the title and one line, the action on the right (mockup `.st2`).
+/// A status line: the glyph, the title and one line, the action on the right.
 fn status(kind: Glyph, title: &str, line: &str, action: Option<El>) -> El {
     let mut r = row()
         .key("status")
@@ -888,7 +887,7 @@ fn display_picker(mode: DisplayMode) -> El {
     track
 }
 
-/// "Remove Cooked's changes…" under every tab (mockup `.rm2`).
+/// "Remove Cooked's changes…" under every tab.
 fn remove_row() -> El {
     top_line(
         row()

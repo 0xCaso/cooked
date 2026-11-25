@@ -1,4 +1,4 @@
-//! Port of `Model/LiveSnapshot.swift`: builds what the island shows from the accounts' limits (`LimitLog`) and the
+//! Builds what the island shows from the accounts' limits (`LimitLog`) and the
 //! per-minute tokens (the minute cache).
 
 use crate::accounts::ConnectedAccount;
@@ -155,7 +155,7 @@ pub fn make(
     })
 }
 
-/// The first element with the largest key, like Swift's `max(by:)`.
+/// The first element with the largest key.
 fn first_max<'a, I>(items: I, key: impl Fn(&str) -> f64) -> Option<&'a String>
 where
     I: Iterator<Item = &'a String>,

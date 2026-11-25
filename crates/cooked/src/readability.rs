@@ -1,7 +1,7 @@
-//! Task 14 (F5, F10): how well the lit chrome tiles read on their well. Each scene is rendered headless at
-//! `snaps::SNAP_T`; for every lit tile the mean luminance of its inner face (the tile less its outer 1 px ring) is
-//! set against the well's fill with WCAG's `contrast_ratio`. The tests print the minimum per colour and hold it to
-//! the floors below: the mins measured on the signed-off look (variant B, 2026-11-24) less ~0.05.
+//! How well the lit chrome tiles read on their well. Each scene is rendered headless at `snaps::SNAP_T`; for every lit
+//! tile the mean luminance of its inner face (the tile less its outer 1 px ring) is set against the well's fill with
+//! WCAG's `contrast_ratio`. The tests print the minimum per colour and hold it to the floors below: the mins measured
+//! on the current look less ~0.05.
 //!
 //! It lives in the binary's tests, not `tests/`: the crate has no library for an integration test to reach the
 //! scenes and grids through.

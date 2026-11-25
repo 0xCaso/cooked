@@ -1,5 +1,5 @@
-//! The app, as `CookedApp.swift` and `AppDelegate` start it: settings migrated, the island as a Rune overlay in an
-//! accessory app (no Dock icon, no main window), and the live reader feeding the island's state.
+//! The app: settings migrated, the island as a Rune overlay in an accessory app (no Dock icon, no main window), and the
+//! live reader feeding the island's state.
 
 use std::time::Duration;
 
@@ -28,7 +28,7 @@ use crate::setup::{self, Setup};
 use crate::theme::PlexFont;
 use crate::tiles::ChromeTiles;
 
-/// How often the island ticks (`IslandRoot`'s 3 s task): the calm demo's rate, displays, glass.
+/// How often the island ticks: the calm demo's rate, displays, glass.
 const TICK: Duration = Duration::from_secs(3);
 /// The first tick, soon after the overlay's first frame made Rune's glass view.
 const FIRST_TICK: Duration = Duration::from_millis(500);
@@ -41,7 +41,7 @@ fn no_window(_: &(), _: &mut Cx<()>) -> El {
 /// Runs the app as `launch` (`cli`) asks.
 pub fn run(launch: Launch) {
     let mut defaults = UserDefaults::app();
-    // Before the model reads its settings, as Swift's `LegacyDefaults.migrate()`.
+    // Before the model reads its settings.
     let legacy = UserDefaults::suite(legacy_defaults::DOMAIN);
     legacy_defaults::migrate(Some(&legacy), &mut defaults);
     let home = std::env::var("HOME").unwrap_or_default();
@@ -96,7 +96,7 @@ pub fn run(launch: Launch) {
             .srgb_blend(true)
             .animate_reveal()
             // Closed, the popover holds no window, drawables or effect renderer (~20 MB); a show makes them again,
-            // its first frame ~20 ms later than with them kept (Task 21).
+            // its first frame ~20 ms later than with them kept.
             .release_gpu_when_hidden()
             .poll(popover::poll)
             .on_key(popover::on_key)
@@ -192,8 +192,8 @@ pub fn run(launch: Launch) {
     app.run();
 }
 
-/// `--toggle-every <s>`: opens and closes the popover every `s` seconds, as Swift's timer, to record the transitions
-/// without clicking.
+/// `--toggle-every <s>`: opens and closes the popover every `s` seconds, to record the transitions without
+/// clicking.
 fn toggle_every(every: Duration, island: OverlayHandle<Island>) {
     let _ = std::thread::Builder::new()
         .name("cooked-toggle".into())

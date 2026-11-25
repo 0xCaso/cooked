@@ -1,6 +1,6 @@
-//! What burns tokens (mockup B `.burn`, Swift `SourcesCard`): the top sources of the last 5 minutes, project and
-//! rate over thread and account. A click opens the source where it runs (`Request::OpenSession`). The first
-//! three show; "N more" opens the rest. In urgency the rate of the account that fills is red.
+//! What burns tokens: the top sources of the last 5 minutes, project and rate over thread and account. A click opens
+//! the source where it runs (`Request::OpenSession`). The first three show; "N more" opens the rest. In urgency the
+//! rate of the account that fills is red.
 
 use cooked_model::token_format;
 use cooked_model::token_sources::TokenSource;
@@ -63,7 +63,7 @@ pub fn card_for(snapshot: &UsageSnapshot, expanded: bool) -> El {
     card(list, CARD_RADIUS)
 }
 
-/// A 0.5 pt line between two sources (mockup B `.b-row + .b-row`).
+/// A 0.5 pt line between two sources.
 fn hairline(i: usize) -> El {
     el().key(format!("line-{i}"))
         .w_full()

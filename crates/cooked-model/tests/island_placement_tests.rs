@@ -1,4 +1,4 @@
-//! `IslandPlacementTests.swift` and `PositionStoreTests`, plus Review Focus 4 (`missing_display_falls_back_to_main_top_center`).
+//! Where the island panel goes on a screen, and its saved position.
 
 use cooked_model::defaults::MemoryDefaults;
 use cooked_model::island_placement::{
@@ -144,7 +144,7 @@ fn saved_position_round_trips() {
     assert_eq!(position_store::decode(&data), Some(p));
 }
 
-/// Review Focus 4: the display the island sat on was unplugged; the main display is not first in the list.
+/// The display the island sat on was unplugged; the main display is not first in the list.
 #[test]
 fn missing_display_falls_back_to_main_top_center() {
     let saved = saved(2, 2400.0, 1050.0);
@@ -164,11 +164,8 @@ fn missing_display_falls_back_to_main_top_center() {
 #[test]
 fn reads_the_json_swift_writes() {
     // JSONEncoder writes CGPoint as [x, y] and whole doubles without a fraction.
-    let swift = br#"{"topCenter":[1720,1426],"displayID":2}"#;
-    assert_eq!(
-        position_store::decode(swift),
-        Some(saved(2, 1720.0, 1426.0))
-    );
+    let json = br#"{"topCenter":[1720,1426],"displayID":2}"#;
+    assert_eq!(position_store::decode(json), Some(saved(2, 1720.0, 1426.0)));
     let json: serde_json::Value =
         serde_json::from_slice(&position_store::encode(&saved(2, 10.5, 20.0))).unwrap_or_default();
     assert_eq!(

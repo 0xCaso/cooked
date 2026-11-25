@@ -1,4 +1,4 @@
-//! `HistogramClockTests.swift`: the demo clock's minutes and the account bar.
+//! The demo clock's minutes and the account bar.
 
 use cooked_model::account_bar::AccountBar;
 use cooked_model::histogram_clock::HistogramClock;

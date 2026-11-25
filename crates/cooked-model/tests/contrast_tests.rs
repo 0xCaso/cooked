@@ -1,5 +1,4 @@
-//! `ContrastTests.swift`. The palette values are copied from `Style/Theme.swift` (`Palette`), which is ported with the
-//! island view.
+//! WCAG contrast of the palette's text colours.
 
 use cooked_model::contrast::{Rgb, Rgba, contrast_ratio, ratio, relative_luminance};
 
