@@ -283,11 +283,13 @@ impl Ctx<'_> {
         if self.percent(id) >= 100 {
             return Some("now".to_owned());
         }
-        let eta = self.eta(id)?;
-        if self.reset_date(id).is_some_and(|reset| eta >= reset) {
-            return None;
-        }
-        Some(clock(eta, self.tz))
+        self.fill_eta(id).map(|eta| clock(eta, self.tz))
+    }
+
+    /// When the 5-hour window fills, if before its reset.
+    fn fill_eta(&self, id: &str) -> Option<f64> {
+        self.eta(id)
+            .filter(|&eta| !self.reset_date(id).is_some_and(|reset| eta >= reset))
     }
 
     fn week_reset_date(&self, id: &str) -> Option<f64> {
@@ -357,22 +359,32 @@ impl Ctx<'_> {
         let name = short(id, accounts);
         let reset = clock_part(self.entry(id).five_hour_resets_at.as_deref())
             .unwrap_or_else(|| "—".to_owned());
-        let minutes_to = |eta: f64| 0.max(((eta - self.now) / 60.0) as i64);
+        // "in 14 min", "in 2 h", "in 3 d"
+        let wait = |eta: f64| {
+            let minutes = 0.max(((eta - self.now) / 60.0) as i64);
+            if minutes < 100 {
+                format!("{minutes} min")
+            } else if minutes < 2880 {
+                format!("{} h", minutes / 60)
+            } else {
+                format!("{} d", minutes / 1440)
+            }
+        };
         // Without an ETA the headline says when the window frees up, never "full at —". Short: the card cuts at ~17
         // characters.
         let (lead, time, when): (&str, String, Option<String>) = if self.blocked(id) {
             ("free at ", reset.clone(), Some("is cooked".to_owned()))
-        } else if let Some(eta) = self.eta(id) {
+        } else if let Some(eta) = self.fill_eta(id) {
             (
                 "full at ",
                 clock(eta, self.tz),
-                Some(format!("in {} min", minutes_to(eta))),
+                Some(format!("in {}", wait(eta))),
             )
         } else if let Some(eta) = self.week_eta(id) {
             (
                 "full at ",
                 clock(eta, self.tz),
-                Some(format!("week in {} min", minutes_to(eta))),
+                Some(format!("week in {}", wait(eta))),
             )
         } else if self.percent(id) >= 100 {
             ("full ", "now".to_owned(), Some(format!("resets {reset}")))

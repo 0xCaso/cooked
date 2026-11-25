@@ -266,6 +266,21 @@ fn urgent_when_the_week_fills_soon() {
     );
 }
 
+/// The week fills before its reset but the 5 hours only after theirs: the headline says the week's time, never the
+/// 5 hours' (which is not red), and a far time in hours, not hundreds of minutes.
+#[test]
+fn a_week_urgency_says_the_week_time() {
+    let st = quiet(|s| {
+        entry(s, "claudeAgent").projection = projection("5 h", "23:50");
+        entry(s, "claudeAgent").week_projection = projection("1 h", "18:00");
+    });
+    let s = make(&st, &none()).unwrap();
+    assert_eq!(s.accounts[1].full_at, None);
+    let u = s.urgency.clone().unwrap();
+    assert_eq!(u.full_at, "18:00");
+    assert_eq!(u.detail, "personal week in 2 h");
+}
+
 #[test]
 fn urgent_when_the_limit_is_hit() {
     let st = quiet(|s| entry(s, "claudeAgent_work").limit_status = Some("rejected".to_owned()));
