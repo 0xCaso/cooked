@@ -324,6 +324,24 @@ fn a_page_taller_than_the_room_scrolls_its_lower_part() {
     );
 }
 
+/// A scroll moves the lower content and reports its layout every frame: only a change of whether it scrolls runs
+/// the view again.
+#[test]
+fn a_scroll_runs_the_view_only_when_the_overflow_changes() {
+    let mut p = popover(Feed::DemoCalm);
+    assert!(
+        !p.measure_lower(Some(400.0), Some(300.0)),
+        "fits, as before"
+    );
+    assert!(p.measure_lower(None, Some(900.0)), "now overflows");
+    assert!(
+        !p.measure_lower(None, Some(900.0)),
+        "same height on a scroll frame"
+    );
+    assert!(!p.measure_lower(Some(400.2), None), "under half a point");
+    assert!(p.measure_lower(Some(950.0), None), "fits again");
+}
+
 /// The page grows with the open sources list and with more
 /// accounts (its overlay follows the measured height, `Popover::measured`).
 #[test]

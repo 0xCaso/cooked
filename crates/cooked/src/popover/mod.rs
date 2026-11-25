@@ -328,12 +328,22 @@ impl Popover {
         }
     }
 
-    /// The lower part's box or content was measured: it scrolls when the content is taller than its box.
-    fn lower_measured(&mut self, view: Option<f32>, content: Option<f32>) {
+    /// The lower part's box or content was measured: it scrolls when the content is taller than its box. The view
+    /// runs again only when that changes, not on every frame of a scroll (which moves the content and reports it).
+    fn lower_measured(&mut self, view: Option<f32>, content: Option<f32>, tx: &mut Tx) {
+        if !self.measure_lower(view, content) {
+            tx.live_only();
+        }
+    }
+
+    /// Stores the lower part's measured heights; true when that changes whether it scrolls.
+    fn measure_lower(&mut self, view: Option<f32>, content: Option<f32>) -> bool {
+        let scrolled = self.lower_scrolls();
         self.lower = (
             view.unwrap_or(self.lower.0),
             content.unwrap_or(self.lower.1),
         );
+        self.lower_scrolls() != scrolled
     }
 
     /// The lower part is taller than the room the page leaves it.
@@ -471,7 +481,7 @@ fn page(s: &Popover) -> El {
         let mut lower = col()
             .key("lower-content")
             .w_full()
-            .on_layout(|s: &mut Popover, [_, _, _, h]| s.lower_measured(None, Some(h)));
+            .on_layout_tx(|s: &mut Popover, [_, _, _, h], tx| s.lower_measured(None, Some(h), tx));
         if !snapshot.sources.is_empty() {
             lower = lower
                 .child(section(
@@ -492,7 +502,7 @@ fn page(s: &Popover) -> El {
             .w_full()
             .shrink()
             .min_h(0.0)
-            .on_layout(|s: &mut Popover, [_, _, _, h]| s.lower_measured(Some(h), None))
+            .on_layout_tx(|s: &mut Popover, [_, _, _, h], tx| s.lower_measured(Some(h), None, tx))
             .child(lower);
         // only when it overflows: a viewport clips the cards' shadows at its sides
         if s.lower_scrolls() {
