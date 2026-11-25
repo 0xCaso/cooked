@@ -426,43 +426,50 @@ fn sized_tide_surface_follows_fine_targets() {
     assert!(moved, "ripples move the surface");
 }
 
-/// The chrome tiles light whole rows: a ripple that rocks a column's surface around half a row must not blink its top
-/// tile on and off (G11, "lo sfarfallio ... nel bordo del chart"). Waves still move the tiles, only slower.
-#[test]
-fn lively_surface_tiles_do_not_blink() {
-    let h = history(
-        (0..10)
-            .map(|i| 30000.0 + 8000.0 * (i as f64 * 0.7).sin())
-            .collect(),
-    );
+/// Per column per second over a minute of the lively chart: how often its lit rows change, and how often they go back
+/// to what they were within 250 ms (a blink, A→B→A).
+fn tile_changes(values: Vec<f64>) -> (f64, f64) {
+    let h = history(values);
     let mut tide = TideHistogram::sized(72, 26, true);
     let mut last: Vec<f64> = Vec::new();
-    let mut changed_at = vec![i64::MIN / 2; 72];
+    // per column: the rows before its last change, and when that was
+    let mut before = vec![(f64::NAN, f64::NEG_INFINITY); 72];
     let (mut changes, mut blinks) = (0usize, 0usize);
     let seconds = 60;
     for frame in 0..60 * seconds {
-        tide.surface(&h, frame as f64 / 60.0, false, Motion::LIVELY);
+        let t = frame as f64 / 60.0;
+        tide.surface(&h, t, false, Motion::LIVELY);
         let rows = tide.lit_rows().to_vec();
         for (c, r) in rows.iter().enumerate() {
             if !last.is_empty() && *r != last[c] {
                 changes += 1;
-                // back within 100 ms: a blink, not a wave
-                if frame - changed_at[c] <= 6 {
+                if *r == before[c].0 && t - before[c].1 <= 0.25 {
                     blinks += 1;
                 }
-                changed_at[c] = frame;
+                before[c] = (last[c], t);
             }
         }
         last = rows;
     }
-    let per_col_s = |n: usize| n as f64 / 72.0 / seconds as f64;
-    println!(
-        "tile changes {:.2}/col/s, blinks {:.2}/col/s",
-        per_col_s(changes),
-        per_col_s(blinks)
+    let per = |n: usize| n as f64 / 72.0 / seconds as f64;
+    (per(changes), per(blinks))
+}
+
+/// The chrome tiles light whole rows: a ripple rocking a column's surface around half a row must not blink its top
+/// tile (G11, "lo sfarfallio ... nel bordo del chart"; 1.46 and 3.32 blinks per column per second before). Waves
+/// still move the tiles.
+#[test]
+fn lively_surface_tiles_do_not_blink() {
+    let wavy = tile_changes(
+        (0..10)
+            .map(|i| 30000.0 + 8000.0 * (i as f64 * 0.7).sin())
+            .collect(),
     );
-    assert!(per_col_s(blinks) < 0.15);
-    assert!(per_col_s(changes) > 0.3, "the surface still moves");
+    let busy = tile_changes(vec![50000.0; 10]);
+    println!("wavy {wavy:?}, busy {busy:?} (changes, blinks per column per s)");
+    assert!(wavy.1 < 0.1);
+    assert!(busy.1 < 0.6);
+    assert!(busy.0 > 1.0, "the surface still moves");
 }
 
 #[test]
