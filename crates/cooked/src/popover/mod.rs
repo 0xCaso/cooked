@@ -324,7 +324,8 @@ impl Popover {
         };
         let range = m.chart_range();
         let history = m.histogram().history(t, still);
-        self.histogram = tpm::histogram(&mut self.tide, &history, range, t, still);
+        let urgent = m.snapshot.is_urgent();
+        self.histogram = tpm::histogram(&mut self.tide, &history, range, t, still, urgent);
     }
 
     /// The page's measured height: the overlay follows it.

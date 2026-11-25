@@ -1,10 +1,10 @@
 //! Tokens per minute: the one big number, the alert line, the histogram in 72 x 26 chrome tiles (red above the
-//! threshold row) and the chart's ranges.
+//! threshold row, all red in urgency) and the chart's ranges.
 
 use cooked_model::histogram_clock::{ChartRange, MinuteHistory};
 use cooked_model::island_model::IslandState;
 use cooked_model::tide::{Motion as Flow, TideHistogram};
-use cooked_model::tiles::surface_grid;
+use cooked_model::tiles::{TileLevel, surface_grid};
 use cooked_model::token_format;
 use rune::{Color, Cursor, El, Shadow, col, el, row, text};
 
@@ -24,13 +24,15 @@ const WELL_FILL: u32 = 0x050505;
 /// The histogram for `range` of the chart's minutes at chart time `t`: the liquid (`TideHistogram`, lively at
 /// 10 minutes, calm on the longer ranges) on the tiles, with lines between minutes where one spans two columns or
 /// more, so the chart moves at 60 fps column by column (DESIGN.md) instead of in one-minute steps. `still`: the
-/// liquid stands at its targets (Reduce Motion, scenes).
+/// liquid stands at its targets (Reduce Motion, scenes). `urgent`: an account fills before its reset, and the whole
+/// liquid is red, as the pill's "full HH:MM".
 pub fn histogram(
     tide: &mut TideHistogram,
     history: &MinuteHistory,
     range: ChartRange,
     t: f64,
     still: bool,
+    urgent: bool,
 ) -> TileGrid {
     let motion = if range == ChartRange::TenMinutes {
         Flow::LIVELY
@@ -38,13 +40,18 @@ pub fn histogram(
         Flow::CALM
     };
     tide.surface(&history.window(range.minutes()), t, still, motion);
-    let cells = surface_grid(
+    let mut cells = surface_grid(
         tide.shown_heights(),
         tide.reaches(),
         tide.threshold_row(),
         COLS,
         ROWS,
     );
+    if urgent {
+        for c in cells.iter_mut().filter(|c| **c == TileLevel::Lit) {
+            *c = TileLevel::Red;
+        }
+    }
     TileGrid::new(COLS, ROWS, cells)
 }
 

@@ -358,8 +358,8 @@ fn grids_by_mark() {
     let p = popover(Feed::DemoPeak);
     let h = p.tile_grid(HISTOGRAM_MARK).expect("histogram");
     assert_eq!((h.cols, h.rows), (tpm::COLS, tpm::ROWS));
-    // the peak goes over the threshold: red tiles, and lit ones under the line
-    assert!(h.cells.contains(&TileLevel::Red) && h.cells.contains(&TileLevel::Lit));
+    // the peak fills an account before its reset: the whole liquid is red (2026-11-25-red-when-full-before-reset)
+    assert!(h.cells.contains(&TileLevel::Red) && !h.cells.contains(&TileLevel::Lit));
     let rows = p.model.borrow().snapshot.rows().len();
     for i in 0..2 * rows as u32 {
         let b = p.tile_grid(FIRST_BAR_MARK + i).expect("bar");
@@ -367,6 +367,16 @@ fn grids_by_mark() {
     }
     assert!(p.tile_grid(FIRST_BAR_MARK + 2 * rows as u32).is_none());
     assert!(p.tile_grid(0).is_none());
+}
+
+/// Not urgent, the peak's chart is red only above the alert line.
+#[test]
+fn a_calm_chart_is_red_only_over_the_line() {
+    let mut p = popover(Feed::DemoPeak);
+    p.model.borrow_mut().snapshot.urgency = None;
+    assert!(p.refresh(), "a still popover is shown");
+    let h = p.tile_grid(HISTOGRAM_MARK).expect("histogram");
+    assert!(h.cells.contains(&TileLevel::Red) && h.cells.contains(&TileLevel::Lit));
 }
 
 #[test]
