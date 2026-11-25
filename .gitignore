@@ -1,8 +1,7 @@
 .DS_Store
-.build/
 build/
 target/
-.swiftpm/
+
 # Kept on the maintainer's Mac only: agent notes, plans, decisions, design work and release tools
 CLAUDE.md
 docs/

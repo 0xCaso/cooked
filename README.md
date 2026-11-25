@@ -107,11 +107,11 @@ Design rules: `design/DESIGN.md`.
 
 ## Structure
 
-- `Package.swift`: SwiftPM package, one executable and the tests.
-- `Sources/Cooked/`: `CookedApp` (launch, no Dock), `IslandPanel` (borderless window under the menu bar, click-through, drag), `IslandPlacement` and `PositionStore` (where the window goes), `Views/` (island, popover, surfaces, motion), `Dots/` (the dot-matrix charts), `Model/` (usage snapshot, session file readers, status line bridge, notices, live mapping, demo data), `Style/` (palette, type, contrast).
+- `crates/cooked-model/`: the model, no UI: usage snapshot, session file readers (Claude Code, Codex), status line bridge, notices, live mapping, demo data, charts' data. Tests and format samples in `tests/`.
+- `crates/cooked/`: the app on Rune: `island`, `popover`, `setup`, `menu_bar`, `tiles` (the chrome-tile compositor), `theme`, `cli`, and `mac/` (AppKit glue: window, status item, login item, reopen, pasteboard, session opener).
 - `Resources/Info.plist`: `LSUIElement` for the app with no Dock icon.
 - `scripts/`: `bundle.sh` (builds the .app), `run.sh` (bundle + launch), `install.sh` (perf build into /Applications), `release.sh` (the release zip).
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The IBM Plex fonts in `Resources/Fonts/` are under the SIL Open Font License.
+MIT, see [LICENSE](LICENSE). The IBM Plex fonts in `crates/cooked/assets/fonts/` are under the SIL Open Font License.
