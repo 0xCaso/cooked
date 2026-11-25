@@ -467,6 +467,56 @@ fn opening_a_source_asks_for_its_thread() {
     );
 }
 
+#[test]
+fn the_row_under_the_pointer_lifts_and_says_where_it_opens() {
+    let mut p = open(Feed::DemoPeak);
+    p.opens = std::rc::Rc::new(|target: Option<&OpenTarget>| {
+        assert_eq!(target, Some(&OpenTarget::t3_code("t1")));
+        Some("Open in T3 Code ↗")
+    });
+    let target = p.model.borrow().snapshot.sources[0].target();
+    p.hover("t1", target.as_ref(), true);
+    assert_eq!(
+        p.hovered,
+        Some(burners::Lift {
+            id: "t1".into(),
+            open: Some("Open in T3 Code ↗"),
+        })
+    );
+    // leaving another row changes nothing; leaving this one drops the lift
+    p.hover("t2", None, false);
+    assert!(p.hovered.is_some());
+    p.hover("t1", target.as_ref(), false);
+    assert_eq!(p.hovered, None);
+    // closing the popover drops it too
+    p.hover("t1", target.as_ref(), true);
+    p.hide();
+    assert_eq!(p.hovered, None);
+}
+
+/// Reduce Motion: the lifted row does not rise.
+#[test]
+fn no_lift_motion_with_reduce_motion() {
+    assert_eq!(burners::lift_offset(false), -1.0);
+    assert_eq!(burners::lift_offset(true), 0.0);
+}
+
+#[test]
+fn hover_scene_tree() {
+    let t = texts(&tree("popover-peak-hover"));
+    assert_eq!(color_of(&t, "Open in T3 Code ↗"), INK);
+    assert_eq!(color_of(&t, "1 agent + 3 sub"), "#f4f1ea8c");
+    // the other rows rest: their account, no agent count
+    assert!(!t.iter().any(|(s, _)| s == "1 agent"));
+    let works = |t: &[(String, String)]| t.iter().filter(|(s, _)| s == "work").count();
+    let rest = texts(&tree("popover-peak"));
+    assert_eq!(
+        works(&t) + 1,
+        works(&rest),
+        "only the lifted row hides its account"
+    );
+}
+
 /// The pills count what is left.
 #[test]
 fn pills_count_what_is_left() {
@@ -547,7 +597,11 @@ fn a_bar_that_runs_out_has_red_tiles() {
 
 /// Runs a scene through Rune's `--tree` and returns the tree.
 fn tree(scene: &str) -> serde_json::Value {
-    let dir = std::env::temp_dir().join(format!("cooked-tree-{}-{scene}", std::process::id()));
+    // its own folder per call: two tests may render the same scene at once
+    static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let run = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir =
+        std::env::temp_dir().join(format!("cooked-tree-{}-{run}-{scene}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let out = dir.join("tree.json");
     scenes::app()

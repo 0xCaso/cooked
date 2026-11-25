@@ -131,6 +131,7 @@ pub fn run(launch: Launch) {
             Request::OpenSession(target) => open::open(target.as_ref()),
             Request::Copy(text) => Pasteboard::general().copy(&text),
         });
+        p.opens = std::rc::Rc::new(open::label_here);
     });
     let sink = island.clone();
     let reader = scheduler::spawn(
