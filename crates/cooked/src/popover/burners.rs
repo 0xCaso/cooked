@@ -9,7 +9,7 @@
 use cooked_model::token_format;
 use cooked_model::token_sources::TokenSource;
 use cooked_model::usage_snapshot::UsageSnapshot;
-use rune::{Anim, Color, Cursor, El, col, el, row, text};
+use rune::{Anim, Color, Cursor, El, Transition, col, el, row, text};
 
 use super::{CARD_RADIUS, Popover, Request};
 use crate::theme::{Motion, Palette, TextStyle, card};
@@ -201,7 +201,7 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
             // at rest "9 min ago" at 55%; lifted, the rate then "  ↗" at full ink, as Swift's "\(rate)  ↗"
             let mut end = row().key("end").center_y().frame_motion(Anim::INSTANT);
             if side.rate {
-                end = end.child(rate(source.rate, false));
+                end = end.child(comes_and_goes(rate(source.rate, false)));
             }
             let (note, ink) = if side.rate {
                 (format!("  {}", side.note), Palette::ink())
@@ -235,17 +235,18 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
                 .items_end()
                 .frame_motion(Anim::INSTANT);
             if let Some(agents) = side.agents {
-                top = top.child(
+                top = top.child(comes_and_goes(
                     text(agents)
                         .key("agents")
                         .frame_motion(Anim::INSTANT)
                         .font(TextStyle::Body.font())
                         .color(Palette::ink3()),
-                );
+                ));
             }
             line.child(
                 col()
                     .key("left")
+                    .frame_motion(Anim::INSTANT)
                     .grow(1.0)
                     .shrink()
                     .min_w(0.0)
@@ -290,6 +291,13 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
 }
 
 /// "113k/min": the number at full ink, red for the source that fills; its unit at 55%.
+/// Text a lifted line gains: it fades in, and goes at once when the line drops, since its row has already snapped
+/// back and a fading exit would lie over its neighbour.
+fn comes_and_goes(e: El) -> El {
+    e.transition(Transition::opacity())
+        .transition_motion(Motion::CONTROL, Anim::INSTANT)
+}
+
 fn rate(rate: f64, hot: bool) -> El {
     row()
         .key("rate-pair")

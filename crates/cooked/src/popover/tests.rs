@@ -783,10 +783,35 @@ fn the_lifted_right_column_does_not_travel() {
     let settled = tree_at("popover-peak", Some(script), None);
     let early = tree_at("popover-peak", Some(script), Some(0.55));
     for end in [
+        "/source-t1/line/left",
         "/source-t1/line/right",
         "/source-t1/line/right/rate-row/agents",
     ] {
         assert_eq!(right(&early, end), right(&settled, end), "{end} moved");
+    }
+}
+
+/// When the pointer leaves, the agents go at once: fading where the column already snapped back, they lay over the
+/// rate and past the card's edge.
+#[test]
+fn the_leaving_agents_do_not_cover_the_rate() {
+    let script = r#"[{"t": 0.2, "type": "move", "x": 300, "y": 200},
+                     {"t": 0.5, "type": "move", "key": "source-t1"},
+                     {"t": 1.5, "type": "move", "x": 300, "y": 200}]"#;
+    let t = tree_at("popover-peak", Some(script), Some(1.52));
+    let all = t["elements"].as_array().expect("elements");
+    let rect = |end: &str| {
+        all.iter()
+            .find(|e| e["path"].as_str().is_some_and(|p| p.ends_with(end)))
+            .map(|e| e["rect"].clone())
+    };
+    let rate = rect("/source-t1/line/right/rate-row/rate-pair").expect("rate");
+    if let Some(agents) = rect("/source-t1/line/right/rate-row/agents") {
+        let end = agents[0].as_f64().unwrap() + agents[2].as_f64().unwrap();
+        assert!(
+            end <= rate[0].as_f64().unwrap(),
+            "agents {agents} over rate {rate}"
+        );
     }
 }
 
