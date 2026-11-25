@@ -99,6 +99,8 @@ pub fn run(launch: Launch) {
             // Closed, the popover holds no window, drawables or effect renderer (~20 MB); a show makes them again,
             // its first frame ~20 ms later than with them kept.
             .release_gpu_when_hidden()
+            // Two drawables, not three: the tall panel's third one is ~7 MB.
+            .frame_latency(1)
             .poll(popover::poll)
             .on_key(popover::on_key)
             .on_focus(popover::on_focus)
