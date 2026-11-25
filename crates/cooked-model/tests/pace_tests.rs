@@ -25,30 +25,6 @@ fn weekday_is_short_english() {
 }
 
 #[test]
-#[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
-fn fronts_sway_within_bounds_and_keep_moving() {
-    // Three fronts, seed 11, over 3600 frames at 60 fps: no sway past the max sway, the biggest over 0.2, more than
-    // 1000 frames swaying over 0.05.
-    unimplemented!("the pills' bar fronts do not sway");
-}
-
-#[test]
-#[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
-fn still_fronts_do_not_sway() {
-    // Seed 11, 600 frames moving, then still at 10.1 s: every sway is 0.
-    unimplemented!("the pills' bar fronts do not sway");
-}
-
-#[test]
-#[ignore = "parity gap, pending a design choice: whole tiles, no partly lit front or shifting dots (Swift PaceStrip.cover/shift)"]
-fn front_dot_is_partly_lit_and_the_dots_behind_move_less() {
-    // 3.9 columns lit: columns 0-2 full, column 3 at 90%, column 4 dark, and at 40% with a sway of 0.5; a fill of 0
-    // lights nothing. With a sway of 0.7 the front dot shifts the most and the dots behind it less; with no sway, or
-    // dark, a dot stays put.
-    unimplemented!("tiles are whole: no partly lit front or shifting dots");
-}
-
-#[test]
 fn peak_opens_the_top_thread_of_the_account_that_fills() {
     let mut s = demo_data::peak();
     s.sources = vec![
