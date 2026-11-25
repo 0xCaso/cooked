@@ -289,15 +289,11 @@ impl Setup {
 
     // Setup's steps
 
-    /// The primary button acts, then moves on; Skip only moves on (Skip on Accounts keeps every folder ticked).
-    /// Returns false when the window should close (Done).
+    /// The primary button acts, then moves on; Skip only moves on (Skip on Accounts keeps every folder ticked,
+    /// and saves them as Continue does). Returns false when the window should close (Done).
     pub(crate) fn go(&mut self, skip: bool) -> bool {
         match self.model.step {
-            Step::Accounts => {
-                if !skip {
-                    self.save_accounts();
-                }
-            }
+            Step::Accounts => self.save_accounts(),
             Step::Percent => {
                 if !skip
                     && self.model.percent() != cooked_model::status_line_setup::State::Connected
