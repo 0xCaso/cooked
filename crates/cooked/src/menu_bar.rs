@@ -87,8 +87,11 @@ pub fn probe(step: &str) {
     if step == "item click" {
         *start = Instant::now();
     }
+    let epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0.0, |d| d.as_secs_f64());
     eprintln!(
-        "probe {step}: {:.2} ms",
+        "probe {step}: {:.2} ms (at {epoch:.3})",
         start.elapsed().as_secs_f64() * 1000.0
     );
 }

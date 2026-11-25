@@ -96,9 +96,8 @@ pub fn run(launch: Launch) {
             })
             .srgb_blend(true)
             .animate_reveal()
-            // Closed, the popover holds no window, drawables or effect renderer (~20 MB); a show makes them again,
-            // its first frame ~20 ms later than with them kept.
-            .release_gpu_when_hidden()
+            // Its window, drawables and renderer stay while it is closed (~18 MB): made again on each show, the frame
+            // after the first came up to ~250 ms late and the entrance jumped to its end.
             // Two drawables, not three: the tall panel's third one is ~7 MB.
             .frame_latency(1)
             .poll(popover::poll)
