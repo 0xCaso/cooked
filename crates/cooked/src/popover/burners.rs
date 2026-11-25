@@ -44,7 +44,8 @@ pub struct Right {
 pub fn right(source: &TokenSource, hovered: Option<&Lift>) -> Right {
     let lifted = hovered.filter(|l| l.id == source.id);
     match (source.ended_ago, lifted) {
-        (Some(ago), None) => Right {
+        // at rest, or lifted with nowhere to open it
+        (Some(ago), None | Some(Lift { open: None, .. })) => Right {
             agents: None,
             note: format!("{ago} min ago"),
             opens: false,
@@ -162,20 +163,25 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
     let side = right(source, hovered);
     let lifted = hovered.is_some_and(|l| l.id == source.id);
     let (id, hover_target) = (source.id.clone(), target.clone());
-    let mut line = row()
+    // The pointer is tracked on a box that stays put: a hit area that rose with the line would leave the pointer on
+    // its bottom point, drop the line and catch the pointer again.
+    let hit_box = row()
         .key(format!("source-{}", source.id))
         .w_full()
-        .px(LINE_PADDING)
-        .py(7.0)
-        .gap(8.0)
-        .radius(10.0)
         .hit()
         .label(source.project.clone())
         .cursor(Cursor::Pointer)
         .on_hover_change(move |s: &mut Popover, inside, _| {
             s.hover(&id, hover_target.as_ref(), inside)
         })
-        .on_press(move |s: &mut Popover| s.request(Request::OpenSession(target.clone())))
+        .on_press(move |s: &mut Popover| s.request(Request::OpenSession(target.clone())));
+    let mut line = row()
+        .key("line")
+        .w_full()
+        .px(LINE_PADDING)
+        .py(7.0)
+        .gap(8.0)
+        .radius(10.0)
         .offset(
             0.0,
             if lifted {
@@ -190,7 +196,7 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
     if lifted {
         line = card(line, 10.0);
     }
-    match source.ended_ago {
+    let line = match source.ended_ago {
         Some(_) => {
             // at rest "9 min ago" at 55%; lifted, the rate then "  ↗" at full ink, as Swift's "\(rate)  ↗"
             let mut end = row().key("end").center_y();
@@ -269,7 +275,8 @@ fn line(source: &TokenSource, hot: bool, hovered: Option<&Lift>, reduce_motion: 
                     ),
             )
         }
-    }
+    };
+    hit_box.child(line)
 }
 
 /// "113k/min": the number at full ink, red for the source that fills; its unit at 55%.
