@@ -1,5 +1,5 @@
-//! The Setup and Settings controls, as `Views/SetupControls.swift` draws them in the approved mockup
-//! (`design/mockups/2026-11-04-setup-settings/`, wizard2): 30 pt capsule buttons, a 16 pt checkbox, a 38 x 22
+//! The Setup and Settings controls, as `Views/SetupControls.swift` draws them in the approved look:
+//! 30 pt capsule buttons, a 16 pt checkbox, a 38 x 22
 //! switch, the account's name field, a disclosure with a chevron that turns, and the motion of steps and the sheet.
 
 use rune::{

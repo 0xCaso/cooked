@@ -1,5 +1,5 @@
 //! The island under the menu bar, as `Views/IslandView.swift` and `IslandPanel.swift` draw and move it, in the
-//! "B · Chrome tiles" look (`design/mockups/2026-11-24-rune-look/`): one 290 x 40 pt glass capsule with the wave
+//! "B · Chrome tiles" look: one 290 x 40 pt glass capsule with the wave
 //! (16 x 5 chrome tiles) in a well, the active account's 5-hour % left in a well, the account and the rate. In
 //! urgency it keeps its shape: the percentage, the hairline and the wave turn red.
 //!

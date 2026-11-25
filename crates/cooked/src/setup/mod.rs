@@ -1,6 +1,6 @@
 //! The Setup window (first launch) and the Settings window, as `SetupWindow.swift` shows them: one dark window,
-//! 600 pt wide and as tall as its content, in the approved look (`design/mockups/2026-11-04-setup-settings/`,
-//! wizard2). Setup walks three optional steps (accounts, the Claude percent, open at login); Settings shows the
+//! 600 pt wide and as tall as its content, in the approved look.
+//! Setup walks three optional steps (accounts, the Claude percent, open at login); Settings shows the
 //! same groups as tabs, with "Remove Cooked's changes…" under them.
 //!
 //! The logic is `cooked_model::setup_model` (Task 6): which folders Cooked reads and their names, the status line

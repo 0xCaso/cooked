@@ -1,5 +1,5 @@
-//! The popover under the island, as `Views/PopoverView.swift` lays it out, in the "B · Chrome tiles" look
-//! (`design/mockups/2026-11-24-rune-look/`): a 440 pt glass page with the notice on top (one at a time), then
+//! The popover under the island, as `Views/PopoverView.swift` lays it out, in the "B · Chrome tiles" look:
+//! a 440 pt glass page with the notice on top (one at a time), then
 //! tokens per minute (`tpm`), what burns tokens (`burners`) and the usage of every account (`usage`).
 //!
 //! It is its own overlay, next to the island's: shown under the capsule when the island is tapped, and gone with

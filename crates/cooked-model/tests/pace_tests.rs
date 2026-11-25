@@ -32,7 +32,7 @@ fn weekday_is_short_english() {
 // `crates/cooked-model/tests/tiles_tests.rs`.
 
 #[test]
-#[ignore = "parity gap, pending Matteo: the pills' bar fronts do not sway (Swift PaceFronts)"]
+#[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
 fn fronts_sway_within_bounds_and_keep_moving() {
     // Swift: let fronts = PaceFronts(seed: 11); for frame in 0...3600 { sway = fronts.sway(at: frame / 60, still: false) }
     // #expect(sway.count == 3); #expect(biggest <= PaceFronts.maxSway); #expect(biggest > 0.2)
@@ -41,7 +41,7 @@ fn fronts_sway_within_bounds_and_keep_moving() {
 }
 
 #[test]
-#[ignore = "parity gap, pending Matteo: the pills' bar fronts do not sway (Swift PaceFronts)"]
+#[ignore = "parity gap, pending a design choice: the pills' bar fronts do not sway (Swift PaceFronts)"]
 fn still_fronts_do_not_sway() {
     // Swift: let fronts = PaceFronts(seed: 11); for frame in 0...600 { _ = fronts.sway(at: frame / 60, still: false) }
     // #expect(fronts.sway(at: 10.1, still: true) == [0, 0, 0])
@@ -49,7 +49,7 @@ fn still_fronts_do_not_sway() {
 }
 
 #[test]
-#[ignore = "parity gap, pending Matteo: whole tiles, no partly lit front or shifting dots (Swift PaceStrip.cover/shift)"]
+#[ignore = "parity gap, pending a design choice: whole tiles, no partly lit front or shifting dots (Swift PaceStrip.cover/shift)"]
 fn front_dot_is_partly_lit_and_the_dots_behind_move_less() {
     // Swift: 3.9 columns lit: columns 0-2 full, column 3 at 90%, column 4 dark
     // #expect(PaceStrip.cover(column: 2, fill: 3.9, sway: 0) == 1); cover(3, 3.9, 0) ≈ 0.9; cover(4, 3.9, 0) == 0

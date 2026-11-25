@@ -95,8 +95,7 @@ pub fn wave_grid(
     grid
 }
 
-/// The Rune island's wave at time `t` (seconds), as the approved mockup draws it
-/// (`design/mockups/2026-11-24-rune-look/scene.js`, decision 2026-11-24-rune-island-width): mirrored around the
+/// The Rune island's wave at time `t` (seconds), as the approved "B · Chrome tiles" look draws it: mirrored around the
 /// centre row, each column's half-height `1.2 + 1.1 |sin(0.55 c + 1.3 t)|` rows, so 3 to 5 of 5 rows lit and swaying.
 /// Chrome when calm, red when `urgent`; the shape is the same in both.
 pub fn island_wave_grid(t: f32, urgent: bool, cols: usize, rows: usize) -> Vec<TileLevel> {
