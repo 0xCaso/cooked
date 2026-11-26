@@ -1,6 +1,6 @@
-//! The island under the menu bar: one 290 x 40 pt glass capsule with the wave (a braid of 40 x 9 soft dots,
-//! decision 2026-11-26) in a well, the active account's 5-hour % left in a well, the account and the rate. In urgency it keeps
-//! its shape: the percentage, the hairline and the wave turn red.
+//! The island under the menu bar: one 290 x 40 pt glass capsule with the wave (a braid of 40 x 9 soft dots, decision
+//! 2026-11-26) in a well, the active account's 5-hour % left in a well, the account and the rate. In urgency it keeps its
+//! shape: the percentage, the hairline and the wave turn red.
 //!
 //! A tap toggles the popover (`popover`), a drag past 3 pt moves the island and saves `islandPosition`, a right-click
 //! opens the menu (Data, Glass, Show in, Settings…, Quit).

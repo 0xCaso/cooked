@@ -22,10 +22,10 @@ const WELL_PADDING: f32 = 8.0;
 const WELL_FILL: u32 = 0x050505;
 
 /// The histogram for `range` of the chart's minutes at chart time `t`: the liquid (`TideHistogram`, lively at
-/// 10 minutes, calm on the longer ranges) on the dots, its surface as drawn (`shown_heights`), with lines between minutes where one spans two columns or
-/// more, so the chart moves at 60 fps column by column (DESIGN.md) instead of in one-minute steps. `still`: the
-/// liquid stands at its targets (Reduce Motion, scenes). `urgent`: an account fills before its reset, and the whole
-/// liquid is red, as the pill's "full HH:MM".
+/// 10 minutes, calm on the longer ranges) on the dots, its surface as drawn (`shown_heights`), with lines between
+/// minutes where one spans two columns or more, so the chart moves at 60 fps column by column (DESIGN.md) instead of
+/// in one-minute steps. `still`: the liquid stands at its targets (Reduce Motion, scenes). `urgent`: an account fills
+/// before its reset, and the whole liquid is red, as the pill's "full HH:MM".
 pub fn histogram(
     tide: &mut TideHistogram,
     history: &MinuteHistory,
