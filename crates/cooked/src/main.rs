@@ -2,6 +2,7 @@
 
 mod app;
 mod cli;
+mod dots;
 mod island;
 mod mac;
 mod menu_bar;

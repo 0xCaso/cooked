@@ -1,4 +1,5 @@
-//! The chrome tiles: the histogram, the island wave and the account bars as small tiles of liquid metal.
+//! The chrome tiles and the soft dots: the account bars as small tiles of liquid metal, the histogram and the island
+//! wave as round dots whose size and light follow their value (`crate::dots`, decision 2026-11-26).
 //!
 //! A grid is ONE Rune element (`tile_slot`), an effect slot whose mark names the grid; the state hands the grid's cells
 //! to the compositor (`TileGrids`), which lays the tiles out inside the slot's rect and draws one `liquid_metal` layer
@@ -10,7 +11,8 @@
 
 use std::ops::Range;
 
-use cooked_model::tiles::{self as grids, TileLevel};
+use cooked_model::soft_dots::{Braid, ChartDots, Dot};
+use cooked_model::tiles::TileLevel;
 use rune::compose::{Compositor, DeviceKey, Frame};
 use rune::render::KIND_EFFECT;
 use rune::{El, el};
@@ -18,12 +20,20 @@ use rune_fx::{
     FillAnchor, Fx, FxFrame, FxLayer, FxOptions, FxRenderer, FxSlot, LiquidMetalParams, Shape, rgb,
 };
 
+use crate::dots::{DotPainter, Field, Layout};
+use crate::theme::{Palette, Rgb};
+
 /// Off tiles: gunmetal this faint, so the grid reads without competing with the lit tiles.
 const OFF_OPACITY: f32 = 0.06;
 /// The longest step the metal's clock takes in one frame: a frame after a pause doesn't jump.
 const MAX_STEP: f64 = 0.1;
 /// How often the system's Reduce Motion setting is read again, seconds.
 const SETTING_EVERY: f64 = 1.0;
+/// An unlit dot's alpha: the chart's, the wave's.
+const CHART_OFF: f32 = 0.06;
+const WAVE_OFF: f32 = 0.07;
+/// Between the wave's dots, points.
+pub const WAVE_PITCH: f32 = 2.6;
 
 /// One grid of tiles, row-major from the top (`cooked_model::tiles`).
 #[derive(Debug, Clone, PartialEq)]
@@ -35,15 +45,30 @@ pub struct TileGrid {
     pub gap: f32,
     /// Tile corner radius, points.
     pub radius: f32,
-    /// A swaying wave instead of fixed cells: whether it is red. The compositor draws it at the
-    /// metal's clock, so it sways with the metal and stands still with it (Reduce Motion).
-    pub wave: Option<Wave>,
+    /// Soft dots instead of tiles: the compositor lights them each frame, with their phosphor.
+    pub dots: Option<Dots>,
 }
 
-/// The island wave's inputs (`cooked_model::tiles::island_wave_grid`).
+/// What a dot grid shows.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Dots {
+    /// The chart: column heights in rows (fractional), the columns that reach the threshold, the threshold row from
+    /// the top, and urgency (every dot red).
+    Chart {
+        heights: Vec<f64>,
+        reaches: Vec<bool>,
+        threshold_row: usize,
+        urgent: bool,
+    },
+    /// The island wave (`cooked_model::soft_dots::Braid`).
+    Braid(Wave),
+}
+
+/// The island wave's inputs: urgency (red) and the rate's 0...1 level, which sets the braid's swing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Wave {
     pub urgent: bool,
+    pub level: f32,
 }
 
 impl TileGrid {
@@ -56,26 +81,24 @@ impl TileGrid {
             cells,
             gap: 1.0,
             radius: 0.8,
-            wave: None,
+            dots: None,
         }
     }
 
-    /// The mirrored wave on `cols` x `rows` tiles, swaying with the metal.
+    /// The braided wave on `cols` x `rows` dots.
     pub fn wave(cols: usize, rows: usize, wave: Wave) -> Self {
         Self {
-            wave: Some(wave),
+            dots: Some(Dots::Braid(wave)),
             ..Self::new(cols, rows, vec![TileLevel::Off; cols * rows])
         }
     }
 
-    /// The cells at the metal's clock `t`: the wave's at `t`, else the fixed ones.
-    pub(crate) fn cells_at(&self, t: f32, out: &mut Vec<TileLevel>) {
-        out.clear();
-        match self.wave {
-            Some(w) => out.extend(grids::island_wave_grid(t, w.urgent, self.cols, self.rows)),
-            None => out.extend_from_slice(&self.cells),
+    /// The chart's dots; `cells` are the same surface as tiles, for the tests and the readability check.
+    pub fn chart(cols: usize, rows: usize, cells: Vec<TileLevel>, dots: Dots) -> Self {
+        Self {
+            dots: Some(dots),
+            ..Self::new(cols, rows, cells)
         }
-        out.resize(self.cols * self.rows, TileLevel::Off);
     }
 
     pub fn spacing(mut self, gap: f32, radius: f32) -> Self {
@@ -181,8 +204,19 @@ pub struct ChromeTiles {
     slots: Vec<FxSlot>,
     /// Per slot drawn: its instance and its range of `layers`.
     sites: Vec<(u32, Range<usize>)>,
-    /// One grid's cells at this frame's clock.
-    cells: Vec<TileLevel>,
+    /// The dot grids' simulations, by mark.
+    sims: Vec<(u32, Sim)>,
+    /// This frame's dot fields: per slot drawn, its instance and its field.
+    fields: Vec<(u32, Field)>,
+    painter: Option<(DeviceKey, DotPainter)>,
+    /// This frame's step, seconds; `None` stands the dots still.
+    step: Option<f32>,
+}
+
+/// A dot grid's state across frames.
+enum Sim {
+    Chart(ChartDots),
+    Braid(Box<Braid>),
 }
 
 impl ChromeTiles {
@@ -222,7 +256,10 @@ impl ChromeTiles {
             layers: Vec::new(),
             slots: Vec::new(),
             sites: Vec::new(),
-            cells: Vec::new(),
+            sims: Vec::new(),
+            fields: Vec::new(),
+            painter: None,
+            step: None,
         }
     }
 
@@ -247,6 +284,7 @@ impl ChromeTiles {
         self.layers.clear();
         self.slots.clear();
         self.sites.clear();
+        self.fields.clear();
         let t = self.t as f32;
         let rt = &f.rt;
         // An `FxLayer` is about 2 KB: sized to the tiles, not doubled past them, the popover's ~2400 layers hold
@@ -257,6 +295,7 @@ impl ChromeTiles {
             .enumerate()
             .filter(|(_, i)| i.params[1] == KIND_EFFECT)
             .filter_map(|(n, _)| rt.state.tile_grid(rt.marks.get(n).copied().unwrap_or(0)))
+            .filter(|g| g.dots.is_none())
             .map(|g| g.cols * g.rows)
             .sum::<usize>();
         fit(&mut self.layers, tiles);
@@ -272,6 +311,11 @@ impl ChromeTiles {
             if grid.cols == 0 || grid.rows == 0 {
                 continue;
             }
+            if let Some(dots) = &grid.dots {
+                let field = self.light(mark, grid, dots, t);
+                self.fields.push((n as u32, field));
+                continue;
+            }
             // The instance is in device pixels; the layers are in points at the slot's scale.
             let k = i.params[3];
             let [x, y, w, h] = i.rect.map(|v| v / k);
@@ -281,7 +325,6 @@ impl ChromeTiles {
                 continue;
             }
             let slot = FxSlot::default().scale(k).clip(i.clip, i.fade);
-            grid.cells_at(t, &mut self.cells);
             let start = self.layers.len();
             for r in 0..grid.rows {
                 for c in 0..grid.cols {
@@ -293,7 +336,7 @@ impl ChromeTiles {
                         grid.radius,
                     );
                     self.layers.push(self.metals.layer(
-                        level(&self.cells, grid.cols, c, r),
+                        level(&grid.cells, grid.cols, c, r),
                         shape,
                         t,
                     ));
@@ -303,6 +346,89 @@ impl ChromeTiles {
             self.sites.push((n as u32, start..self.layers.len()));
         }
     }
+
+    /// The dots of the grid in slot `mark` at the clock `t`, stepped by this frame's `step`.
+    fn light(&mut self, mark: u32, grid: &TileGrid, dots: &Dots, t: f32) -> Field {
+        let (cols, rows) = (grid.cols, grid.rows);
+        let at = match self.sims.iter().position(|(m, _)| *m == mark) {
+            Some(i) => i,
+            None => {
+                self.sims.push((mark, Sim::Chart(ChartDots::default())));
+                self.sims.len() - 1
+            }
+        };
+        let sim = &mut self.sims[at].1;
+        let mut out = Vec::new();
+        match dots {
+            Dots::Chart {
+                heights,
+                reaches,
+                threshold_row,
+                urgent,
+            } => {
+                if !matches!(sim, Sim::Chart(_)) {
+                    *sim = Sim::Chart(ChartDots::default());
+                }
+                let Sim::Chart(chart) = sim else {
+                    unreachable!()
+                };
+                chart.step(
+                    heights,
+                    reaches,
+                    *threshold_row,
+                    *urgent,
+                    cols,
+                    rows,
+                    self.step,
+                    &mut out,
+                );
+                Field {
+                    cols,
+                    rows,
+                    layout: Layout::Fill,
+                    off: CHART_OFF,
+                    dots: out,
+                }
+            }
+            Dots::Braid(wave) => {
+                if !matches!(sim, Sim::Braid(b) if b.cols == cols && b.rows == rows) {
+                    let mut braid = Braid::new(cols, rows, WAVE_PITCH);
+                    braid.settle(t, wave.level);
+                    *sim = Sim::Braid(Box::new(braid));
+                }
+                let Sim::Braid(braid) = sim else {
+                    unreachable!()
+                };
+                match self.step {
+                    Some(dt) => braid.step(t, dt, wave.level),
+                    None => braid.settle(t, wave.level),
+                }
+                out.extend(braid.powers().iter().map(|&power| Dot {
+                    power,
+                    red: wave.urgent,
+                }));
+                Field {
+                    cols,
+                    rows,
+                    layout: Layout::Pitch(WAVE_PITCH),
+                    off: WAVE_OFF,
+                    dots: out,
+                }
+            }
+        }
+    }
+}
+
+/// The dots of a dot grid standing still at `t`, as the compositor draws them in snapshots.
+#[cfg(test)]
+pub(crate) fn still_field(grid: &TileGrid, t: f32) -> Option<Field> {
+    let dots = grid.dots.as_ref()?;
+    Some(ChromeTiles::still_at(t as f64).light(0, grid, dots, t))
+}
+
+/// A palette colour as the shader takes it.
+fn shader_rgb(c: Rgb) -> [f32; 3] {
+    [c.r as f32, c.g as f32, c.b as f32]
 }
 
 impl<S: TileGrids + 'static> Compositor<S> for ChromeTiles {
@@ -320,23 +446,36 @@ impl<S: TileGrids + 'static> Compositor<S> for ChromeTiles {
         self.layers = Vec::new();
         self.slots = Vec::new();
         self.sites = Vec::new();
+        self.painter = None;
     }
 
     fn render(&mut self, f: &mut Frame<'_, S>) {
-        if !self.still(f.rt.clock) {
-            self.t += f.dt.clamp(0.0, MAX_STEP);
-        }
+        self.step = if self.still(f.rt.clock) {
+            None
+        } else {
+            let dt = f.dt.clamp(0.0, MAX_STEP);
+            self.t += dt;
+            Some(dt as f32)
+        };
         self.build(f);
-        self.drew = !self.sites.is_empty();
+        self.drew = !self.sites.is_empty() || !self.fields.is_empty();
         if !self.drew {
             // No grid on screen: Rune's own frame, and no effect renderer kept for nothing.
             self.fx = None;
+            self.painter = None;
             f.draw_ui();
             return;
         }
         let (device, queue, size) = (f.device, f.queue, f.size);
         let device_key = f.device_key();
-        if self
+        if self.fields.is_empty() {
+            self.painter = None;
+        } else if self.painter.as_ref().is_none_or(|(k, _)| *k != device_key) {
+            self.painter = Some((device_key, DotPainter::new(device)));
+        }
+        if self.sites.is_empty() {
+            self.fx = None;
+        } else if self
             .fx
             .as_ref()
             .is_none_or(|c| c.device_key != device_key || c.format != f.format)
@@ -350,32 +489,40 @@ impl<S: TileGrids + 'static> Compositor<S> for ChromeTiles {
                 fx,
             });
         }
-        let Some(cache) = self.fx.as_mut() else {
-            return;
-        };
-        let fx = &mut cache.fx;
-        fx.set_srgb_blend(f.srgb_blend());
-        fx.set_fade_stops(f.fade_stops());
-        fx.prepare_with_slots(
-            device,
-            queue,
-            &FxFrame {
-                viewport: [size.0, size.1],
-                scale: 1.0,
-                layers: &self.layers,
-                backdrop: None,
-                sources: &[],
-            },
-            &self.slots,
-        );
+        let mut fx = self.fx.as_mut().map(|c| &mut c.fx);
+        if let Some(fx) = fx.as_mut() {
+            fx.set_srgb_blend(f.srgb_blend());
+            fx.set_fade_stops(f.fade_stops());
+            fx.prepare_with_slots(
+                device,
+                queue,
+                &FxFrame {
+                    viewport: [size.0, size.1],
+                    scale: 1.0,
+                    layers: &self.layers,
+                    backdrop: None,
+                    sources: &[],
+                },
+                &self.slots,
+            );
+        }
         let clear = f.rt.clear_color();
         f.ui.prepare(device, queue, &mut f.rt.text.atlas, &f.rt.instances, size);
-        let sites = &self.sites;
+        let (sites, fields) = (&self.sites, &self.fields);
+        let mut painter = self.painter.as_mut().map(|(_, p)| p);
+        let colors = (shader_rgb(Palette::INK), shader_rgb(Palette::RED));
         f.ui.draw_with(f.encoder, f.target, clear, &mut |pass, s| {
-            if let Some((_, range)) = sites.iter().find(|(n, _)| *n == s.index) {
+            if let (Some(fx), Some((_, range))) =
+                (fx.as_ref(), sites.iter().find(|(n, _)| *n == s.index))
+            {
                 for k in range.clone() {
                     fx.draw_layer_in(pass, s.format, s.origin, k);
                 }
+            }
+            if let (Some(painter), Some((_, field))) =
+                (painter.as_mut(), fields.iter().find(|(n, _)| *n == s.index))
+            {
+                painter.draw(device, queue, pass, s, field, colors);
             }
         });
     }
@@ -402,33 +549,52 @@ mod tests {
 
     #[test]
     fn grid_reads_row_major_and_pads_missing_cells_off() {
-        let grid = TileGrid::new(
-            2,
-            2,
-            vec![
-                TileLevel::Lit,
-                TileLevel::Off,
-                TileLevel::Red,
-                TileLevel::Lit,
-            ],
-        );
-        let mut cells = Vec::new();
-        grid.cells_at(0.0, &mut cells);
+        let cells = vec![
+            TileLevel::Lit,
+            TileLevel::Off,
+            TileLevel::Red,
+            TileLevel::Lit,
+        ];
         assert_eq!(level(&cells, 2, 0, 1), TileLevel::Red);
         assert_eq!(level(&cells, 2, 1, 0), TileLevel::Off);
         assert_eq!(level(&cells, 2, 5, 5), TileLevel::Off);
     }
 
     #[test]
-    fn a_wave_sways_with_the_clock() {
-        let grid = TileGrid::wave(16, 5, Wave { urgent: true });
-        let (mut a, mut b) = (Vec::new(), Vec::new());
-        grid.cells_at(0.0, &mut a);
-        grid.cells_at(0.7, &mut b);
-        assert_eq!(a.len(), 80);
-        assert_ne!(a, b, "moves with t");
-        assert!(a.contains(&TileLevel::Red) && !a.contains(&TileLevel::Lit));
-        assert_eq!(a, grids::island_wave_grid(0.0, true, 16, 5));
+    fn a_wave_is_a_braid_of_dots() {
+        let wave = Wave {
+            urgent: true,
+            level: 0.4,
+        };
+        let grid = TileGrid::wave(40, 9, wave);
+        assert_eq!(grid.dots, Some(Dots::Braid(wave)));
+        let mut tiles = ChromeTiles::still_at(1.0);
+        let field = tiles.light(1, &grid, grid.dots.as_ref().unwrap(), 1.0);
+        assert_eq!(field.dots.len(), 360);
+        assert_eq!(field.layout, Layout::Pitch(WAVE_PITCH));
+        assert!(field.dots.iter().all(|d| d.red));
+        assert!(field.dots.iter().any(|d| d.power > 0.5));
+    }
+
+    #[test]
+    fn chart_dots_keep_a_tail_while_moving_and_none_when_still() {
+        let chart = |h: f64| Dots::Chart {
+            heights: vec![h; 4],
+            reaches: vec![false; 4],
+            threshold_row: 2,
+            urgent: false,
+        };
+        let grid = |h| TileGrid::chart(4, 10, vec![TileLevel::Off; 40], chart(h));
+        let mut tiles = ChromeTiles::still_at(0.0);
+        tiles.step = Some(0.016);
+        let high = grid(10.0);
+        tiles.light(1, &high, high.dots.as_ref().unwrap(), 0.0);
+        let low = grid(1.0);
+        let fading = tiles.light(1, &low, low.dots.as_ref().unwrap(), 0.0);
+        assert!(fading.dots[0].power > 0.3, "the top dot fades");
+        tiles.step = None;
+        let still = tiles.light(1, &low, low.dots.as_ref().unwrap(), 0.0);
+        assert_eq!(still.dots[0].power, 0.0);
     }
 
     #[test]

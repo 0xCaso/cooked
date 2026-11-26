@@ -1,4 +1,4 @@
-//! Tokens per minute: the one big number, the alert line, the histogram in 72 x 26 chrome tiles (red above the
+//! Tokens per minute: the one big number, the alert line, the histogram in 72 x 26 soft dots (red above the
 //! threshold row, all red in urgency) and the chart's ranges.
 
 use cooked_model::histogram_clock::{ChartRange, MinuteHistory};
@@ -11,9 +11,9 @@ use rune::{Color, Cursor, El, Shadow, col, el, row, text};
 use super::{CARD_RADIUS, HISTOGRAM_MARK, Popover, WELL_RADIUS};
 use crate::island::Prefs;
 use crate::theme::{Motion, Palette, Rgb, TextStyle, card, well};
-use crate::tiles::{TileGrid, tile_slot};
+use crate::tiles::{Dots, TileGrid, tile_slot};
 
-/// The histogram's tiles.
+/// The histogram's dots.
 pub const COLS: usize = 72;
 pub const ROWS: usize = 26;
 /// The histogram's well: 150 pt tall, 8 pt around the tiles, near black.
@@ -22,7 +22,7 @@ const WELL_PADDING: f32 = 8.0;
 const WELL_FILL: u32 = 0x050505;
 
 /// The histogram for `range` of the chart's minutes at chart time `t`: the liquid (`TideHistogram`, lively at
-/// 10 minutes, calm on the longer ranges) on the tiles, with lines between minutes where one spans two columns or
+/// 10 minutes, calm on the longer ranges) on the dots, its surface as drawn (`shown_heights`), with lines between minutes where one spans two columns or
 /// more, so the chart moves at 60 fps column by column (DESIGN.md) instead of in one-minute steps. `still`: the
 /// liquid stands at its targets (Reduce Motion, scenes). `urgent`: an account fills before its reset, and the whole
 /// liquid is red, as the pill's "full HH:MM".
@@ -52,10 +52,16 @@ pub fn histogram(
             *c = TileLevel::Red;
         }
     }
-    TileGrid::new(COLS, ROWS, cells)
+    let dots = Dots::Chart {
+        heights: tide.shown_heights().to_vec(),
+        reaches: tide.reaches().to_vec(),
+        threshold_row: tide.threshold_row(),
+        urgent,
+    };
+    TileGrid::chart(COLS, ROWS, cells, dots)
 }
 
-/// The popover's liquid, on the histogram's tiles.
+/// The popover's liquid, on the histogram's dots.
 pub fn tide() -> TideHistogram {
     TideHistogram::sized(COLS, ROWS, true)
 }

@@ -24,6 +24,7 @@ pub mod position_store;
 pub mod session_format;
 pub mod settings;
 pub mod setup_model;
+pub mod soft_dots;
 pub mod status_file;
 pub mod status_line_bridge;
 pub mod status_line_setup;

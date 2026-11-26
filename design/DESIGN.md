@@ -57,9 +57,12 @@ The look takes the pill and the 3D settings of the hex app as a reference
 - **Motion.** The wave drifts slowly and the current minute grows: it is the data that moves, not a decoration. A
   single 60 fps cycle, continuous dot brightness; at the end of the minute each column moves to its neighbor's value
   on a 0.5 s spring, and the dots stay on the grid.
-- **Exception for chrome tiles (2026-11-24, Rune look).** The lit dots may be small chrome tiles whose liquid
-  metal moves slowly (red metal above the threshold). It is the only moving surface that is not data; Reduce Motion
-  stops it. Numbers stay text, never tiles.
+- **Soft dots (2026-11-26, after Hex's Dot scope).** The histogram and the island wave are round soft dots on a fixed
+  grid; a dot's size and light follow its value, and a lit dot has a small white core. The chart lights its dots from
+  the liquid's surface: brightest at the surface, dimmer deeper down, and the edge moves smoothly, not row by row. The
+  island wave (40 x 9 dots, 2.6 pt pitch) is a braid of two traces that widens with the rate and turns red in urgency.
+  Both keep a 0.6 s phosphor tail, so a dot fades out instead of switching off; Reduce Motion stands them still. The
+  account bars stay chrome tiles (2026-11-24, Rune look). Numbers stay text, never dots.
 - **Sober matrix:** dots only in the charts (equalizer, histogram, account bars). Numbers and text are text.
 - **Surfaces sit on top, data sits inside.** The island and the cards are raised (`#161616`, two soft shadows, 0.5 px
   hairline at 16%, top hairline at 6%). The wave, the histogram and the account bars sit in recessed wells (gradient

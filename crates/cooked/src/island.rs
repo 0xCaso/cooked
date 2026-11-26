@@ -1,5 +1,5 @@
-//! The island under the menu bar, in the "B · Chrome tiles" look: one 290 x 40 pt glass capsule with the wave (16 x 5
-//! chrome tiles) in a well, the active account's 5-hour % left in a well, the account and the rate. In urgency it keeps
+//! The island under the menu bar: one 290 x 40 pt glass capsule with the wave (a braid of 40 x 9 soft dots,
+//! decision 2026-11-26) in a well, the active account's 5-hour % left in a well, the account and the rate. In urgency it keeps
 //! its shape: the percentage, the hairline and the wave turn red.
 //!
 //! A tap toggles the popover (`popover`), a drag past 3 pt moves the island and saves `islandPosition`, a right-click
@@ -50,12 +50,12 @@ pub const WINDOW: (f32, f32) = (
     ISLAND.1 + 2.0 * OVERHANG as f32,
 );
 /// The island wave's tiles.
-const WAVE: (usize, usize) = (16, 5);
+const WAVE: (usize, usize) = (40, 9);
 pub(crate) const WAVE_MARK: u32 = 1;
 /// The wave well's width, the same with any account name: a long name gets the room left and is cut.
 const WAVE_WIDTH: f32 = 112.0;
-/// Between the wave's tiles: with the well's 9 x 4 padding, tiles of ~4.75 x 3.44 pt.
-const WAVE_GAP: f32 = 1.2;
+/// The wave well's side padding: room for the braid's 40 dots at 2.6 pt.
+const WAVE_PADDING: f32 = 4.0;
 /// Checks in a row that must find the menu bar item hidden before the island shows in its place.
 const HIDDEN_CHECKS: u8 = 2;
 /// Past this many points a press is a drag, not a tap.
@@ -150,11 +150,19 @@ impl Island {
     /// The wave for the model's urgency; it sways in the compositor.
     pub fn refresh_wave(&mut self) {
         let (cols, rows) = WAVE;
-        let wave = Wave {
-            urgent: self.model.borrow().snapshot.is_urgent(),
+        let wave = {
+            let snapshot = &self.model.borrow().snapshot;
+            let threshold = snapshot.threshold as f32;
+            Wave {
+                urgent: snapshot.is_urgent(),
+                level: if threshold > 0.0 {
+                    (snapshot.rate_now as f32 / threshold).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                },
+            }
         };
-        // tiles rounded at 0.28 of their short side
-        self.wave = TileGrid::wave(cols, rows, wave).spacing(WAVE_GAP, 0.95);
+        self.wave = TileGrid::wave(cols, rows, wave);
         self.refresh_status_item();
     }
 
@@ -716,7 +724,7 @@ fn content(s: &Island) -> El {
             .h(30.0)
             .w(WAVE_WIDTH)
             .min_w(WAVE_WIDTH)
-            .px(9.0)
+            .px(WAVE_PADDING)
             .py(4.0)
             .child(tile_slot(WAVE_MARK).key("tiles").w_full().h_full()),
         15.0,
@@ -924,8 +932,13 @@ mod tests {
     fn urgent_wave_is_red() {
         let calm = island(Feed::DemoCalm);
         let peak = island(Feed::DemoPeak);
-        let (c, p) = (calm.wave.wave.unwrap(), peak.wave.wave.unwrap());
+        let braid = |s: &Island| match &s.wave.dots {
+            Some(tiles::Dots::Braid(w)) => *w,
+            other => panic!("{other:?}"),
+        };
+        let (c, p) = (braid(&calm), braid(&peak));
         assert!(!c.urgent && p.urgent);
+        assert!(p.level > c.level, "the peak's rate swings the braid wider");
         assert_eq!((peak.wave.cols, peak.wave.rows), WAVE);
     }
 
@@ -948,7 +961,7 @@ mod tests {
         let mut s = island(Feed::DemoCalm);
         assert_eq!(s.menu_pick("feed:demoPeak"), MenuAction::None);
         assert_eq!(s.model.borrow().feed(), Feed::DemoPeak);
-        assert!(s.wave.wave.unwrap().urgent);
+        assert!(matches!(s.wave.dots, Some(tiles::Dots::Braid(w)) if w.urgent));
         s.menu_pick("glass:clear");
         assert_eq!(s.model.borrow().glass_style(), GlassStyle::Clear);
         s.menu_pick("show:menuBar");
@@ -1324,10 +1337,9 @@ mod tests {
         assert_eq!(field(&t, "rate", "text"), "184k");
         assert_eq!(field(&t, "rate-unit", "text"), "/min");
         assert_eq!(field(&t, "rate-unit", "color"), "#f4f1ea8c");
-        // the wave well, ~4.75 pt tiles
+        // the wave well holds the braid's 40 dots at 2.6 pt
         assert_eq!(width(&t, "wave"), WAVE_WIDTH as f64);
-        let tile = (width(&t, "tiles") - 15.0 * WAVE_GAP as f64) / 16.0;
-        assert!((tile - 4.75).abs() < 0.05, "tile width {tile}");
+        assert!(width(&t, "tiles") >= 39.0 * tiles::WAVE_PITCH as f64 + 2.6);
         assert_eq!(width(&t, "island"), ISLAND.0 as f64);
     }
 }
