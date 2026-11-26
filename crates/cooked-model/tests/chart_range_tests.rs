@@ -71,3 +71,34 @@ fn the_range_is_kept_across_launches() {
         ChartRange::FourHours
     );
 }
+
+#[test]
+fn a_long_range_of_bursts_fills_the_chart_like_a_short_one() {
+    // bursts: one busy minute in every four, so a day's columns (~17 minutes each) average a quarter of a burst
+    let day: Vec<f64> = (0..1440)
+        .map(|i| if i % 4 == 0 { 80_000.0 } else { 0.0 })
+        .collect();
+    let threshold = 10_000.0;
+    let history = MinuteHistory {
+        values: day,
+        top: MinuteHistory::top(&[80_000.0], threshold),
+        threshold,
+    };
+    let (cols, rows) = (84, 24);
+    let tallest = |minutes: usize| {
+        let w = history.window(minutes);
+        let top = TideScale::top(&w.values, cols, threshold);
+        TideScale::targets(&w.values, cols, rows, top)
+            .into_iter()
+            .fold(0.0, f64::max)
+    };
+    // the day's tallest column reaches the top, as the 10 minutes' does
+    assert!(tallest(1440) > rows as f64 - 0.5, "{}", tallest(1440));
+    assert!(tallest(10) > rows as f64 - 0.5, "{}", tallest(10));
+}
+
+#[test]
+fn the_scale_never_drops_below_the_threshold_floor() {
+    assert_eq!(TideScale::top(&[100.0; 60], 84, 1000.0), 1600.0);
+    assert_eq!(TideScale::top(&[], 84, 1000.0), 1600.0);
+}

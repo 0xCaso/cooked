@@ -34,8 +34,9 @@ pub fn histogram_grid(
 /// `histogram_grid` for a history already cut to its range (a `LiveHistogram` or demo clock frame), standing
 /// still: each column at its target (`TideScale::fine_targets`).
 pub fn history_grid(history: &MinuteHistory, cols: usize, rows: usize) -> Vec<TileLevel> {
-    let heights = TideScale::fine_targets(&history.values, cols, rows, history.top);
-    let threshold_row = TideScale::threshold_row(rows, history.threshold, history.top);
+    let top = TideScale::top(&history.values, cols, history.threshold);
+    let heights = TideScale::fine_targets(&history.values, cols, rows, top);
+    let threshold_row = TideScale::threshold_row(rows, history.threshold, top);
     let line = (rows - threshold_row) as f64;
     let reaches: Vec<bool> = heights.iter().map(|h| *h > line).collect();
     surface_grid(&heights, &reaches, threshold_row, cols, rows)

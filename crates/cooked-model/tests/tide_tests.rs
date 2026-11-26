@@ -483,3 +483,37 @@ fn still_surface_tiles_round_to_the_nearest_row() {
     let rounded: Vec<f64> = tide.shown_heights().iter().map(|h| h.round()).collect();
     assert_eq!(tide.lit_rows(), rounded.as_slice());
 }
+
+#[test]
+fn a_new_range_reaches_its_shape_in_a_quarter_second() {
+    let short = MinuteHistory {
+        values: (0..10).map(|i| i as f64 * 1000.0).collect(),
+        top: 16_000.0,
+        threshold: 10_000.0,
+    };
+    let long = MinuteHistory {
+        values: (0..60).map(|i| (60 - i) as f64 * 1000.0).collect(),
+        top: 96_000.0,
+        threshold: 10_000.0,
+    };
+    let mut tide = TideHistogram::sized(72, 26, true);
+    tide.surface(&short, 0.0, true, Motion::CALM);
+    for frame in 1..=60 {
+        tide.surface(&short, frame as f64 / 60.0, false, Motion::CALM);
+    }
+    assert!(!tide.switching());
+    let start = 1.0 + 1.0 / 60.0;
+    tide.surface(&long, start, false, Motion::CALM);
+    assert!(tide.switching());
+    let mut t = start;
+    while t < start + TideHistogram::SWITCH + 1.0 / 60.0 {
+        t += 1.0 / 60.0;
+        tide.surface(&long, t, false, Motion::CALM);
+    }
+    assert!(!tide.switching());
+    let top = TideScale::top(&long.values, 72, long.threshold);
+    let target = TideScale::fine_targets(&long.values, 72, 26, top);
+    for (h, want) in tide.shown_heights().iter().zip(&target) {
+        assert!((h - want).abs() < 0.05, "{h} vs {want}");
+    }
+}

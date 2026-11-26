@@ -57,6 +57,7 @@ pub fn histogram(
         reaches: tide.reaches().to_vec(),
         threshold_row: tide.threshold_row(),
         urgent,
+        switching: tide.switching(),
     };
     TileGrid::chart(COLS, ROWS, cells, dots)
 }

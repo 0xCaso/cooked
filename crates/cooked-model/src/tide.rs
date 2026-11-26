@@ -96,24 +96,40 @@ impl TideScale {
     /// Minutes → column heights in rows. Each column shows the average of the minutes it covers, weighted by
     /// overlap, so a single minute is as wide on screen as it is in time. Never below 0.4 rows: the floor is wet.
     pub fn targets(minutes: &[f64], cols: usize, rows: usize, top: f64) -> Vec<f64> {
-        let n = minutes.len();
-        if n == 0 {
+        if minutes.is_empty() {
             return vec![0.4; cols];
         }
-        let span = n as f64 / cols as f64;
-        (0..cols)
-            .map(|c| {
-                let a = c as f64 * span;
-                let b = a + span;
-                let mut sum = 0.0;
-                let mut m = a as usize;
-                while (m as f64) < b && m < n {
-                    sum += minutes[m] * (b.min((m + 1) as f64) - a.max(m as f64));
-                    m += 1;
-                }
-                (Self::y(sum / span, top) * rows as f64).max(0.4)
-            })
+        Self::columns(minutes, cols)
+            .map(|v| (Self::y(v, top) * rows as f64).max(0.4))
             .collect()
+    }
+
+    /// Each column's average of the minutes it covers, weighted by overlap.
+    fn columns(minutes: &[f64], cols: usize) -> impl Iterator<Item = f64> + '_ {
+        let n = minutes.len();
+        let span = n as f64 / cols as f64;
+        (0..cols).map(move |c| {
+            let a = c as f64 * span;
+            let b = a + span;
+            let mut sum = 0.0;
+            let mut m = a as usize;
+            while (m as f64) < b && m < n {
+                sum += minutes[m] * (b.min((m + 1) as f64) - a.max(m as f64));
+                m += 1;
+            }
+            sum / span
+        })
+    }
+
+    /// The scale's top for `minutes` drawn on `cols` columns: the highest column as drawn, not the highest minute,
+    /// so a long range whose columns average many minutes fills the chart like a short one. Never below 1.6 x the
+    /// threshold (`MinuteHistory::top`).
+    pub fn top(minutes: &[f64], cols: usize, threshold: f64) -> f64 {
+        if minutes.is_empty() {
+            return MinuteHistory::top(minutes, threshold);
+        }
+        let highest = Self::columns(minutes, cols).fold(0.0, f64::max);
+        MinuteHistory::top(&[highest], threshold)
     }
 }
 
@@ -394,6 +410,10 @@ pub struct TideHistogram {
     /// Per column, whether its real value is over the threshold row.
     reaches: Vec<bool>,
     lit_rows: Vec<f64>,
+    /// How many minutes the last surface showed: a change is a new range.
+    minutes: usize,
+    /// A range change under way: when it started and the surface it leaves.
+    switch: Option<(f64, Vec<f64>)>,
 }
 
 impl Default for TideHistogram {
@@ -439,7 +459,17 @@ impl TideHistogram {
             shown_heights: vec![0.0; cols],
             reaches: vec![false; cols],
             lit_rows: vec![0.0; cols],
+            minutes: 0,
+            switch: None,
         }
+    }
+
+    /// How long the surface takes to reach a new range's shape, seconds: the springs alone take over a second.
+    pub const SWITCH: f64 = 0.25;
+
+    /// Whether the surface is moving to a new range's shape.
+    pub fn switching(&self) -> bool {
+        self.switch.is_some()
     }
 
     pub fn threshold_row(&self) -> usize {
@@ -512,18 +542,39 @@ impl TideHistogram {
         let recent = &history.values[history.values.len().saturating_sub(3)..];
         let rate = recent.iter().sum::<f64>() / recent.len().max(1) as f64;
         self.level = TideIsland::level(rate, history.threshold);
+        let top = TideScale::top(&history.values, cols, history.threshold);
         self.target = if self.fine {
-            TideScale::fine_targets(&history.values, cols, rows, history.top)
+            TideScale::fine_targets(&history.values, cols, rows, top)
         } else {
-            TideScale::targets(&history.values, cols, rows, history.top)
+            TideScale::targets(&history.values, cols, rows, top)
         };
-        self.threshold_row = TideScale::threshold_row(rows, history.threshold, history.top);
+        self.threshold_row = TideScale::threshold_row(rows, history.threshold, top);
         let settled = still || !self.primed;
+        let new_range = self.minutes != history.values.len();
+        self.minutes = history.values.len();
+        if new_range && !settled {
+            self.switch = Some((t, self.water.height.clone()));
+        }
         if settled {
+            self.switch = None;
             self.water.height = self.target.clone();
             self.water.velocity = vec![0.0; cols];
             self.ripple = Water::new(cols, self.ripple.k, self.ripple.c, self.ripple.d, 0.0);
             self.primed = true;
+            self.stepper.advance(t, |_| {});
+        } else if let Some((start, from)) = &self.switch {
+            // a new range: the surface eases to its shape in `SWITCH`, without springs or ripples
+            let p = ((t - start) / Self::SWITCH).clamp(0.0, 1.0);
+            let eased = 1.0 - (1.0 - p).powi(3);
+            for (c, h) in self.water.height.iter_mut().enumerate() {
+                let a = from.get(c).copied().unwrap_or(self.target[c]);
+                *h = a + (self.target[c] - a) * eased;
+            }
+            self.water.velocity = vec![0.0; cols];
+            self.ripple = Water::new(cols, self.ripple.k, self.ripple.c, self.ripple.d, 0.0);
+            if p >= 1.0 {
+                self.switch = None;
+            }
             self.stepper.advance(t, |_| {});
         } else {
             let mut stepper = self.stepper;

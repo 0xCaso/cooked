@@ -19,6 +19,8 @@ use std::f32::consts::TAU;
 
 /// How long a dot's light takes to fall to 1/e once nothing lights it, seconds.
 pub const TAIL: f32 = 0.6;
+/// The chart's tail while it moves to a new range: the old range's dots go at once.
+pub const SWITCH_TAIL: f32 = 0.06;
 /// The braid's bright head fades faster than its tail, seconds.
 pub const HEAD: f32 = 0.15;
 
@@ -44,6 +46,8 @@ pub fn chart_light(height: f64, row: usize) -> f32 {
 #[derive(Debug, Clone, Default)]
 pub struct ChartDots {
     glow: Vec<f32>,
+    /// The chart is moving to a new range: `SWITCH_TAIL` instead of `TAIL`.
+    pub switching: bool,
 }
 
 impl ChartDots {
@@ -66,7 +70,8 @@ impl ChartDots {
         if self.glow.len() != n {
             self.glow = vec![0.0; n];
         }
-        let keep = dt.map_or(0.0, |dt| (-dt.max(0.0) / TAIL).exp());
+        let tail = if self.switching { SWITCH_TAIL } else { TAIL };
+        let keep = dt.map_or(0.0, |dt| (-dt.max(0.0) / tail).exp());
         out.clear();
         out.resize(n, Dot::default());
         for c in 0..cols {
@@ -309,6 +314,34 @@ mod tests {
         assert!(surface > deep, "{surface} {deep}");
         assert!(deep >= 0.3, "deep dots stay visible: {deep}");
         assert!(surface <= 1.0);
+    }
+
+    #[test]
+    fn a_new_range_drops_the_old_dots_at_once() {
+        let (cols, rows) = (2, 10);
+        let fade = |switching: bool| {
+            let mut dots = ChartDots {
+                switching,
+                ..ChartDots::default()
+            };
+            let mut out = Vec::new();
+            let none = [false, false];
+            dots.step(&[8.0, 8.0], &none, 3, false, cols, rows, None, &mut out);
+            dots.step(
+                &[2.0, 2.0],
+                &none,
+                3,
+                false,
+                cols,
+                rows,
+                Some(0.25),
+                &mut out,
+            );
+            out[3 * cols].power
+        };
+        // a quarter second after the switch the old surface is gone; within a range it still glows
+        assert!(fade(true) < 0.05, "{}", fade(true));
+        assert!(fade(false) > 0.3, "{}", fade(false));
     }
 
     #[test]

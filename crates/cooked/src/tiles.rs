@@ -53,12 +53,13 @@ pub struct TileGrid {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Dots {
     /// The chart: column heights in rows (fractional), the columns that reach the threshold, the threshold row from
-    /// the top, and urgency (every dot red).
+    /// the top, urgency (every dot red), and whether it is moving to a new range (a short tail).
     Chart {
         heights: Vec<f64>,
         reaches: Vec<bool>,
         threshold_row: usize,
         urgent: bool,
+        switching: bool,
     },
     /// The island wave (`cooked_model::soft_dots::Braid`).
     Braid(Wave),
@@ -365,6 +366,7 @@ impl ChromeTiles {
                 reaches,
                 threshold_row,
                 urgent,
+                switching,
             } => {
                 if !matches!(sim, Sim::Chart(_)) {
                     *sim = Sim::Chart(ChartDots::default());
@@ -372,6 +374,7 @@ impl ChromeTiles {
                 let Sim::Chart(chart) = sim else {
                     unreachable!()
                 };
+                chart.switching = *switching;
                 chart.step(
                     heights,
                     reaches,
@@ -583,6 +586,7 @@ mod tests {
             reaches: vec![false; 4],
             threshold_row: 2,
             urgent: false,
+            switching: false,
         };
         let grid = |h| TileGrid::chart(4, 10, vec![TileLevel::Off; 40], chart(h));
         let mut tiles = ChromeTiles::still_at(0.0);
