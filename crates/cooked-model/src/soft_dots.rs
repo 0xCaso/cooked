@@ -46,6 +46,8 @@ pub fn chart_light(height: f64, row: usize) -> f32 {
 #[derive(Debug, Clone, Default)]
 pub struct ChartDots {
     glow: Vec<f32>,
+    /// Each dot's colour when its light was last set: a fading dot keeps it.
+    red: Vec<bool>,
     /// The chart is moving to a new range: `SWITCH_TAIL` instead of `TAIL`.
     pub switching: bool,
 }
@@ -53,7 +55,7 @@ pub struct ChartDots {
 impl ChartDots {
     /// The dots for column heights `heights` (rows, fractional) after `dt` seconds; `dt` of `None` stands still (no
     /// tail: each dot at its light). Red: every lit dot when `urgent`, else the dots above `threshold_row` (rows from
-    /// the top) in the columns that `reaches`.
+    /// the top) in the columns that `reaches`; a fading dot keeps the colour it was lit with.
     #[allow(clippy::too_many_arguments)]
     pub fn step(
         &mut self,
@@ -69,6 +71,7 @@ impl ChartDots {
         let n = cols * rows;
         if self.glow.len() != n {
             self.glow = vec![0.0; n];
+            self.red = vec![false; n];
         }
         let tail = if self.switching { SWITCH_TAIL } else { TAIL };
         let keep = dt.map_or(0.0, |dt| (-dt.max(0.0) / tail).exp());
@@ -80,10 +83,16 @@ impl ChartDots {
             for r in 0..rows {
                 let i = r * cols + c;
                 let light = chart_light(h, rows - 1 - r);
-                self.glow[i] = light.max(self.glow[i] * keep);
+                let fading = self.glow[i] * keep;
+                if light >= fading {
+                    self.glow[i] = light;
+                    self.red[i] = urgent || (over && r < threshold_row);
+                } else {
+                    self.glow[i] = fading;
+                }
                 out[i] = Dot {
                     power: self.glow[i],
-                    red: urgent || (over && r < threshold_row),
+                    red: self.red[i],
                 };
             }
         }
@@ -342,6 +351,20 @@ mod tests {
         // a quarter second after the switch the old surface is gone; within a range it still glows
         assert!(fade(true) < 0.05, "{}", fade(true));
         assert!(fade(false) > 0.3, "{}", fade(false));
+    }
+
+    #[test]
+    fn a_fading_dot_keeps_the_colour_it_was_lit_with() {
+        let (cols, rows) = (1, 10);
+        let mut dots = ChartDots::default();
+        let mut out = Vec::new();
+        // a column over the threshold: its top dots red
+        dots.step(&[10.0], &[true], 3, false, cols, rows, None, &mut out);
+        assert!(out[0].red);
+        // it drops under the threshold: the top dot fades, still red, while the dots it now lights are white
+        dots.step(&[2.0], &[false], 3, false, cols, rows, Some(0.1), &mut out);
+        assert!(out[0].power > 0.3 && out[0].red, "{:?}", out[0]);
+        assert!(!out[rows - 1].red, "{:?}", out[rows - 1]);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 //! How well the lit soft dots read on their well. Each scene is rendered headless at `snaps::SNAP_T`; for every dot lit
-//! past `LIT`, the mean luminance of its centre (2 x 2 device px) is set against the well's fill with WCAG's
+//! past `LIT`, the mean luminance of its coloured ring (the device px between its white core and its edge) is set against the well's fill with WCAG's
 //! `contrast_ratio`. The tests print the minimum per colour and hold it to the floors below, set on the chrome-tile
 //! look (its mins less ~0.05) and kept for the soft dots, which clear them.
 //!
@@ -85,7 +85,7 @@ fn slot(tree: &serde_json::Value, path: &str) -> ([f64; 4], Rgb) {
     ([rect[0], rect[1], rect[2], rect[3]], Rgb::hex(hex))
 }
 
-/// One lit dot's centre: its contrast on the well and its mean colour (0...255).
+/// One lit dot's ring: its contrast on the well and its mean colour (0...255).
 #[derive(Debug, Clone, Copy)]
 struct Face {
     level: TileLevel,
@@ -108,13 +108,18 @@ fn faces(r: &Render, grid: &TileGrid, rect: [f64; 4], well: Rgb) -> Vec<Face> {
     let field = tiles::still_field(grid, SNAP_T as f32).expect("a dot grid");
     let [x, y, w, h] = rect;
     let (cols, rows) = (field.cols as f64, field.rows as f64);
-    let (step, first) = match field.layout {
-        Layout::Fill => ([w / cols, h / rows], [w / cols / 2.0, h / rows / 2.0]),
+    let (step, first, size) = match field.layout {
+        Layout::Fill => (
+            [w / cols, h / rows],
+            [w / cols / 2.0, h / rows / 2.0],
+            (w / cols).min(h / rows),
+        ),
         Layout::Pitch(p) => {
             let p = p as f64;
             (
                 [p, p],
                 [(w - (cols - 1.0) * p) / 2.0, (h - (rows - 1.0) * p) / 2.0],
+                p,
             )
         }
     };
@@ -124,11 +129,20 @@ fn faces(r: &Render, grid: &TileGrid, rect: [f64; 4], well: Rgb) -> Vec<Face> {
             continue;
         }
         let (c, row) = ((i % field.cols) as f64, (i / field.cols) as f64);
-        let cx = ((x + first[0] + c * step[0]) * scale).round() as usize;
-        let cy = ((y + first[1] + row * step[1]) * scale).round() as usize;
+        let (cx, cy) = (
+            (x + first[0] + c * step[0]) * scale,
+            (y + first[1] + row * step[1]) * scale,
+        );
+        // the dot's coloured ring, device px: past the white core, inside the antialiased edge (`dots.wgsl`)
+        let radius = (0.25 + 0.17 * (dot.power as f64).powf(0.6)) * size * scale;
+        let (inner, outer) = (0.55 * radius + 0.25, radius - 0.25);
         let (mut lum, mut sum, mut n) = (0.0, [0.0; 3], 0.0);
-        for py in cy - 1..=cy {
-            for px in cx - 1..=cx {
+        for py in (cy - radius).floor() as usize..=(cy + radius).ceil() as usize {
+            for px in (cx - radius).floor() as usize..=(cx + radius).ceil() as usize {
+                let d = (px as f64 + 0.5 - cx).hypot(py as f64 + 0.5 - cy);
+                if d < inner || d > outer {
+                    continue;
+                }
                 let k = (py * r.width + px) * 4;
                 let p = &r.pixels[k..k + 3];
                 lum += relative_luminance(Rgb::new(
@@ -142,6 +156,7 @@ fn faces(r: &Render, grid: &TileGrid, rect: [f64; 4], well: Rgb) -> Vec<Face> {
                 n += 1.0;
             }
         }
+        assert!(n > 0.0, "dot {c},{row} has no ring pixels");
         let grey = srgb(lum / n);
         out.push(Face {
             level: if dot.red {
@@ -190,14 +205,34 @@ fn report(scene: &str, faces: &[Face]) -> (f64, f64) {
     (mins[0], mins[1])
 }
 
+/// The histogram's lit dots in popover `scene` for `feed`.
+fn histogram_faces(scene: &str, feed: Feed) -> Vec<Face> {
+    let r = render(popover::scenes::app, scene);
+    let (rect, well) = slot(&r.tree, "root/popover/tint/veil/body/tpm/histogram/tiles");
+    let p = popover::scenes::popover(feed);
+    let grid = p.tile_grid(popover::HISTOGRAM_MARK).expect("histogram");
+    faces(&r, grid, rect, well)
+}
+
+fn count(faces: &[Face], level: TileLevel) -> usize {
+    faces.iter().filter(|f| f.level == level).count()
+}
+
+#[test]
+fn popover_calm_dots_read_on_their_well() {
+    let faces = histogram_faces("popover-calm", Feed::DemoCalm);
+    assert!(count(&faces, TileLevel::Lit) > 0, "no white dot measured");
+    let (chrome, _) = report("popover-calm", &faces);
+    assert!(
+        chrome >= CHROME_FLOOR,
+        "chrome {chrome:.2} < {CHROME_FLOOR}"
+    );
+}
+
 #[test]
 fn popover_peak_dots_read_on_their_well() {
-    let r = render(popover::scenes::app, "popover-peak");
-    let (rect, well) = slot(&r.tree, "root/popover/tint/veil/body/tpm/histogram/tiles");
-    let p = popover::scenes::popover(Feed::DemoPeak);
-    let grid = p.tile_grid(popover::HISTOGRAM_MARK).expect("histogram");
-    let faces = faces(&r, grid, rect, well);
-    assert!(faces.iter().any(|f| f.level == TileLevel::Red));
+    let faces = histogram_faces("popover-peak", Feed::DemoPeak);
+    assert!(count(&faces, TileLevel::Red) > 0, "no red dot measured");
     let (chrome, red) = report("popover-peak", &faces);
     assert!(
         chrome >= CHROME_FLOOR,
@@ -217,7 +252,12 @@ fn island_urgent_dots_read_on_their_well() {
     s.select_feed(Feed::DemoPeak);
     let grid = s.tile_grid(island::WAVE_MARK).expect("wave");
     let faces = faces(&r, grid, rect, well);
-    assert!(faces.iter().all(|f| f.level == TileLevel::Red));
+    assert!(count(&faces, TileLevel::Red) > 0, "no red dot measured");
+    assert_eq!(
+        count(&faces, TileLevel::Lit),
+        0,
+        "the urgent wave is all red"
+    );
     let (_, red) = report("island-urgent", &faces);
     assert!(red >= RED_ISLAND_FLOOR, "red {red:.2} < {RED_ISLAND_FLOOR}");
 }
